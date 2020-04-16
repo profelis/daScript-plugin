@@ -1,0 +1,77 @@
+{
+	"name": "dascript-plugin",
+	"displayName": "daScript language support",
+	"description": "daScript language support",
+	"author": "Dmitri Granetchi",
+	"license": "MIT",
+	"version": "0.0.5",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/profelis/daScript-plugin"
+	},
+	"publisher": "profelis",
+	"categories": [
+		"Programming Languages",
+		"Linters"
+	],
+	"keywords": [
+		"dascript",
+		"daScript"
+	],
+	"contributors": [
+		"dima.granetchi@gmail.com"
+	],
+	"extensionDependencies": [
+		"eguskov.dascript"
+	],
+	"engines": {
+		"vscode": "^1.33.0"
+	},
+	"activationEvents": [
+		"onLanguage:dascript"
+	],
+	"main": "./client/out/extension",
+	"contributes": {
+		"configuration": {
+			"type": "object",
+			"title": "daScript",
+			"properties": {
+				"dascript.compiler": {
+					"scope": "resource",
+					"type": "string",
+					"default": "daScript",
+					"description": "daScript compiler path"
+				},
+				"dascript.compilerArgs": {
+					"scope": "resource",
+					"type": "array",
+					"default": [
+						"${file}"
+					],
+					"description": "Compiler arguments"
+				},
+				"dascript.projectRoots": {
+					"scope": "resource",
+					"type": "array",
+					"default": [],
+					"description": "Extra project root folders"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"postinstall": "cd client && npm install && cd ../server && npm install && cd .."
+	},
+	"devDependencies": {
+		"@types/mocha": "^5.2.7",
+		"@types/node": "^8.10.60",
+		"tslint": "^5.20.1",
+		"typescript": "^3.8.3"
+	},
+	"dependencies": {
+		"semver": "^7.3.2"
+	}
+}
