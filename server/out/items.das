@@ -51,6 +51,12 @@ let
 
   metaFunc = [[auto "assert"; "verify"; "static_assert"; "concept_assert"; "debug"; "memzero"; "invoke"]]
 
+  langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments"; "heap";
+                       "string_heap"; "stack"; "intern_const_strings"; "intern_strings"; "no_aot"; "aot_prologue"; "plot"; "plot_read_write"; "log";
+                       "log_optimization_passes"; "log_stack"; "log_nodes"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes"; "log_require";
+                       "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style"; "rtti"; "optimize";
+                       "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run"; "max_infer_passes"; "indenting"]]
+
 [unsafe]
 def addItem(var item; var items : Items)
   let key = "{item.desc}{int(item.kind)}"
@@ -207,6 +213,8 @@ def addKeywords(var items : Items)
     addItem([[Item name = it, fullName = it, desc = "type {it}", kind = ItemKind Keyword]], items)
   for it in metaFunc
     addItem([[Item name = it, fullName = it, desc = "{it}(...)", kind = ItemKind Function]], items)
+  for it in langOptions
+    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property]], items)
 
 [export]
 def dumpModule(name : string)

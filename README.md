@@ -2,6 +2,15 @@
 
 Plugin for scripting language [daScript](https://dascript.org/)
 
+## Installation
+
+Install directly from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=profelis.dascript-plugin)
+
+## Features
+
+- Code diagnostics
+- Code completion (limited support)
+
 ## Development
 
 - run `npm install` in this folder. This installs all necessary npm modules in both the client and server folder
@@ -11,3 +20,6 @@ Plugin for scripting language [daScript](https://dascript.org/)
 - Select `Launch Client` from the drop down
 - Run the lauch config
 - If you want to debug the server as well use the launch configuration `Attach to Server`
+
+## Issues
+Run into a bug? Report it [here](https://github.com/profelis/daScript-plugin/issues).
