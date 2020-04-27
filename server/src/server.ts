@@ -177,10 +177,20 @@ function setupArgs(settings: DascriptSettings, path: string): Array<string> {
 	return args
 }
 
+function uriToFile(uri : string) : string {
+	uri = decodeURIComponent(uri)
+	if (!uri.startsWith("file://"))
+		return uri
+	uri = uri.substr(7) // "file://".length
+	if (/\/\w\:/.test(uri.substr(0, 3)))
+		return uri.substr(1);
+	return uri
+}
+
 async function validate(doc: TextDocument): Promise<void> {
 	let uri = doc.uri
 	let settings = await getDocumentSettings(uri)
-	let path = decodeURIComponent(uri.replace("file:///", ""))
+	let path = uriToFile(uri)
 	let args = setupArgs(settings, path)
 
 	connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
@@ -188,26 +198,28 @@ async function validate(doc: TextDocument): Promise<void> {
 		if (err)
 			connection.console.log(err.message)
 		connection.console.log(data)
-
 		var diagnostics: Map<string, Array<Diagnostic>> = new Map()
-		try {
-			let json = JSON.parse(data)
-			let diagnosticsData: Array<any> = json.diagnostics
-			if (diagnosticsData != null) {
-				for (let it of diagnosticsData) {
-					let uri = encodeURIComponent(fixPath(it.uri ?? "", settings))
-					let relatedInformation: Array<any> = it.relatedInformation ?? []
-					for (let info of relatedInformation)
-						if (info.location)
-							info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? "", settings))
-					addToDiagnostics(diagnostics, uri, it)
+		if (data.trim().length > 0)
+		{
+			try {
+				let json = JSON.parse(data)
+				let diagnosticsData: Array<any> = json.diagnostics
+				if (diagnosticsData != null) {
+					for (let it of diagnosticsData) {
+						let uri = encodeURIComponent(fixPath(it.uri ?? "", settings))
+						let relatedInformation: Array<any> = it.relatedInformation ?? []
+						for (let info of relatedInformation)
+							if (info.location)
+								info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? "", settings))
+						addToDiagnostics(diagnostics, uri, it)
+					}
 				}
+			} catch (error) {
+				connection.console.log(error.message)
+				connection.console.log("> fallback to text log parser")
+				diagnostics.clear()
+				validateTextOutput(doc, path, data, settings, diagnostics)
 			}
-		} catch (error) {
-			connection.console.log(error.message)
-			connection.console.log("> fallback to text log parser")
-			diagnostics.clear()
-			validateTextOutput(doc, path, data, settings, diagnostics)
 		}
 
 		let depend: Array<string> = []
