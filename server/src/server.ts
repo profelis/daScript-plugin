@@ -1,5 +1,5 @@
 import {
-	createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, CompletionItemKind
+	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location
 } from 'vscode-languageserver'
 import {
 	execFile
@@ -177,7 +177,7 @@ function setupArgs(settings: DascriptSettings, path: string): Array<string> {
 	return args
 }
 
-function uriToFile(uri : string) : string {
+function uriToFile(uri: string): string {
 	uri = decodeURIComponent(uri)
 	if (!uri.startsWith("file://"))
 		return uri
@@ -187,10 +187,26 @@ function uriToFile(uri : string) : string {
 	return uri
 }
 
+function fixPosition(pos: Position, lineOffset = 0, endOffset = 0): Position {
+	pos = pos ?? Position.create(0, 0)
+	pos.line = Math.max(0, (pos?.line ?? 0) + lineOffset)
+	pos.character = Math.max(0, (pos?.character ?? 0) + endOffset)
+	return pos
+}
+
+function fixRange(range: Range, lineOffset = 1, endOffset = 0): Range {
+	range = range ?? Range.create(0, 0, 0, 0)
+	range.start = fixPosition(range.start, lineOffset)
+	range.end = fixPosition(range.end, lineOffset, endOffset)
+	range.end.line = Math.max(range.start.line, range.end.line - 1)
+	if (range.start.line == range.end.line)
+		range.end.character = Math.max(range.start.character, range.end.character)
+	return range
+}
+
 async function validate(doc: TextDocument): Promise<void> {
-	let uri = doc.uri
-	let settings = await getDocumentSettings(uri)
-	let path = uriToFile(uri)
+	let settings = await getDocumentSettings(doc.uri)
+	let path = uriToFile(doc.uri)
 	let args = setupArgs(settings, path)
 
 	connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
@@ -199,20 +215,25 @@ async function validate(doc: TextDocument): Promise<void> {
 			connection.console.log(err.message)
 		connection.console.log(data)
 		var diagnostics: Map<string, Array<Diagnostic>> = new Map()
-		if (data.trim().length > 0)
-		{
+		if (data.trim().length > 0) {
 			try {
 				let json = JSON.parse(data)
-				let diagnosticsData: Array<any> = json.diagnostics
-				if (diagnosticsData != null) {
-					for (let it of diagnosticsData) {
-						let uri = encodeURIComponent(fixPath(it.uri ?? "", settings))
-						let relatedInformation: Array<any> = it.relatedInformation ?? []
-						for (let info of relatedInformation)
-							if (info.location)
-								info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? "", settings))
-						addToDiagnostics(diagnostics, uri, it)
+				let diagnosticsData: Array<any> = json?.diagnostics ?? []
+				for (let it of diagnosticsData) {
+					let localPath = it.uri || path
+					let uri = encodeURIComponent(fixPath(localPath, settings))
+					let diagnostic = it as Diagnostic
+					if (diagnostic == null || diagnostic.message == null)
+						continue
+					const offset = "tab" in it ? 1 : 0
+					diagnostic.range = fixRange(diagnostic?.range, -offset, offset)
+					let relatedInformation: DiagnosticRelatedInformation[] = diagnostic?.relatedInformation ?? []
+					for (let info of relatedInformation) {
+						info.location = info?.location ?? Location.create(uri, Range.create(0, 0, 0, 0))
+						info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? localPath, settings))
+						info.location.range = fixRange(info.location?.range, -offset, offset)
 					}
+					addToDiagnostics(diagnostics, uri, diagnostic)
 				}
 			} catch (error) {
 				connection.console.log(error.message)
@@ -228,11 +249,11 @@ async function validate(doc: TextDocument): Promise<void> {
 			connection.sendDiagnostics({ diagnostics: fileDiagnostics, uri: file })
 			depend.push(file)
 		}
-		for (const it of (dependencies.get(uri) ?? [])) {
+		for (const it of (dependencies.get(doc.uri) ?? [])) {
 			if (!diagnostics.has(it))
 				connection.sendDiagnostics({ diagnostics: [], uri: it })
 		}
-		dependencies.set(uri, depend)
+		dependencies.set(doc.uri, depend)
 	})
 
 	getCompletion("items.das", settings)
