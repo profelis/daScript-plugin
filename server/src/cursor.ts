@@ -83,6 +83,8 @@ export function variableToString(variable: VariableData): string {
 		res += `: ${variable.type}`
 	if (variable.category)
 		res += ` // ${variable.category}`
+	else
+		res += ` // variable`
 	if (variable.index)
 		res += ` @${variable.index}`
 	if (variable.path.length > 0)

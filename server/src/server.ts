@@ -5,6 +5,7 @@ import { execFile, execFileSync } from 'child_process'
 import { isAbsolute, join } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, isRangeZero } from './lspUtil'
+import { parseJson } from './jsonUtil'
 import { parseCursor, funcToString, callToString, variableToString, CursorData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
@@ -139,6 +140,9 @@ documents.listen(connection)
 connection.listen()
 
 export function fixPath(path: string, settings: DascriptSettings): string {
+	path = path.trim()
+	if (path.length == 0)
+		return path
 	if (isAbsolute(path))
 		return path
 	if (settings.projectRoots) {
@@ -155,13 +159,6 @@ export function fixPath(path: string, settings: DascriptSettings): string {
 				return res
 		}
 	return path
-}
-
-function addToDiagnostics(diagnostics: Map<string, Array<Diagnostic>>, uri: string, diagnostic: Diagnostic) {
-	if (diagnostics.has(uri))
-		diagnostics.get(uri).push(diagnostic)
-	else
-		diagnostics.set(uri, [diagnostic])
 }
 
 function setupArgs(settings: DascriptSettings, path: string): Array<string> {
@@ -185,32 +182,39 @@ async function getCursorData(uri: string, x: number, y: number): Promise<CursorD
 	args.push(x.toString())
 	args.push(y.toString())
 
-	let buffer: string
-	try {
+	return new Promise<CursorData | null>((resolve, _) => {
 		connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
-		buffer = execFileSync(settings.compiler, args).toString()
-
-		const data = JSON.parse(buffer)
-		const res = parseCursor(data, settings)
-		if (!res) {
-			connection.console.log("> parse cursor error")
-			connection.console.log(buffer)
-		}
-		return res
-	}
-	catch (error) {
-		connection.console.log(error.message)
-		connection.console.log("> get cursor error")
-		connection.console.log(String(error?.stdout))
-		connection.console.log(String(error?.stderr))
-		return null
-	}
+		execFile(settings.compiler, args, function (err, data) {
+			if (err)
+				connection.console.log(err.message)
+			if (data.trim().length == 0) {
+				connection.console.log("> cursor: data is empty")
+				resolve(null)
+				return
+			}
+			try {
+				let json = parseJson(data)
+				const res = parseCursor(json, settings)
+				if (!res) {
+					connection.console.log("> cursor: parse error")
+					connection.console.log(JSON.stringify(json, null, 2))
+				}
+				resolve(res)
+				return
+			} catch (error) {
+				connection.console.log("> cursor: parse json data error")
+				connection.console.log(error.message)
+				connection.console.log(data)
+			}
+			resolve(null)
+		})
+	})
 }
 
 async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	let cursor = await getCursorData(uri, x, y)
 	let res: MarkedString[] = []
-	let range = cursor?.range
+	let range = fixRange(cursor?.range)
 	if (cursor) {
 		if (cursor.func) {
 			if (cursor.func.generic)
@@ -242,6 +246,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	return { contents: res, range: range }
 }
 
+function addToDiagnostics(diagnostics: Map<string, Array<Diagnostic>>, uri: string, diagnostic: Diagnostic) {
+	if (diagnostics.has(uri))
+		diagnostics.get(uri).push(diagnostic)
+	else
+		diagnostics.set(uri, [diagnostic])
+}
+
 async function validate(doc: TextDocument): Promise<void> {
 	let settings = await getDocumentSettings(doc.uri)
 	let path = uriToFile(doc.uri)
@@ -255,8 +266,8 @@ async function validate(doc: TextDocument): Promise<void> {
 		var diagnostics: Map<string, Array<Diagnostic>> = new Map()
 		if (data.trim().length > 0) {
 			try {
-				let json = JSON.parse(data)
-				let diagnosticsData: Array<any> = json?.diagnostics ?? []
+				let json = parseJson(data)
+				let diagnosticsData: any[] = json.diagnostics
 				for (let it of diagnosticsData) {
 					let localPath = it.uri || path
 					let uri = encodeURIComponent(fixPath(localPath, settings))
@@ -294,18 +305,18 @@ async function validate(doc: TextDocument): Promise<void> {
 		dependencies.set(doc.uri, depend)
 	})
 
-	getCompletion("items.das", settings)
-	getCompletion("items2.das", settings)
+	getGlobalCompletion("items.das", settings)
+	getGlobalCompletion("items2.das", settings)
 }
 
-function getCompletion(path: string, settings: DascriptSettings) {
+function getGlobalCompletion(path: string, settings: DascriptSettings) {
 	let itemsArgs = setupArgs(settings, join(__dirname, path))
 	connection.console.log(`> ${settings.compiler} ${itemsArgs.join(' ')}`)
 	execFile(settings.compiler, itemsArgs, function (err, data) {
 		if (err)
 			connection.console.log(err.message)
 		try {
-			let json = JSON.parse(data)
+			let json = parseJson(data)
 			let items: CompletionItem[] = json.items
 			if (items != null) {
 				connection.console.log(`> got ${items.length} completion items`)
@@ -315,7 +326,7 @@ function getCompletion(path: string, settings: DascriptSettings) {
 					globalCompletionKeys.add(it?.insertText ?? it.label)
 			}
 		} catch (error) {
-			connection.console.log("> error")
+			connection.console.log("> global completion: error")
 			connection.console.log(error.message)
 			connection.console.log(data)
 		}
