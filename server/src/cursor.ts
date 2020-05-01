@@ -59,8 +59,10 @@ export function parseCursor(data: any, settings: DascriptSettings): CursorData |
 	}
 }
 
-export function funcToString(func: FuncData): string {
+export function funcToString(func: FuncData, verbose = false): string {
 	let res = `def ${func.name}`
+	if (!verbose)
+		return res
 	if (func.path.length > 0)
 		res += `\n// ${func.path}`
 	if (!isRangeZero(func.range))
@@ -68,8 +70,10 @@ export function funcToString(func: FuncData): string {
 	return res
 }
 
-export function callToString(call: CallData): string {
+export function callToString(call: CallData, verbose = false): string {
 	let res = `${call.name} // call`
+	if (!verbose)
+		return res
 	if (call.path.length > 0)
 		res += `\n// ${call.path}`
 	if (!isRangeZero(call.range))
@@ -77,7 +81,7 @@ export function callToString(call: CallData): string {
 	return res
 }
 
-export function variableToString(variable: VariableData): string {
+export function variableToString(variable: VariableData, verbose = false): string {
 	let res = `${variable.name}`
 	if (variable.type)
 		res += `: ${variable.type}`
@@ -85,6 +89,8 @@ export function variableToString(variable: VariableData): string {
 		res += ` // ${variable.category}`
 	else
 		res += ` // variable`
+	if (!verbose)
+		return res
 	if (variable.index)
 		res += ` @${variable.index}`
 	if (variable.path.length > 0)

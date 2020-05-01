@@ -22,13 +22,15 @@ export interface DascriptSettings {
 	compilerArgs: Array<string>
 	cursorArgs: Array<string>
 	projectRoots: Array<string>
+	verboseHover: boolean
 }
 
 const defaultSettings: DascriptSettings = {
 	compiler: "dasAot",
 	compilerArgs: ["${file}", "dummy.cpp", "-j"],
 	cursorArgs: ["${file}", "dummy.cpp", "-j", "-cursor", "${character}", "${line}"],
-	projectRoots: []
+	projectRoots: [],
+	verboseHover: false,
 }
 let globalSettings: DascriptSettings = defaultSettings
 
@@ -107,7 +109,8 @@ connection.onHover(async (doc: TextDocumentPositionParams) => {
 })
 
 connection.onDefinition(async (doc: TextDocumentPositionParams) => {
-	const cursor = await getCursorData(doc.textDocument.uri, doc.position.character, doc.position.line + 1)
+	const settings = await getDocumentSettings(doc.textDocument.uri)
+	const cursor = await getCursorData(doc.textDocument.uri, doc.position.character, doc.position.line + 1, settings)
 	if (!cursor)
 		return null
 	let res: Location = null
@@ -190,8 +193,7 @@ function setupArgs(initialArgs: Array<string>, path: string): Array<string> {
 	return args
 }
 
-async function getCursorData(uri: string, x: number, y: number): Promise<CursorData | null> {
-	const settings = await getDocumentSettings(uri)
+async function getCursorData(uri: string, x: number, y: number, settings: DascriptSettings): Promise<CursorData | null> {
 	const path = uriToFile(uri)
 	const args = setupArgs(settings.cursorArgs, path)
 	for (let i in args) {
@@ -233,28 +235,29 @@ async function getCursorData(uri: string, x: number, y: number): Promise<CursorD
 }
 
 async function cursor(uri: string, x: number, y: number): Promise<Hover> {
-	let cursor = await getCursorData(uri, x, y)
+	const settings = await getDocumentSettings(uri)
+	let cursor = await getCursorData(uri, x, y, settings)
 	let res: MarkedString[] = []
 	let range = fixRange(cursor?.range)
 	if (cursor) {
-		if (cursor.func) {
+		if (cursor.func && (settings.verboseHover || !(cursor.call || cursor.variable))) {
 			if (cursor.func.generic)
-				res.push({ language: "dascript", value: funcToString(cursor.func.generic) })
+				res.push({ language: "dascript", value: funcToString(cursor.func.generic, settings.verboseHover) })
 			// else
-			res.push({ language: "dascript", value: funcToString(cursor.func) })
+			res.push({ language: "dascript", value: funcToString(cursor.func, settings.verboseHover) })
 		}
-		if (cursor.call) {
+		if (cursor.call && (settings.verboseHover || !cursor.variable)) {
 			if (cursor.call.func) {
 				if (cursor.call.func?.generic)
-					res.push({ language: "dascript", value: callToString(cursor.call.func.generic) })
-				res.push({ language: "dascript", value: callToString(cursor.call.func) })
+					res.push({ language: "dascript", value: callToString(cursor.call.func.generic, settings.verboseHover) })
+				res.push({ language: "dascript", value: callToString(cursor.call.func, settings.verboseHover) })
 			}
 			else
-				res.push({ language: "dascript", value: callToString(cursor.call) })
+				res.push({ language: "dascript", value: callToString(cursor.call, settings.verboseHover) })
 			range = null
 		}
 		if (cursor.variable) {
-			res.push({ language: "dascript", value: variableToString(cursor.variable) })
+			res.push({ language: "dascript", value: variableToString(cursor.variable, settings.verboseHover) })
 			range = null
 		}
 	}
@@ -263,7 +266,7 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	// 	connection.console.log(JSON.stringify(it))
 
 	if (res.length == 0)
-		return { contents: { language: "json", value: JSON.stringify(range) } }
+		return settings.verboseHover ? { contents: { language: "json", value: JSON.stringify(range) } } : null
 	return { contents: res, range: range }
 }
 
