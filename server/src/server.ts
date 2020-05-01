@@ -1,17 +1,12 @@
 import {
-	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location
+	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location, Hover, MarkedString
 } from 'vscode-languageserver'
-import {
-	execFile
-} from 'child_process'
-
-import {
-	isAbsolute, join
-} from 'path'
-
-import {
-	existsSync
-} from 'fs'
+import { execFile, execFileSync } from 'child_process'
+import { isAbsolute, join } from 'path'
+import { existsSync } from 'fs'
+import { uriToFile, fixRange } from './lspUtil'
+import { parseCursor, funcToString, callToString, variableToString } from './cursor'
+import { lazyCompletion } from './lazyCompletion'
 
 let connection = createConnection(ProposedFeatures.all)
 let documents = new TextDocuments()
@@ -21,7 +16,7 @@ let workspaceFolders: WorkspaceFolder[] | null
 let hasConfigurationCapability = false
 let hasDiagnosticRelatedInformationCapability = false
 
-interface DascriptSettings {
+export interface DascriptSettings {
 	compiler: string
 	compilerArgs: Array<string>
 	projectRoots: Array<string>
@@ -44,7 +39,7 @@ connection.onDidChangeConfiguration(change => {
 	documents.all().forEach(validate)
 })
 
-function getDocumentSettings(uri: string): Thenable<DascriptSettings> {
+export function getDocumentSettings(uri: string): Thenable<DascriptSettings> {
 	if (!hasConfigurationCapability)
 		return Promise.resolve(globalSettings)
 	let result = documentSettings.get(uri)
@@ -65,7 +60,8 @@ connection.onInitialize((params) => {
 	return {
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Full,
-			completionProvider: { resolveProvider: true }
+			completionProvider: { resolveProvider: true },
+			hoverProvider: true,
 		}
 	}
 })
@@ -88,6 +84,10 @@ connection.onCompletionResolve((completion: CompletionItem): CompletionItem => {
 	return completion
 })
 
+connection.onHover(async (doc: TextDocumentPositionParams) => {
+	return cursor(doc.textDocument.uri, doc.position.character, doc.position.line + 1)
+})
+
 documents.onDidClose(event => {
 	documentSettings.delete(event.document.uri)
 	connection.sendDiagnostics({ diagnostics: [], uri: event.document.uri })
@@ -98,47 +98,24 @@ documents.onDidClose(event => {
 documents.onDidOpen(event => {
 	connection.console.log(`[open ${event.document.uri}]`)
 	validate(event.document)
-	lazyCompletion(event.document)
+	lazyCompletion(event.document, lazyCompletions)
 })
 
 documents.onDidSave(event => {
 	connection.console.log(`[save ${event.document.uri}]`)
 	validate(event.document)
-	lazyCompletion(event.document)
+	lazyCompletion(event.document, lazyCompletions)
 })
 
 documents.onDidChangeContent(event => {
 	connection.console.log(`[changed ${event.document.uri}]`)
-	lazyCompletion(event.document)
+	lazyCompletion(event.document, lazyCompletions)
 })
 
 documents.listen(connection)
 connection.listen()
 
-function lazyCompletion(doc: TextDocument) {
-	let text = doc.getText()
-	let tokens = new Set<string>()
-	let last: string
-	var tokenEreg = /\w+/g
-	var m: RegExpExecArray
-	do {
-		m = tokenEreg.exec(text)
-		if (!m)
-			break;
-		let t = m.toString()
-		if (!globalCompletionKeys.has(t))
-			tokens.add(last = t)
-	} while (true)
-	if (last != null)
-		tokens.delete(last)
-
-	let list = lazyCompletions.has(doc.uri) ? lazyCompletions.get(doc.uri) : []
-	lazyCompletions.set(doc.uri, list)
-	list.splice(0, list.length)
-	tokens.forEach(it => list.push(CompletionItem.create(it)))
-}
-
-function fixPath(path: string, settings: DascriptSettings): string {
+export function fixPath(path: string, settings: DascriptSettings): string {
 	if (isAbsolute(path))
 		return path
 	if (settings.projectRoots) {
@@ -177,31 +154,60 @@ function setupArgs(settings: DascriptSettings, path: string): Array<string> {
 	return args
 }
 
-function uriToFile(uri: string): string {
-	uri = decodeURIComponent(uri)
-	if (!uri.startsWith("file://"))
-		return uri
-	uri = uri.substr(7) // "file://".length
-	if (/\/\w\:/.test(uri.substr(0, 3)))
-		return uri.substr(1);
-	return uri
-}
+async function cursor(uri: string, x: number, y: number): Promise<Hover> {
+	const settings = await getDocumentSettings(uri)
+	const path = uriToFile(uri)
+	const args = setupArgs(settings, path)
+	args.push(`-cursor`)
+	args.push(x.toString())
+	args.push(y.toString())
 
-function fixPosition(pos: Position, lineOffset = 0, endOffset = 0): Position {
-	pos = pos ?? Position.create(0, 0)
-	pos.line = Math.max(0, (pos?.line ?? 0) + lineOffset)
-	pos.character = Math.max(0, (pos?.character ?? 0) + endOffset)
-	return pos
-}
+	let buffer: string
+	try {
+		connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
+		buffer = execFileSync(settings.compiler, args).toString()
 
-function fixRange(range: Range, lineOffset = 1, endOffset = 0): Range {
-	range = range ?? Range.create(0, 0, 0, 0)
-	range.start = fixPosition(range.start, lineOffset)
-	range.end = fixPosition(range.end, lineOffset, endOffset)
-	range.end.line = Math.max(range.start.line, range.end.line - 1)
-	if (range.start.line == range.end.line)
-		range.end.character = Math.max(range.start.character, range.end.character)
-	return range
+		let res: MarkedString[] = []
+		const data = JSON.parse(buffer)
+		let cursor = parseCursor(data, path, settings)
+		let range = cursor?.range
+		if (cursor) {
+			if (cursor.func) {
+				if (cursor.func.generic)
+					res.push({ language: "dascript", value: funcToString(cursor.func.generic) })
+				// else
+				res.push({ language: "dascript", value: funcToString(cursor.func) })
+			}
+			if (cursor.call) {
+				if (cursor.call.func) {
+					if (cursor.call.func?.generic)
+						res.push({ language: "dascript", value: callToString(cursor.call.func.generic) })
+					res.push({ language: "dascript", value: callToString(cursor.call.func) })
+				}
+				else
+					res.push({ language: "dascript", value: callToString(cursor.call) })
+				range = null
+			}
+			if (cursor.variable) {
+				res.push({ language: "dascript", value: variableToString(cursor.variable) })
+				range = null
+			}
+		} else {
+			connection.console.log(buffer)
+		}
+		// connection.console.log(JSON.stringify(range))
+		// for (const it of res)
+		// 	connection.console.log(JSON.stringify(it))
+
+		if (res.length == 0)
+			return { contents: { language: "json", value: JSON.stringify(range) } }
+		return { contents: res, range: range }
+	} catch (error) {
+		connection.console.log(error.message)
+		connection.console.log("> cursor error")
+		connection.console.log(buffer)
+		return null
+	}
 }
 
 async function validate(doc: TextDocument): Promise<void> {
