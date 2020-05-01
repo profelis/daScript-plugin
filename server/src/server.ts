@@ -20,10 +20,16 @@ let hasDiagnosticRelatedInformationCapability = false
 export interface DascriptSettings {
 	compiler: string
 	compilerArgs: Array<string>
+	cursorArgs: Array<string>
 	projectRoots: Array<string>
 }
 
-const defaultSettings: DascriptSettings = { compiler: "daScript", compilerArgs: ["${file}"], projectRoots: [] }
+const defaultSettings: DascriptSettings = {
+	compiler: "dasAot",
+	compilerArgs: ["${file}", "dummy.cpp", "-j"],
+	cursorArgs: ["${file}", "dummy.cpp", "-j", "-cursor", "${character}", "${line}"],
+	projectRoots: []
+}
 let globalSettings: DascriptSettings = defaultSettings
 
 let documentSettings: Map<string /*uri*/, Thenable<DascriptSettings>> = new Map()
@@ -161,9 +167,9 @@ export function fixPath(path: string, settings: DascriptSettings): string {
 	return path
 }
 
-function setupArgs(settings: DascriptSettings, path: string): Array<string> {
+function setupArgs(initialArgs: Array<string>, path: string): Array<string> {
 	let found = false
-	let args = settings.compilerArgs.map(it => {
+	let args = initialArgs.map(it => {
 		if (it.indexOf("${file}") == -1)
 			return it
 		found = true
@@ -177,10 +183,15 @@ function setupArgs(settings: DascriptSettings, path: string): Array<string> {
 async function getCursorData(uri: string, x: number, y: number): Promise<CursorData | null> {
 	const settings = await getDocumentSettings(uri)
 	const path = uriToFile(uri)
-	const args = setupArgs(settings, path)
-	args.push(`-cursor`)
-	args.push(x.toString())
-	args.push(y.toString())
+	const args = setupArgs(settings.cursorArgs, path)
+	for (let i in args) {
+		if (args[i].indexOf("${line}") >= 0) {
+			args[i] = args[i].replace("${line}", y.toString())
+		}
+		if (args[i].indexOf("${character}") >= 0) {
+			args[i] = args[i].replace("${character}", x.toString())
+		}
+	}
 
 	return new Promise<CursorData | null>((resolve, _) => {
 		connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
@@ -256,7 +267,7 @@ function addToDiagnostics(diagnostics: Map<string, Array<Diagnostic>>, uri: stri
 async function validate(doc: TextDocument): Promise<void> {
 	let settings = await getDocumentSettings(doc.uri)
 	let path = uriToFile(doc.uri)
-	let args = setupArgs(settings, path)
+	let args = setupArgs(settings.compilerArgs, path)
 
 	connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
 	execFile(settings.compiler, args, function (err, data) {
@@ -310,7 +321,7 @@ async function validate(doc: TextDocument): Promise<void> {
 }
 
 function getGlobalCompletion(path: string, settings: DascriptSettings) {
-	let itemsArgs = setupArgs(settings, join(__dirname, path))
+	let itemsArgs = setupArgs(settings.compilerArgs, join(__dirname, path))
 	connection.console.log(`> ${settings.compiler} ${itemsArgs.join(' ')}`)
 	execFile(settings.compiler, itemsArgs, function (err, data) {
 		if (err)

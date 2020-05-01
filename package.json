@@ -39,16 +39,33 @@
 				"dascript.compiler": {
 					"scope": "resource",
 					"type": "string",
-					"default": "daScript",
+					"default": "dasAot",
 					"description": "daScript compiler path"
 				},
 				"dascript.compilerArgs": {
 					"scope": "resource",
 					"type": "array",
 					"default": [
-						"${file}"
+						"${file}",
+						"dummy.cpp",
+						"-j",
+						"-q"
 					],
-					"description": "Compiler arguments"
+					"description": "Compiler arguments. ${file} - current file"
+				},
+				"dascript.cursorArgs": {
+					"scope": "resource",
+					"type": "array",
+					"default": [
+						"${file}",
+						"dummy.cpp",
+						"-j",
+						"-q",
+						"-cursor",
+						"${character}",
+						"${line}"
+					],
+					"description": "Compiler arguments to get cursor data. ${line}/${character} - cursor position"
 				},
 				"dascript.projectRoots": {
 					"scope": "resource",
