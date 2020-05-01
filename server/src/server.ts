@@ -1,8 +1,8 @@
 import {
-	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location, Hover, MarkedString
+	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location, Hover, MarkedString, WorkspaceFoldersChangeEvent
 } from 'vscode-languageserver'
-import { execFile, execFileSync } from 'child_process'
-import { isAbsolute, join } from 'path'
+import { execFile } from 'child_process'
+import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, isRangeZero } from './lspUtil'
 import { parseJson } from './jsonUtil'
@@ -70,6 +70,12 @@ connection.onInitialize((params) => {
 			completionProvider: { resolveProvider: true },
 			hoverProvider: true,
 			definitionProvider: true,
+			workspace: {
+				workspaceFolders: {
+					supported: true,
+					changeNotifications: true
+				}
+			}
 		}
 	}
 })
@@ -77,6 +83,10 @@ connection.onInitialize((params) => {
 connection.onInitialized(() => {
 	if (hasConfigurationCapability)
 		connection.client.register(DidChangeConfigurationNotification.type, undefined)
+
+	connection.workspace.onDidChangeWorkspaceFolders(async (event: WorkspaceFoldersChangeEvent) => {
+		workspaceFolders = await connection.workspace.getWorkspaceFolders()
+	})
 })
 
 connection.onCompletion((doc: TextDocumentPositionParams): CompletionItem[] => {
@@ -153,14 +163,14 @@ export function fixPath(path: string, settings: DascriptSettings): string {
 		return path
 	if (settings.projectRoots) {
 		for (const it of settings.projectRoots) {
-			const res = join(it, path)
+			const res = resolve(it, path)
 			if (existsSync(res))
 				return res
 		}
 	}
 	if (workspaceFolders)
 		for (const it of workspaceFolders) {
-			const res = join(it.uri, path)
+			const res = resolve(it.uri, path)
 			if (existsSync(res))
 				return res
 		}
@@ -321,7 +331,7 @@ async function validate(doc: TextDocument): Promise<void> {
 }
 
 function getGlobalCompletion(path: string, settings: DascriptSettings) {
-	let itemsArgs = setupArgs(settings.compilerArgs, join(__dirname, path))
+	let itemsArgs = setupArgs(settings.compilerArgs, resolve(__dirname, path))
 	connection.console.log(`> ${settings.compiler} ${itemsArgs.join(' ')}`)
 	execFile(settings.compiler, itemsArgs, function (err, data) {
 		if (err)
