@@ -23,19 +23,25 @@ export function isRangeEmpty(range: Range): boolean {
 	return range.start.line == range.end.line && range.start.character == range.end.character
 }
 
-export function fixPosition(pos: Position | null, lineOffset = -1, endOffset = 0): Position {
+export function fixPosition(pos: Position | null, lineOffset = 0): Position {
 	pos = pos ?? Position.create(0, 0)
 	pos.line = Math.max(0, (pos?.line ?? 0) + lineOffset)
-	pos.character = Math.max(0, (pos?.character ?? 0) + endOffset)
+	pos.character = Math.max(0, (pos?.character ?? 0))
 	return pos
 }
 
-export function fixRange(range: Range | null, lineOffset = -1, endOffset = 0): Range {
-	range = range ?? Range.create(0, 0, 0, 0)
-	range.start = fixPosition(range.start, lineOffset)
-	range.end = fixPosition(range.end, lineOffset, endOffset)
-	range.end.line = Math.max(range.start.line, range.end.line - 1)
+export function validateRange(range: Range) {
+	range.end.line = Math.max(range.start.line, range.end.line)
 	if (range.start.line == range.end.line)
 		range.end.character = Math.max(range.start.character, range.end.character)
+}
+
+export function fixRange(range: Range | null, lineOffset = -1, endOffset = 1): Range {
+	range = range ?? Range.create(0, 0, 0, 0)
+	range.start = fixPosition(range.start, lineOffset)
+	range.end = fixPosition(range.end, lineOffset)
+	if (!isRangeZero(range))
+		range.end.character += endOffset
+	validateRange(range)
 	return range
 }

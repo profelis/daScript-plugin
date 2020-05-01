@@ -102,29 +102,29 @@ def dumpItems(items : Items)
   print("\n]\}")
 
 def getTypeName(info; var items : Items)
-	var res: string
-	if info.basicType == Type tHandle
-		res = info.annotation != null ? string(info.annotation.name) : "tHandle"
-	elif info.basicType == Type tStructure
-		res = info.structType?.name ?? "structure"
-	elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
-		res = info.enumType?.name ?? "enumeration"
-	elif info.basicType == Type tPointer
-		res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
-	elif info.basicType == Type tArray
-		res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
-	elif info.basicType == Type tTable
-		if info.firstType != null & info.secondType!=null
-			res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
-		else
-			res = "table"
-	elif info.basicType == Type tTuple
-		if info.argTypes != null
-			res = "tuple<" + join([{for argtype in arg_types(info); getTypeName(argtype, items)}],";") + ">"
-		else
-			res = "tuple"
-	elif info.basicType == Type tVariant
-		if info.argTypes != null & info.argNames != null
+  var res: string
+  if info.basicType == Type tHandle
+    res = info.annotation != null ? string(info.annotation.name) : "tHandle"
+  elif info.basicType == Type tStructure
+    res = info.structType?.name ?? "structure"
+  elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
+    res = info.enumType?.name ?? "enumeration"
+  elif info.basicType == Type tPointer
+    res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
+  elif info.basicType == Type tArray
+    res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
+  elif info.basicType == Type tTable
+    if info.firstType != null & info.secondType!=null
+      res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
+    else
+      res = "table"
+  elif info.basicType == Type tTuple
+    if info.argTypes != null
+      res = "tuple<" + join([{for argtype in arg_types(info); getTypeName(argtype, items)}],";") + ">"
+    else
+      res = "tuple"
+  elif info.basicType == Type tVariant
+    if info.argTypes != null & info.argNames != null
       res = "variant<"
       var variantDesc = "variant<"
       var all : array<Item>
@@ -142,39 +142,39 @@ def getTypeName(info; var items : Items)
       for it in all
         it.impls |> push(variantDesc)
         addItem(it, items, true)
-		else
-			res = "variant"
+    else
+      res = "variant"
   elif info.basicType == Type tFunction | info.basicType == Type tLambda | info.basicType == Type tBlock
-		res = "{get_das_type_name(info.basicType)}<"
-		if info.argTypes != null
-			res += "(" + join([{for argtype in arg_types(info); getTypeName(argtype, items)}],"; ") + ")"
-		if info.firstType != null
+    res = "{get_das_type_name(info.basicType)}<"
+    if info.argTypes != null
+      res += "(" + join([{for argtype in arg_types(info); getTypeName(argtype, items)}],"; ") + ")"
+    if info.firstType != null
       res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
-		res += ">"
-	else
-		res = get_das_type_name(info.basicType)
-	res += join([{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}],"")
-	if info.isConst
-		res += " const"
-	if info.isRef
-		res += " &"
-	if info.isTemp
-		res += "#"
-	if info.isImplicit
-		res += " implicit"
-	return res
+    res += ">"
+  else
+    res = get_das_type_name(info.basicType)
+  res += join([{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}],"")
+  if info.isConst
+    res += " const"
+  if info.isRef
+    res += " &"
+  if info.isTemp
+    res += "#"
+  if info.isImplicit
+    res += " implicit"
+  return res
 
 def getValue(value)
-	if value is nothing
-		return ""
-	if value is tString
-		return " = \"{value}\""
+  if value is nothing
+    return ""
+  if value is tString
+    return " = \"{value}\""
   return " = {value}"
 
 [unsafe]
 def parseAnnotation(ann; fullModuleName : string; var items: Items)
-	if ann.isBasicStructureAnnotation
-		let sann & = reinterpret<BasicStructureAnnotation&>(ann)
+  if ann.isBasicStructureAnnotation
+    let sann & = reinterpret<BasicStructureAnnotation&>(ann)
     let structName = "{sann.name}"
     let fullName = "{fullModuleName}{structName}"
     var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
@@ -209,8 +209,8 @@ def parseAnnotation(ann; fullModuleName : string; var items: Items)
       it.impls |> push_clone(structDesc)
       addItem(it, items)
 
-	elif ann.isTypeAnnotation
-		let tann & = reinterpret<TypeAnnotation&>(ann)
+  elif ann.isTypeAnnotation
+    let tann & = reinterpret<TypeAnnotation&>(ann)
     let structName = "{tann.name}"
     let fullName = "{fullModuleName}{structName}"
     addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = ItemKind Struct]], items)
@@ -244,8 +244,8 @@ def parseModule(pMod; var items : Items)
   let fullModuleName = "{pMod.name}::"
 
   addItem([[Item name = "{pMod.name}", desc = "module {pMod.name}", kind = ItemKind Module]], items)
-	rtti::module_for_each_structure(pMod) <| $(info)
-		let structName = "{info.name}"
+  rtti::module_for_each_structure(pMod) <| $(info)
+    let structName = "{info.name}"
     let fullName = "{fullModuleName}{structName}"
     var structDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
@@ -267,7 +267,7 @@ def parseModule(pMod; var items : Items)
     if find(info.name, "`") == -1 // generic
       parseFunction(info, fullModuleName, items)
 
-	rtti::module_for_each_generic(pMod) <| $(info)
+  rtti::module_for_each_generic(pMod) <| $(info)
     parseFunction(info, fullModuleName, items)
 
   rtti::module_for_each_enumeration(pMod) <| $(info)

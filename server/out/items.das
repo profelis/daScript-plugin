@@ -98,27 +98,27 @@ def dumpItems(items : Items)
   print("\n]\}")
 
 def getTypeName(info)
-	var res: string
-	if info.basicType == Type tHandle
-		res = string(info.annotation_or_name.name)
-	elif info.basicType == Type tStructure
-		res = info.structType?.name ?? "structure"
-	elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
-		res = info.enumType?.name ?? "enumeration"
-	elif info.basicType == Type tPointer
-		res = info.firstType != null ? "{getTypeName(*(info.firstType))}?" : "void?"
-	elif info.basicType == Type tArray
-		res = info.firstType != null ? "array<{getTypeName(*(info.firstType))}>" : "array"
-	elif info.basicType == Type tTable
-		if info.firstType != null & info.secondType!=null
-			res = "table<{getTypeName(deref(info.firstType))};{getTypeName(deref(info.secondType))}>"
-		else
-			res = "table"
+  var res: string
+  if info.basicType == Type tHandle
+    res = string(info.annotation_or_name.name)
+  elif info.basicType == Type tStructure
+    res = info.structType?.name ?? "structure"
+  elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
+    res = info.enumType?.name ?? "enumeration"
+  elif info.basicType == Type tPointer
+    res = info.firstType != null ? "{getTypeName(*(info.firstType))}?" : "void?"
+  elif info.basicType == Type tArray
+    res = info.firstType != null ? "array<{getTypeName(*(info.firstType))}>" : "array"
+  elif info.basicType == Type tTable
+    if info.firstType != null & info.secondType!=null
+      res = "table<{getTypeName(deref(info.firstType))};{getTypeName(deref(info.secondType))}>"
+    else
+      res = "table"
   else
-		res = "{info.basicType}"
-	if info.isConst
-		res += " const"
-	return res
+    res = "{info.basicType}"
+  if info.isConst
+    res += " const"
+  return res
 
 def parseFunction(info; fullModuleName : string)
   var res <- [[Item name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = ItemKind Function]]
@@ -164,8 +164,8 @@ def parseModule(pMod; var items : Items)
   let fullModuleName = "{pMod.name}::"
 
   addItem([[Item name = "{pMod.name}", desc = "module {pMod.name}", kind = ItemKind Module]], items)
-	rtti::module_for_each_structure(pMod) <| $(info)
-		let structName = "{info.name}"
+  rtti::module_for_each_structure(pMod) <| $(info)
+    let structName = "{info.name}"
     let fullName = "{fullModuleName}{structName}"
     var structDesc = "struct {fullName}"
 
@@ -184,7 +184,7 @@ def parseModule(pMod; var items : Items)
       return
     addItem(parseFunction(info, fullModuleName), items)
 
-	rtti::module_for_each_generic(pMod) <| $(info)
+  rtti::module_for_each_generic(pMod) <| $(info)
     addItem(parseFunction(info, fullModuleName), items)
 
   rtti::module_for_each_enumeration(pMod) <| $(info)

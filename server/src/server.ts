@@ -4,8 +4,8 @@ import {
 import { execFile, execFileSync } from 'child_process'
 import { isAbsolute, join } from 'path'
 import { existsSync } from 'fs'
-import { uriToFile, fixRange } from './lspUtil'
-import { parseCursor, funcToString, callToString, variableToString } from './cursor'
+import { uriToFile, fixRange, isRangeZero } from './lspUtil'
+import { parseCursor, funcToString, callToString, variableToString, CursorData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
 let connection = createConnection(ProposedFeatures.all)
@@ -62,6 +62,7 @@ connection.onInitialize((params) => {
 			textDocumentSync: TextDocumentSyncKind.Full,
 			completionProvider: { resolveProvider: true },
 			hoverProvider: true,
+			definitionProvider: true,
 		}
 	}
 })
@@ -86,6 +87,28 @@ connection.onCompletionResolve((completion: CompletionItem): CompletionItem => {
 
 connection.onHover(async (doc: TextDocumentPositionParams) => {
 	return cursor(doc.textDocument.uri, doc.position.character, doc.position.line + 1)
+})
+
+connection.onDefinition(async (doc: TextDocumentPositionParams) => {
+	const cursor = await getCursorData(doc.textDocument.uri, doc.position.character, doc.position.line + 1)
+	if (!cursor)
+		return null
+	let res: Location = null
+	if (cursor.variable)
+		res = { uri: encodeURIComponent(cursor.variable.path), range: cursor.variable.range }
+	else if (cursor.call?.func) {
+		if (cursor.call.func.generic)
+			res = { uri: encodeURIComponent(cursor.call.func.generic.path), range: cursor.call.func.generic.range }
+		else
+			res = { uri: encodeURIComponent(cursor.call.func.path), range: cursor.call.func.range }
+	}
+	if (!res || isRangeZero(res.range) || res.uri == "") {
+		connection.console.log(JSON.stringify(cursor, null, 2))
+		connection.console.log(`> goto ${JSON.stringify(res, null, 2)}`)
+		res = null
+	} else
+		connection.console.log(`> goto ${JSON.stringify(res)}`)
+	return res
 })
 
 documents.onDidClose(event => {
@@ -154,7 +177,7 @@ function setupArgs(settings: DascriptSettings, path: string): Array<string> {
 	return args
 }
 
-async function cursor(uri: string, x: number, y: number): Promise<Hover> {
+async function getCursorData(uri: string, x: number, y: number): Promise<CursorData | null> {
 	const settings = await getDocumentSettings(uri)
 	const path = uriToFile(uri)
 	const args = setupArgs(settings, path)
@@ -167,47 +190,56 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 		connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
 		buffer = execFileSync(settings.compiler, args).toString()
 
-		let res: MarkedString[] = []
 		const data = JSON.parse(buffer)
-		let cursor = parseCursor(data, path, settings)
-		let range = cursor?.range
-		if (cursor) {
-			if (cursor.func) {
-				if (cursor.func.generic)
-					res.push({ language: "dascript", value: funcToString(cursor.func.generic) })
-				// else
-				res.push({ language: "dascript", value: funcToString(cursor.func) })
-			}
-			if (cursor.call) {
-				if (cursor.call.func) {
-					if (cursor.call.func?.generic)
-						res.push({ language: "dascript", value: callToString(cursor.call.func.generic) })
-					res.push({ language: "dascript", value: callToString(cursor.call.func) })
-				}
-				else
-					res.push({ language: "dascript", value: callToString(cursor.call) })
-				range = null
-			}
-			if (cursor.variable) {
-				res.push({ language: "dascript", value: variableToString(cursor.variable) })
-				range = null
-			}
-		} else {
+		const res = parseCursor(data, settings)
+		if (!res) {
+			connection.console.log("> parse cursor error")
 			connection.console.log(buffer)
 		}
-		// connection.console.log(JSON.stringify(range))
-		// for (const it of res)
-		// 	connection.console.log(JSON.stringify(it))
-
-		if (res.length == 0)
-			return { contents: { language: "json", value: JSON.stringify(range) } }
-		return { contents: res, range: range }
-	} catch (error) {
+		return res
+	}
+	catch (error) {
 		connection.console.log(error.message)
-		connection.console.log("> cursor error")
-		connection.console.log(buffer)
+		connection.console.log("> get cursor error")
+		connection.console.log(String(error?.stdout))
+		connection.console.log(String(error?.stderr))
 		return null
 	}
+}
+
+async function cursor(uri: string, x: number, y: number): Promise<Hover> {
+	let cursor = await getCursorData(uri, x, y)
+	let res: MarkedString[] = []
+	let range = cursor?.range
+	if (cursor) {
+		if (cursor.func) {
+			if (cursor.func.generic)
+				res.push({ language: "dascript", value: funcToString(cursor.func.generic) })
+			// else
+			res.push({ language: "dascript", value: funcToString(cursor.func) })
+		}
+		if (cursor.call) {
+			if (cursor.call.func) {
+				if (cursor.call.func?.generic)
+					res.push({ language: "dascript", value: callToString(cursor.call.func.generic) })
+				res.push({ language: "dascript", value: callToString(cursor.call.func) })
+			}
+			else
+				res.push({ language: "dascript", value: callToString(cursor.call) })
+			range = null
+		}
+		if (cursor.variable) {
+			res.push({ language: "dascript", value: variableToString(cursor.variable) })
+			range = null
+		}
+	}
+	// connection.console.log(JSON.stringify(range))
+	// for (const it of res)
+	// 	connection.console.log(JSON.stringify(it))
+
+	if (res.length == 0)
+		return { contents: { language: "json", value: JSON.stringify(range) } }
+	return { contents: res, range: range }
 }
 
 async function validate(doc: TextDocument): Promise<void> {
