@@ -1,7 +1,7 @@
 {
 	"name": "dascript-server",
 	"description": "daScript language server",
-	"version": "0.0.1",
+	"version": "0.0.8",
 	"author": "dima.granetchi@gmail.com",
 	"license": "MIT",
 	"engines": {

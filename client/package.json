@@ -3,7 +3,7 @@
 	"description": "daScript plugin",
 	"author": "dima.granetchi@gmail.com",
 	"license": "MIT",
-	"version": "0.0.1",
+	"version": "0.0.8",
 	"publisher": "profelis",
 	"repository": {
 		"type": "git",
