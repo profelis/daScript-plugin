@@ -151,6 +151,8 @@ def getTypeName(info; var items : Items)
     if info.firstType != null
       res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
     res += ">"
+  elif info.basicType == Type fakeContext
+    res = "[Context]"
   else
     res = get_das_type_name(info.basicType)
   res += join([{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}],"")
@@ -226,8 +228,8 @@ def parseFunction(info; fullModuleName : string; var items : Items)
   var impl = "def {fullModuleName}{info.name}("
   var firstArg = true
   for it in info
-    if it.basicType == Type fakeContext
-      continue
+    // if it.basicType == Type fakeContext
+    //   continue
     if !firstArg
       impl += "; "
     firstArg = false
