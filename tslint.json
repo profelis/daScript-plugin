@@ -1,4 +1,7 @@
 {
+	"extends": [
+		"tslint-microsoft-contrib/recommended"
+	],
 	"rules": {
 		"indent": [
 			true,
@@ -7,6 +10,8 @@
 		"semicolon": [
 			false,
 			"never"
-		]
+		],
+		"no-relative-imports": false,
+		"export-name": false
 	}
 }

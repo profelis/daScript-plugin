@@ -1,12 +1,11 @@
 
 export function parseJson(data: string): any | null {
 	try {
-		let res = JSON.parse(data)
-		return res
+		return JSON.parse(data)
 	} catch (error) {
 		// pass
 	}
-	let len = data.length
+	const len = data.length
 	let open = 0
 	let start = 0
 	for (let i = 0; i < len; i++) {
