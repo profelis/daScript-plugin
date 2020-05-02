@@ -1,4 +1,3 @@
-// @ts-check
 import { Range } from 'vscode-languageserver'
 import { fixPath, DascriptSettings } from './server'
 import { isRangeZero, rangeToString, fixRange } from './lspUtil'
@@ -59,7 +58,7 @@ export function parseCursor(data: any, settings: DascriptSettings): CursorData |
 	}
 }
 
-export function funcToString(func: FuncData, verbose = false): string {
+export function functionToString(func: FuncData, verbose = false): string {
 	let res = `def ${func.name}`
 	if (!verbose)
 		return res
@@ -71,7 +70,7 @@ export function funcToString(func: FuncData, verbose = false): string {
 }
 
 export function callToString(call: CallData, verbose = false): string {
-	let res = `${call.name} // call`
+	let res = call.name
 	if (!verbose)
 		return res
 	if (call.path.length > 0)
@@ -118,7 +117,7 @@ function parseFunctionData(data: any, settings: DascriptSettings): FunctionData 
 function parseFuncData(data: any, settings: DascriptSettings): FuncData | null {
 	if (!data)
 		return null
-	const name = data["name"] ?? ""
+	const name = data["name"] || ""
 	const localPath = fixPath(data["uri"] || "", settings)
 	const range = fixRange(data["range"])
 	return { name: name, path: localPath, range: range }
@@ -127,7 +126,7 @@ function parseFuncData(data: any, settings: DascriptSettings): FuncData | null {
 function parseCallData(data: any, settings: DascriptSettings): CallData | null {
 	if (!data)
 		return null
-	const name = data["name"] ?? ""
+	const name = data["name"] || ""
 	const localPath = fixPath(data["uri"] || "", settings)
 	const range = fixRange(data["range"])
 	const call = parseFuncData(data["function"], settings)
@@ -137,7 +136,7 @@ function parseCallData(data: any, settings: DascriptSettings): CallData | null {
 function parseVariableData(data: any, settings: DascriptSettings): VariableData | null {
 	if (!data)
 		return null
-	const name = data["name"] ?? ""
+	const name = data["name"] || ""
 	const localPath = fixPath(data["uri"] || "", settings)
 	const range = fixRange(data["range"])
 	return { name: name, path: localPath, range: range, type: data["type"], category: data["category"], index: data["index"] }

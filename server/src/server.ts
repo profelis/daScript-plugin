@@ -6,7 +6,7 @@ import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, isRangeZero } from './lspUtil'
 import { parseJson } from './jsonUtil'
-import { parseCursor, funcToString, callToString, variableToString, CursorData } from './cursor'
+import { parseCursor, functionToString, callToString, variableToString, CursorData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
 let connection = createConnection(ProposedFeatures.all)
@@ -114,20 +114,20 @@ connection.onDefinition(async (doc: TextDocumentPositionParams) => {
 	if (!cursor)
 		return null
 	let res: Location = null
+	let doUri = path => encodeURIComponent(fixPath(path, settings))
 	if (cursor.variable)
-		res = { uri: encodeURIComponent(cursor.variable.path), range: cursor.variable.range }
+		res = { uri: doUri(cursor.variable.path), range: cursor.variable.range }
 	else if (cursor.call?.func) {
 		if (cursor.call.func.generic)
-			res = { uri: encodeURIComponent(cursor.call.func.generic.path), range: cursor.call.func.generic.range }
+			res = { uri: doUri(cursor.call.func.generic.path), range: cursor.call.func.generic.range }
 		else
-			res = { uri: encodeURIComponent(cursor.call.func.path), range: cursor.call.func.range }
+			res = { uri: doUri(cursor.call.func.path), range: cursor.call.func.range }
 	}
-	if (!res || isRangeZero(res.range) || res.uri == "") {
-		connection.console.log(JSON.stringify(cursor, null, 2))
-		connection.console.log(`> goto ${JSON.stringify(res, null, 2)}`)
+	if (!res || res.uri == "") {
+		connection.console.log(`> goto: error \n ${JSON.stringify(cursor, null, 2)}`)
 		res = null
 	} else
-		connection.console.log(`> goto ${JSON.stringify(res)}`)
+		connection.console.log(`> goto ${JSON.stringify(res, null, 1)}`)
 	return res
 })
 
@@ -242,15 +242,15 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	if (cursor) {
 		if (cursor.func && (settings.verboseHover || !(cursor.call || cursor.variable))) {
 			if (cursor.func.generic)
-				res.push({ language: "dascript", value: funcToString(cursor.func.generic, settings.verboseHover) })
+				res.push({ language: "dascript", value: functionToString(cursor.func.generic, settings.verboseHover) })
 			// else
-			res.push({ language: "dascript", value: funcToString(cursor.func, settings.verboseHover) })
+			res.push({ language: "dascript", value: functionToString(cursor.func, settings.verboseHover) })
 		}
 		if (cursor.call && (settings.verboseHover || !cursor.variable)) {
 			if (cursor.call.func) {
 				if (cursor.call.func?.generic)
-					res.push({ language: "dascript", value: callToString(cursor.call.func.generic, settings.verboseHover) })
-				res.push({ language: "dascript", value: callToString(cursor.call.func, settings.verboseHover) })
+					res.push({ language: "dascript", value: functionToString(cursor.call.func.generic, settings.verboseHover) })
+				res.push({ language: "dascript", value: functionToString(cursor.call.func, settings.verboseHover) })
 			}
 			else
 				res.push({ language: "dascript", value: callToString(cursor.call, settings.verboseHover) })

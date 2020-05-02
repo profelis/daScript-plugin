@@ -1,4 +1,3 @@
-// @ts-check
 
 export function parseJson(data: string): any | null {
 	try {

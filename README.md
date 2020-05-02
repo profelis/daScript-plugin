@@ -4,12 +4,16 @@ Plugin for scripting language [daScript](https://dascript.org/)
 
 ## Installation
 
-Install directly from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=profelis.dascript-plugin)
+- Install extension directly from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=profelis.dascript-plugin)
+- Download daScript from github repository [GaijinEntertainment/daScript](https://github.com/GaijinEntertainment/daScript)
+- Set path to compiler in daScript settings section
 
 ## Features
 
 - Code diagnostics
 - Code completion (limited support)
+- Hover hints
+- Go to definition
 
 ## Development
 
