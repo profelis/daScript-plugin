@@ -1,5 +1,7 @@
 import {
-	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument, DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location, Hover, MarkedString, WorkspaceFoldersChangeEvent
+	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
+	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
+	Hover, MarkedString, WorkspaceFoldersChangeEvent
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'

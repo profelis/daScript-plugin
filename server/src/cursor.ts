@@ -5,9 +5,9 @@ import { isRangeZero, rangeToString, fixRange } from './lspUtil'
 export interface CursorData {
 	path: string
 	range: Range
-	func?: FunctionData
-	call?: CallData
-	variable?: VariableData
+	func: FunctionData | null
+	call: CallData | null
+	variable: VariableData | null
 }
 
 export interface FuncData {
@@ -17,14 +17,14 @@ export interface FuncData {
 }
 
 export interface FunctionData extends FuncData {
-	generic?: FuncData
+	generic: FuncData | null
 }
 
 export interface CallData {
 	path: string
 	range: Range
 	name: string
-	func?: FunctionData
+	func: FunctionData | null
 }
 
 export interface VariableData {
@@ -104,11 +104,8 @@ function parseFunctionData(data: any, settings: DascriptSettings): FunctionData 
 		return null
 	const funcData = parseFuncData(data, settings)
 	const genericData = parseFuncData(data["generic"], settings)
-	if (funcData) {
-		if (genericData)
-			return { generic: genericData, name: funcData.name, path: funcData.path, range: funcData.range }
-		return funcData
-	}
+	if (funcData)
+		return { generic: genericData, name: funcData.name, path: funcData.path, range: funcData.range }
 	if (genericData)
 		return { generic: genericData, name: genericData.name, path: genericData.path, range: genericData.range }
 	return null
@@ -129,7 +126,7 @@ function parseCallData(data: any, settings: DascriptSettings): CallData | null {
 	const name = data["name"] || ""
 	const localPath = fixPath(data["uri"] || "", settings)
 	const range = fixRange(data["range"])
-	const call = parseFuncData(data["function"], settings)
+	const call = parseFunctionData(data["function"], settings)
 	return { name: name, path: localPath, range: range, func: call }
 }
 
