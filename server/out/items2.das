@@ -99,7 +99,7 @@ def dumpItems(items : Items)
       print(",\n")
     f = false
     print(itemToString(it))
-  print("\n]\}")
+  print("\n]\}\n")
 
 def getTypeName(info; var items : Items)
   var res: string

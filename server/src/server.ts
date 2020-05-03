@@ -386,7 +386,7 @@ function validateTextOutput(doc: TextDocument, path: string, data: string, setti
 		if (!current) {
 			const executionData = /(.+) at (.+):(\d+):(\d+)/.exec(line)
 			if (executionData) {
-				const pos: Position = { line: parseInt(executionData[3]) - 1, character: parseInt(executionData[4]) - 1 }
+				const pos: Position = { line: parseInt(executionData[3]) - 1, character: parseInt(executionData[4]) }
 				current = { range: { start: pos, end: pos }, message: executionData[1], severity: DiagnosticSeverity.Information }
 				currentUri = encodeURIComponent(fixPath(executionData[2], settings))
 				pushCurrentDiagnostic(true)
@@ -396,7 +396,7 @@ function validateTextOutput(doc: TextDocument, path: string, data: string, setti
 		const fileWithErrorData = /(\S+):(\d+):(\d+):\s*(.+)/.exec(line)
 		if (fileWithErrorData) {
 			pushCurrentDiagnostic(true)
-			const pos: Position = { line: parseInt(fileWithErrorData[2]) - 1, character: parseInt(fileWithErrorData[3]) - 1 }
+			const pos: Position = { line: parseInt(fileWithErrorData[2]) - 1, character: parseInt(fileWithErrorData[3]) }
 			current = { range: { start: pos, end: pos }, message: fileWithErrorData[4], severity: DiagnosticSeverity.Error }
 			currentUri = encodeURIComponent(fixPath(fileWithErrorData[1], settings))
 			continue
@@ -404,7 +404,7 @@ function validateTextOutput(doc: TextDocument, path: string, data: string, setti
 		const fileData = /(\S+):(\d+):(\d+):/.exec(line)
 		if (fileData) {
 			pushCurrentDiagnostic(true)
-			const pos: Position = { line: parseInt(fileData[2]) - 1, character: parseInt(fileData[3]) - 1 }
+			const pos: Position = { line: parseInt(fileData[2]) - 1, character: parseInt(fileData[3]) }
 			current = { range: { start: pos, end: pos }, message: null, severity: DiagnosticSeverity.Error }
 			currentUri = encodeURIComponent(fixPath(fileData[1], settings))
 			continue
