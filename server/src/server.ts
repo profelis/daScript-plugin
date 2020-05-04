@@ -175,7 +175,7 @@ export function fixPath(path: string, settings: DascriptSettings): string {
 	}
 	if (workspaceFolders)
 		for (const it of workspaceFolders) {
-			const res = resolve(it.uri, path)
+			const res = resolve(uriToFile(it.uri), path)
 			if (existsSync(res))
 				return res
 		}
