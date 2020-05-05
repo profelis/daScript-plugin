@@ -8,7 +8,7 @@ import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, isRangeZero } from './lspUtil'
 import { parseJson } from './jsonUtil'
-import { parseCursor, functionToString, callToString, variableToString, CursorData } from './cursor'
+import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
 const connection = createConnection(ProposedFeatures.all)
@@ -116,20 +116,20 @@ connection.onDefinition(async (doc: TextDocumentPositionParams) => {
 	if (!cursorData)
 		return null
 	let res: Location = null
-	const doUri = path => encodeURIComponent(fixPath(path, settings))
+	const doUri = path => encodeURIComponent(fixPath(path || "", settings))
 	if (cursorData.variable)
-		res = { uri: doUri(cursorData.variable.path), range: cursorData.variable.range }
-	else if (cursorData.call?.func) {
-		if (cursorData.call.func.generic)
-			res = { uri: doUri(cursorData.call.func.generic.path), range: cursorData.call.func.generic.range }
+		res = { uri: doUri(cursorData.variable.uri), range: fixRange(cursorData.variable.range) }
+	else if (cursorData.call?.function) {
+		if (cursorData.call.function.generic)
+			res = { uri: doUri(cursorData.call.function.generic.uri), range: fixRange(cursorData.call.function.generic.range) }
 		else
-			res = { uri: doUri(cursorData.call.func.path), range: cursorData.call.func.range }
+			res = { uri: doUri(cursorData.call.function.uri), range: fixRange(cursorData.call.function.range) }
 	}
 	if (!res || res.uri == "") {
 		connection.console.log(`> goto: error \n ${JSON.stringify(cursorData, null, 2)}`)
 		res = null
 	} else
-		connection.console.log(`> goto ${JSON.stringify(res, null, 1)}`)
+		connection.console.log(`> goto ${JSON.stringify(res)}`)
 	return res
 })
 
@@ -161,6 +161,7 @@ documents.listen(connection)
 connection.listen()
 
 export function fixPath(path: string, settings: DascriptSettings): string {
+	path = path || ""
 	path = path.trim()
 	if (path.length == 0)
 		return path
@@ -213,17 +214,17 @@ async function getCursorData(uri: string, x: number, y: number, settings: Dascri
 		execFile(settings.compiler, args, (err, data) => {
 			if (err)
 				connection.console.log(err.message)
+			// connection.console.log(data)
 			if (data.trim().length == 0) {
 				connection.console.log("> cursor: data is empty")
 				onResolve(null)
 				return
 			}
 			try {
-				const json = parseJson(data)
-				const res = parseCursor(json, settings)
+				const res = <CursorData>parseJson(data)
 				if (!res) {
 					connection.console.log("> cursor: parse error")
-					connection.console.log(JSON.stringify(json, null, 2))
+					connection.console.log(data)
 				}
 				onResolve(res)
 				return
@@ -241,28 +242,45 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const settings = await getDocumentSettings(uri)
 	const cursorData = await getCursorData(uri, x, y, settings)
 	const res: MarkedString[] = []
-	let range = fixRange(cursorData?.range)
+	let range = fixRange(cursorData?.cursor?.range)
+
+	let describeFunction = (data: FunctionData, includeGeneric = false) => {
+		if (includeGeneric && data.generic)
+			res.push({ language: "dascript", value: functionToString(data.generic, settings, settings.verboseHover) })
+		res.push({ language: "dascript", value: functionToString(data, settings, settings.verboseHover) })
+	}
+	let describeCall = (data: CallData) => {
+		if (data.function) {
+			if (data.function.generic)
+				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
+			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
+		}
+		else
+			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
+		range = null
+	}
+	let describeVariable = (data: VariableData) => {
+		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover) })
+		range = null
+	}
+
 	if (cursorData) {
-		if (cursorData.func && (settings.verboseHover || !(cursorData.call || cursorData.variable))) {
-			if (cursorData.func.generic)
-				res.push({ language: "dascript", value: functionToString(cursorData.func.generic, settings.verboseHover) })
-			// else
-			res.push({ language: "dascript", value: functionToString(cursorData.func, settings.verboseHover) })
+		if (settings.verboseHover || !(cursorData.call || cursorData.variable)) {
+			if (cursorData.functions && cursorData.functions.length > 0)
+				cursorData.functions.forEach(it => describeFunction(it))
+			else if (cursorData.function)
+				describeFunction(cursorData.function, true)
 		}
-		if (cursorData.call && (settings.verboseHover || !cursorData.variable)) {
-			if (cursorData.call.func) {
-				if (cursorData.call.func?.generic)
-					res.push({ language: "dascript", value: functionToString(cursorData.call.func.generic, settings.verboseHover) })
-				res.push({ language: "dascript", value: functionToString(cursorData.call.func, settings.verboseHover) })
-			}
-			else
-				res.push({ language: "dascript", value: callToString(cursorData.call, settings.verboseHover) })
-			range = null
+		if (settings.verboseHover || !cursorData.variable) {
+			if (cursorData.calls && cursorData.calls.length > 0)
+				cursorData.calls.forEach(it => describeCall(it))
+			else if (cursorData.call)
+				describeCall(cursorData.call)
 		}
-		if (cursorData.variable) {
-			res.push({ language: "dascript", value: variableToString(cursorData.variable, settings.verboseHover) })
-			range = null
-		}
+		if (cursorData.variables && cursorData.variables.length > 0)
+			cursorData.variables.forEach(it => describeVariable(it))
+		else if (cursorData.variable)
+			describeVariable(cursorData.variable)
 	}
 	// connection.console.log(JSON.stringify(range))
 	// for (const it of res)
@@ -299,7 +317,7 @@ async function validate(doc: TextDocument): Promise<void> {
 					const localPath = it.uri || path
 					const uri = encodeURIComponent(fixPath(localPath, settings))
 					const diagnostic = <Diagnostic>it
-					if (diagnostic == null || diagnostic.message == null)
+					if (diagnostic?.message == null)
 						continue
 					const offset = "tab" in it ? 1 : 0
 					diagnostic.range = fixRange(diagnostic?.range, -offset, offset)
