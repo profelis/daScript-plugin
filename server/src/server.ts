@@ -249,9 +249,9 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			res.push({ language: "dascript", value: functionToString(data.generic, settings, settings.verboseHover) })
 		res.push({ language: "dascript", value: functionToString(data, settings, settings.verboseHover) })
 	}
-	let describeCall = (data: CallData) => {
+	let describeCall = (data: CallData, includeGeneric = false) => {
 		if (data.function) {
-			if (data.function.generic)
+			if (includeGeneric && data.function.generic)
 				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
 			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
 		}
@@ -275,7 +275,7 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			if (cursorData.calls && cursorData.calls.length > 0)
 				cursorData.calls.forEach(it => describeCall(it))
 			else if (cursorData.call)
-				describeCall(cursorData.call)
+				describeCall(cursorData.call, true)
 		}
 		if (cursorData.variables && cursorData.variables.length > 0)
 			cursorData.variables.forEach(it => describeVariable(it))
