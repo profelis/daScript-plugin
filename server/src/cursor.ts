@@ -41,7 +41,7 @@ export interface VariableData {
 	type?: string
 	category?: string
 	index?: number
-	func?: FunctionData
+	function?: FunctionData
 }
 
 export namespace VariableCategory {
@@ -81,7 +81,7 @@ export function callToString(call: CallData, settings: DascriptSettings, verbose
 	return res
 }
 
-export function variableToString(variable: VariableData, settings: DascriptSettings, verbose = false): string {
+export function variableToString(variable: VariableData, settings: DascriptSettings, verbose = false, showCall = false): string {
 	let res = `${variable.name}`
 	if (variable.type)
 		res += `: ${variable.type}`
@@ -89,13 +89,15 @@ export function variableToString(variable: VariableData, settings: DascriptSetti
 		res += ` // ${variable.category}`
 	else
 		res += ` // variable`
-	if (!verbose)
-		return res
-	if (variable.index)
-		res += ` @${variable.index}`
-	if ((variable.uri?.length ?? 0) > 0)
-		res += `\n// ${fixPath(variable.uri, settings)}`
-	if (variable.range && !isRangeZero(variable.range))
-		res += ((variable.uri?.length ?? 0) == 0 ? "\n// " : " ") + rangeToString(variable.range)
+	if (verbose) {
+		if (variable.index)
+			res += ` @${variable.index}`
+		if ((variable.uri?.length ?? 0) > 0)
+			res += `\n// ${fixPath(variable.uri, settings)}`
+		if (variable.range && !isRangeZero(variable.range))
+			res += ((variable.uri?.length ?? 0) == 0 ? "\n// " : " ") + rangeToString(variable.range)
+	}
+	if (showCall && variable.function)
+		res += `\n${variable.function.name} // call`
 	return res
 }

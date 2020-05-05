@@ -259,13 +259,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
 		range = null
 	}
-	let describeVariable = (data: VariableData) => {
-		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover) })
+	let describeVariable = (data: VariableData, showCall = false) => {
+		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover, showCall) })
 		range = null
 	}
 
 	if (cursorData) {
-		if (settings.verboseHover || !(cursorData.call || cursorData.variable)) {
+		if (!(cursorData.call || cursorData.variable)) {
 			if (cursorData.functions && cursorData.functions.length > 0)
 				cursorData.functions.forEach(it => describeFunction(it))
 			else if (cursorData.function)
@@ -278,7 +278,7 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 				describeCall(cursorData.call, true)
 		}
 		if (cursorData.variables && cursorData.variables.length > 0)
-			cursorData.variables.forEach(it => describeVariable(it))
+			cursorData.variables.forEach(it => describeVariable(it, cursorData.variables.length > 1))
 		else if (cursorData.variable)
 			describeVariable(cursorData.variable)
 	}
