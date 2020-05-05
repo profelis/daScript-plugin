@@ -39,7 +39,7 @@ export function fixRange(range: Range | null, lineOffset = -1, endOffset = 1): R
 	range = range ?? Range.create(0, 0, 0, 0)
 	range.start = fixPosition(range.start, lineOffset)
 	range.end = fixPosition(range.end, lineOffset)
-	if (endOffset != 0 && !isRangeZero(range))
+	if (endOffset != 0 && !isRangeZero(range) && range.end.character > 0)
 		range.end.character += endOffset
 	validateRange(range)
 	return range

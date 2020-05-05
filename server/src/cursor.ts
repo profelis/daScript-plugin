@@ -38,6 +38,7 @@ export interface VariableData {
 	uri: string
 	range: Range
 	name: string
+	init?: string
 	type?: string
 	category?: string
 	index?: number
@@ -85,6 +86,8 @@ export function variableToString(variable: VariableData, settings: DascriptSetti
 	let res = `${variable.name}`
 	if (variable.type)
 		res += `: ${variable.type}`
+	if (variable.init)
+		res += ` = ${variable.init}`
 	if (variable.category)
 		res += ` // ${variable.category}`
 	else
