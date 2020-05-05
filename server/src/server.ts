@@ -254,6 +254,12 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			if (includeGeneric && data.function.generic)
 				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
 			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
+			const shortname = data.function.generic?.shortname ?? data.function.shortname
+			if (shortname && shortname.length > 0)
+				globalCompletion.forEach(it => {
+					if (it.filterText == shortname && it.documentation)
+						res.push({ language: "dascript", value: it.documentation.toString() })
+				})
 		}
 		else
 			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
@@ -267,13 +273,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	if (cursorData) {
 		if (!(cursorData.call || cursorData.variable)) {
 			if (cursorData.functions && cursorData.functions.length > 0)
-				cursorData.functions.forEach(it => describeFunction(it))
+				cursorData.functions.forEach(it => describeFunction(it, cursorData.functions.length == 1))
 			else if (cursorData.function)
 				describeFunction(cursorData.function, true)
 		}
 		if (settings.verboseHover || !cursorData.variable) {
 			if (cursorData.calls && cursorData.calls.length > 0)
-				cursorData.calls.forEach(it => describeCall(it))
+				cursorData.calls.forEach(it => describeCall(it, cursorData.calls.length == 1))
 			else if (cursorData.call)
 				describeCall(cursorData.call, true)
 		}

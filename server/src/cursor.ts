@@ -21,6 +21,7 @@ export interface FuncData {
 	uri: string
 	range: Range
 	name: string
+	shortname: string
 }
 
 export interface FunctionData extends FuncData {
