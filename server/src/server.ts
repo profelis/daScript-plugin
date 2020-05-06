@@ -8,7 +8,7 @@ import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, markdownToString } from './lspUtil'
 import { parseJson } from './jsonUtil'
-import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData, FuncData } from './cursor'
+import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData, FuncData, ConstantValue, constantToString } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
 const connection = createConnection(ProposedFeatures.all)
@@ -275,9 +275,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover, showCall) })
 		range = null
 	}
+	let describeConstant = (data: ConstantValue, showCall = false) => {
+		res.push({ language: "dascript", value: constantToString(data, showCall) })
+		range = null
+	}
 
 	if (cursorData) {
-		if (!(cursorData.call || cursorData.variable)) {
+		if (!(cursorData.call || cursorData.variable || (cursorData.constants?.length ?? 0) > 0)) {
 			if (cursorData.functions && cursorData.functions.length > 0)
 				cursorData.functions.forEach(it => describeFunction(it, cursorData.functions.length == 1))
 			else if (cursorData.function)
@@ -293,6 +297,9 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			cursorData.variables.forEach(it => describeVariable(it, cursorData.variables.length > 1))
 		else if (cursorData.variable)
 			describeVariable(cursorData.variable)
+
+		if (cursorData.constants)
+			cursorData.constants.forEach(it => describeConstant(it, cursorData.constants.length > 1))
 	}
 	// connection.console.log(JSON.stringify(range))
 	// for (const it of res)

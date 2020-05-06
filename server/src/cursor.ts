@@ -10,6 +10,7 @@ export interface CursorData {
 	calls?: CallData[]
 	variable: VariableData | null
 	variables?: VariableData[]
+	constants?: ConstantValue[]
 }
 
 export interface Cursor {
@@ -44,6 +45,11 @@ export interface VariableData {
 	category?: string
 	index?: number
 	function?: FunctionData
+}
+
+export interface ConstantValue {
+	value: string
+	function: FunctionData | null
 }
 
 export namespace VariableCategory {
@@ -103,5 +109,12 @@ export function variableToString(variable: VariableData, settings: DascriptSetti
 	}
 	if (showCall && variable.function)
 		res += `\n${variable.function.name} // call`
+	return res
+}
+
+export function constantToString(constant: ConstantValue, showCall = false): string {
+	let res = `${constant.value}`
+	if (showCall && constant.function)
+		res += `\n${constant.function.name} // call`
 	return res
 }
