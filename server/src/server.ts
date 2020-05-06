@@ -1,12 +1,12 @@
 import {
 	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
 	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
-	Hover, MarkedString, WorkspaceFoldersChangeEvent
+	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
-import { uriToFile, fixRange, isRangeZero } from './lspUtil'
+import { uriToFile, fixRange, markdownToString } from './lspUtil'
 import { parseJson } from './jsonUtil'
 import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
@@ -257,8 +257,10 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			const shortname = data.function.generic?.shortname ?? data.function.shortname
 			if (shortname && shortname.length > 0)
 				globalCompletion.forEach(it => {
-					if (it.filterText == shortname && it.documentation)
-						res.push({ language: "dascript", value: it.documentation.toString() })
+					if (it.filterText == shortname && it.documentation) {
+						let str = (<MarkupContent>it.documentation)?.value ?? it.documentation.toString()
+						res.push({ language: "dascript", value: markdownToString(str) })
+					}
 				})
 		}
 		else
