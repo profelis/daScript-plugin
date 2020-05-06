@@ -241,42 +241,48 @@ async function getCursorData(uri: string, x: number, y: number, settings: Dascri
 async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const settings = await getDocumentSettings(uri)
 	const cursorData = await getCursorData(uri, x, y, settings)
-	const res: MarkedString[] = []
+	const res: Map<string, MarkedString> = new Map()
+	const verboseRes: MarkedString[] = []
 	let range = fixRange(cursorData?.cursor?.range)
+
+	let addRes = (value: string) => {
+		if (settings.verboseHover)
+			verboseRes.push({ language: "dascript", value: value })
+		else
+			res.set(value, { language: "dascript", value: value })
+	}
 
 	let addDocumentation = (data: FunctionData) => {
 		const shortname = data.generic?.shortname ?? data.shortname
 		if (shortname && shortname.length > 0)
 			globalCompletion.forEach(it => {
-				if (it.filterText == shortname && it.documentation) {
-					let str = (<MarkupContent>it.documentation)?.value ?? it.documentation.toString()
-					res.push({ language: "dascript", value: markdownToString(str) })
-				}
+				if (it.filterText == shortname && it.documentation)
+					addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
 			})
 	}
 	let describeFunction = (data: FunctionData, includeGeneric = false) => {
 		if (includeGeneric && data.generic)
-			res.push({ language: "dascript", value: functionToString(data.generic, settings, settings.verboseHover) })
-		res.push({ language: "dascript", value: functionToString(data, settings, settings.verboseHover) })
+			addRes(functionToString(data.generic, settings, settings.verboseHover))
+		addRes(functionToString(data, settings, settings.verboseHover))
 	}
 	let describeCall = (data: CallData, includeGeneric = false, addDoc = false) => {
 		if (data.function) {
 			if (includeGeneric && data.function.generic)
-				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
-			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
+				addRes(functionToString(data.function.generic, settings, settings.verboseHover))
+			addRes(functionToString(data.function, settings, settings.verboseHover))
 			if (addDoc)
 				addDocumentation(data.function)
 		}
 		else
-			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
+			addRes(callToString(data, settings, settings.verboseHover))
 		range = null
 	}
 	let describeVariable = (data: VariableData, showCall = false) => {
-		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover, showCall) })
+		addRes(variableToString(data, settings, settings.verboseHover, showCall))
 		range = null
 	}
 	let describeConstant = (data: ConstantValue, showCall = false) => {
-		res.push({ language: "dascript", value: constantToString(data, showCall) })
+		addRes(constantToString(data, showCall))
 		range = null
 	}
 
@@ -305,9 +311,9 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	// for (const it of res)
 	// 	connection.console.log(JSON.stringify(it))
 
-	if (res.length == 0)
+	if (res.size == 0)
 		return settings.verboseHover ? { contents: { language: "json", value: JSON.stringify(range) } } : null
-	return { contents: res, range: range }
+	return { contents: settings.verboseHover ? verboseRes : Array.from(res.values()), range: range }
 }
 
 function addToDiagnostics(diagnostics: Map<string, Diagnostic[]>, uri: string, diagnostic: Diagnostic) {
@@ -332,21 +338,23 @@ async function validate(doc: TextDocument): Promise<void> {
 			try {
 				const json = parseJson(data)
 				const diagnosticsData: any[] = json.diagnostics
-				for (const it of diagnosticsData) {
-					const localPath = it.uri || path
-					const uri = encodeURIComponent(fixPath(localPath, settings))
-					const diagnostic = <Diagnostic>it
-					if (diagnostic?.message == null)
-						continue
-					const offset = "tab" in it ? 1 : 0
-					diagnostic.range = fixRange(diagnostic?.range, -offset, offset)
-					const relatedInformation: DiagnosticRelatedInformation[] = diagnostic?.relatedInformation ?? []
-					for (const info of relatedInformation) {
-						info.location = info?.location ?? Location.create(uri, Range.create(0, 0, 0, 0))
-						info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? localPath, settings))
-						info.location.range = fixRange(info.location?.range, -offset, offset)
+				if (diagnosticsData) {
+					for (const it of diagnosticsData) {
+						const localPath = it.uri || path
+						const uri = encodeURIComponent(fixPath(localPath, settings))
+						const diagnostic = <Diagnostic>it
+						if (diagnostic?.message == null)
+							continue
+						const offset = "tab" in it ? 1 : 0
+						diagnostic.range = fixRange(diagnostic?.range, -offset, offset)
+						const relatedInformation: DiagnosticRelatedInformation[] = diagnostic?.relatedInformation ?? []
+						for (const info of relatedInformation) {
+							info.location = info?.location ?? Location.create(uri, Range.create(0, 0, 0, 0))
+							info.location.uri = encodeURIComponent(fixPath(info.location.uri ?? localPath, settings))
+							info.location.range = fixRange(info.location?.range, -offset, offset)
+						}
+						addToDiagnostics(diagnostics, uri, diagnostic)
 					}
-					addToDiagnostics(diagnostics, uri, diagnostic)
 				}
 			} catch (error) {
 				connection.console.log(error.message)
