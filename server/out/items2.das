@@ -85,9 +85,9 @@ def itemToString(it : Item) : string
     write(writer, "\", \"kind\":")
     write(writer, int(it.kind))
     if length(it.impls) > 0
-      write(writer, ", \"documentation\":\"")
+      write(writer, ", \"documentation\": \{ \"kind\":\"markdown\", \"value\":\"```dascript\\n")
       write(writer, join(it.impls, "\\n"))
-      write(writer, "\"")
+      write(writer, "\\n```\"}")
     write(writer, " \}")
   return st
 

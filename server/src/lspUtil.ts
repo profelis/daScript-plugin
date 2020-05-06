@@ -44,3 +44,7 @@ export function fixRange(range: Range | null, lineOffset = -1, endOffset = 1): R
 	validateRange(range)
 	return range
 }
+
+export function strToMarkdown(str: string, tag = "dascript") {
+	return "```" + tag + "\n" + str + "\n```"
+}

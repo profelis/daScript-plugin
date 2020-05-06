@@ -1,12 +1,12 @@
 import {
 	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
 	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
-	Hover, MarkedString, WorkspaceFoldersChangeEvent
+	Hover, WorkspaceFoldersChangeEvent, MarkupKind, MarkupContent
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
-import { uriToFile, fixRange, isRangeZero } from './lspUtil'
+import { uriToFile, fixRange, strToMarkdown } from './lspUtil'
 import { parseJson } from './jsonUtil'
 import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
@@ -241,32 +241,49 @@ async function getCursorData(uri: string, x: number, y: number, settings: Dascri
 async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const settings = await getDocumentSettings(uri)
 	const cursorData = await getCursorData(uri, x, y, settings)
-	const res: MarkedString[] = []
+	const res: string[] = []
 	let range = fixRange(cursorData?.cursor?.range)
+	const HR = "---"
 
 	let describeFunction = (data: FunctionData, includeGeneric = false) => {
-		if (includeGeneric && data.generic)
-			res.push({ language: "dascript", value: functionToString(data.generic, settings, settings.verboseHover) })
-		res.push({ language: "dascript", value: functionToString(data, settings, settings.verboseHover) })
+		if (res.length > 0)
+			res.push(HR)
+		if (includeGeneric && data.generic) {
+			res.push(strToMarkdown(functionToString(data.generic, settings, settings.verboseHover)))
+			res.push(HR)
+		}
+		res.push(strToMarkdown(functionToString(data, settings, settings.verboseHover)))
 	}
 	let describeCall = (data: CallData, includeGeneric = false) => {
+		if (res.length > 0)
+			res.push(HR)
 		if (data.function) {
-			if (includeGeneric && data.function.generic)
-				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
-			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
+			if (includeGeneric && data.function.generic) {
+				res.push(strToMarkdown(functionToString(data.function.generic, settings, settings.verboseHover)))
+				res.push(HR)
+			}
+			res.push(strToMarkdown(functionToString(data.function, settings, settings.verboseHover)))
 			const shortname = data.function.generic?.shortname ?? data.function.shortname
-			if (shortname && shortname.length > 0)
+			if (shortname && shortname.length > 0) {
+				let firstDoc = true
 				globalCompletion.forEach(it => {
-					if (it.filterText == shortname && it.documentation)
-						res.push({ language: "dascript", value: it.documentation.toString() })
+					if (it.filterText == shortname && it.documentation) {
+						if (firstDoc)
+							res.push(HR)
+						firstDoc = false
+						res.push(((<MarkupContent>it.documentation)?.value ?? it.documentation).toString())
+					}
 				})
+			}
 		}
 		else
-			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
+			res.push(strToMarkdown(callToString(data, settings, settings.verboseHover)))
 		range = null
 	}
 	let describeVariable = (data: VariableData, showCall = false) => {
-		res.push({ language: "dascript", value: variableToString(data, settings, settings.verboseHover, showCall) })
+		if (res.length > 0)
+			res.push(HR)
+		res.push(strToMarkdown(variableToString(data, settings, settings.verboseHover, showCall)))
 		range = null
 	}
 
@@ -293,8 +310,8 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	// 	connection.console.log(JSON.stringify(it))
 
 	if (res.length == 0)
-		return settings.verboseHover ? { contents: { language: "json", value: JSON.stringify(range) } } : null
-	return { contents: res, range: range }
+		return settings.verboseHover ? { contents: { kind: MarkupKind.Markdown, value: strToMarkdown(JSON.stringify(range), "json") } } : null
+	return { contents: { kind: MarkupKind.Markdown, value: res.join("\n") }, range: range }
 }
 
 function addToDiagnostics(diagnostics: Map<string, Diagnostic[]>, uri: string, diagnostic: Diagnostic) {
