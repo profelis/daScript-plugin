@@ -45,6 +45,6 @@ export function fixRange(range: Range | null, lineOffset = -1, endOffset = 1): R
 	return range
 }
 
-export function markdownToString(str: string, tag = "markdown"): string {
+export function markdownToString(str: string, tag = "dascript"): string {
 	return str.replace("```" + tag, "").replace("```", "").trim()
 }

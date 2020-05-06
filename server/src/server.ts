@@ -8,7 +8,7 @@ import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
 import { uriToFile, fixRange, markdownToString } from './lspUtil'
 import { parseJson } from './jsonUtil'
-import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData } from './cursor'
+import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData, FuncData } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
 
 const connection = createConnection(ProposedFeatures.all)
@@ -244,24 +244,28 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const res: MarkedString[] = []
 	let range = fixRange(cursorData?.cursor?.range)
 
+	let addDocumentation = (data: FunctionData) => {
+		const shortname = data.generic?.shortname ?? data.shortname
+		if (shortname && shortname.length > 0)
+			globalCompletion.forEach(it => {
+				if (it.filterText == shortname && it.documentation) {
+					let str = (<MarkupContent>it.documentation)?.value ?? it.documentation.toString()
+					res.push({ language: "dascript", value: markdownToString(str) })
+				}
+			})
+	}
 	let describeFunction = (data: FunctionData, includeGeneric = false) => {
 		if (includeGeneric && data.generic)
 			res.push({ language: "dascript", value: functionToString(data.generic, settings, settings.verboseHover) })
 		res.push({ language: "dascript", value: functionToString(data, settings, settings.verboseHover) })
 	}
-	let describeCall = (data: CallData, includeGeneric = false) => {
+	let describeCall = (data: CallData, includeGeneric = false, addDoc = false) => {
 		if (data.function) {
 			if (includeGeneric && data.function.generic)
 				res.push({ language: "dascript", value: functionToString(data.function.generic, settings, settings.verboseHover) })
 			res.push({ language: "dascript", value: functionToString(data.function, settings, settings.verboseHover) })
-			const shortname = data.function.generic?.shortname ?? data.function.shortname
-			if (shortname && shortname.length > 0)
-				globalCompletion.forEach(it => {
-					if (it.filterText == shortname && it.documentation) {
-						let str = (<MarkupContent>it.documentation)?.value ?? it.documentation.toString()
-						res.push({ language: "dascript", value: markdownToString(str) })
-					}
-				})
+			if (addDoc)
+				addDocumentation(data.function)
 		}
 		else
 			res.push({ language: "dascript", value: callToString(data, settings, settings.verboseHover) })
@@ -281,9 +285,9 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 		}
 		if (settings.verboseHover || !cursorData.variable) {
 			if (cursorData.calls && cursorData.calls.length > 0)
-				cursorData.calls.forEach(it => describeCall(it, cursorData.calls.length == 1))
+				cursorData.calls.forEach((it, idx) => describeCall(it, cursorData.calls.length == 1, idx == cursorData.calls.length - 1))
 			else if (cursorData.call)
-				describeCall(cursorData.call, true)
+				describeCall(cursorData.call, true, true)
 		}
 		if (cursorData.variables && cursorData.variables.length > 0)
 			cursorData.variables.forEach(it => describeVariable(it, cursorData.variables.length > 1))
