@@ -1,7 +1,7 @@
 import {
 	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
 	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
-	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent
+	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent, SignatureHelp, SignatureInformation
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'
@@ -79,7 +79,8 @@ connection.onInitialize((params) => {
 					supported: true,
 					changeNotifications: true
 				}
-			}
+			},
+			signatureHelpProvider: { triggerCharacters: ["(", ":"] }
 		}
 	}
 })
@@ -131,6 +132,64 @@ connection.onDefinition(async (doc: TextDocumentPositionParams) => {
 	} else
 		connection.console.log(`> goto ${JSON.stringify(res)}`)
 	return res
+})
+
+connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
+	if (globalCompletion.length == 0)
+		return null
+	const textDoc = documents.get(doc.textDocument.uri)
+	if (!textDoc)
+		return null
+	let idx = textDoc.offsetAt(doc.position)
+	if (idx <= 0)
+		return null
+	idx--
+	const text = textDoc.getText()
+	while (idx > 0) {
+		const char = text[idx]
+		if (char == "(")
+			break
+		if (char == ":" && text[idx + 1] == ":")
+			break
+		if (char == ")")
+			return null
+		idx--
+	}
+	let startIdx = idx - 1
+	while (startIdx > 0) {
+		const char = text[startIdx]
+		if (char == "\t" || char == "\r" || char == " " || char == "\n" || char == "." || char == "{" || char == ")" || char == "," || char == "(")
+			break
+		startIdx--
+	}
+	const token = text.substring(startIdx + 1, idx)
+	// connection.console.log(token)
+	if (token.length == 0)
+		return null
+
+	let searchCompletion = (getText: (text: CompletionItem) => string): SignatureHelp | null => {
+		for (const it of globalCompletion.values()) {
+			if (!it.documentation)
+				continue
+			let text = getText(it)
+			if (!text)
+				continue
+			if (!token.startsWith(text))
+				continue
+			if (token.length == text.length || token[text.length] == "(" || token[text.length] == ".") {
+				let docs = markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()).split("\n")
+				if (docs.length == 0)
+					return null
+				let infos = docs.map(it => SignatureInformation.create(it))
+				return { signatures: infos, activeSignature: 0, activeParameter: 0 }
+			}
+		}
+		return null
+	}
+	const res = searchCompletion(it => it.filterText)
+	if (res)
+		return res
+	return searchCompletion(it => it.label)
 })
 
 documents.onDidClose(event => {
