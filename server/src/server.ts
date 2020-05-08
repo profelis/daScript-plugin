@@ -71,7 +71,7 @@ connection.onInitialize((params) => {
 	return {
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Full,
-			completionProvider: { resolveProvider: true },
+			completionProvider: { resolveProvider: true, triggerCharacters: [":", "."] },
 			hoverProvider: true,
 			definitionProvider: true,
 			workspace: {
@@ -80,7 +80,7 @@ connection.onInitialize((params) => {
 					changeNotifications: true
 				}
 			},
-			signatureHelpProvider: { triggerCharacters: ["(", ":"] }
+			signatureHelpProvider: { triggerCharacters: ["("] }
 		}
 	}
 })
@@ -146,19 +146,17 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 	idx--
 	const text = textDoc.getText()
 	while (idx > 0) {
-		const char = text[idx]
-		if (char == "(")
+		const ch = text[idx]
+		if (ch == "(")
 			break
-		if (char == ":" && text[idx + 1] == ":")
-			break
-		if (char == ")")
+		if (ch == ")")
 			return null
 		idx--
 	}
 	let startIdx = idx - 1
 	while (startIdx > 0) {
-		const char = text[startIdx]
-		if (char == "\t" || char == "\r" || char == " " || char == "\n" || char == "." || char == "{" || char == ")" || char == "," || char == "(")
+		const ch = text[startIdx]
+		if (!(ch == "_" || ch == "$" || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))
 			break
 		startIdx--
 	}
@@ -176,7 +174,7 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 				continue
 			if (!token.startsWith(text))
 				continue
-			if (token.length == text.length || token[text.length] == "(" || token[text.length] == ".") {
+			if (token.length == text.length || token[text.length] == "(") {
 				let docs = markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()).split("\n")
 				if (docs.length == 0)
 					return null
