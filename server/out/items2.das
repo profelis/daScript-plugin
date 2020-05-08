@@ -233,7 +233,7 @@ def parseFunction(info; fullModuleName : string; var items : Items)
     if !firstArg
       impl += "; "
     firstArg = false
-    impl += "{it.name}: {getTypeName(it, items)}"
+    impl += "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
   impl += ")"
   if info.result != null
     impl += ": {getTypeName(*(info.result), items)}"
@@ -297,13 +297,13 @@ def parseModule(pMod; var items : Items)
 
 def addKeywords(var items : Items)
   for it in keywords
-    addItem([[Item name = it, fullName = it, desc = "keyword {it}", kind = ItemKind Keyword]], items)
+    addItem([[Item name = it, fullName = it, desc = "keyword {it}", kind = ItemKind Keyword, impls <- [{auto[] "keyword {it}"}] ]], items)
   for it in basicTypes
-    addItem([[Item name = it, fullName = it, desc = "type {it}", kind = ItemKind Keyword]], items)
+    addItem([[Item name = it, fullName = it, desc = "type {it}", kind = ItemKind Keyword, impls <- [{auto[] "type {it}"}] ]], items)
   for it in metaFunc
-    addItem([[Item name = it, fullName = it, desc = "{it}(...)", kind = ItemKind Function]], items)
+    addItem([[Item name = it, fullName = it, desc = "{it}(...)", kind = ItemKind Function, impls <- [{auto[] "def {it} (...)"}] ]], items)
   for it in langOptions
-    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property]], items)
+    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property, impls <- [{auto[] "option {it}"}] ]], items)
 
 [export]
 def dumpModule(name : string)
