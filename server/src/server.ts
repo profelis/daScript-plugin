@@ -311,11 +311,19 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			res.set(value, { language: "dascript", value: value })
 	}
 
-	let addDocumentation = (data: FunctionData) => {
+	let addFuncDocumentation = (data: FunctionData) => {
 		const shortname = data.generic?.shortname ?? data.shortname
 		if (shortname && shortname.length > 0)
 			globalCompletion.forEach(it => {
 				if (it.filterText == shortname && it.documentation)
+					addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
+			})
+	}
+	let addVarDocumentation = (data: VariableData) => {
+		const shortname = data.type
+		if (shortname && shortname.length > 0)
+			globalCompletion.forEach(it => {
+				if (shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " ") && it.documentation)
 					addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
 			})
 	}
@@ -330,15 +338,17 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 				addRes(functionToString(data.function.generic, settings, settings.verboseHover))
 			addRes(functionToString(data.function, settings, settings.verboseHover))
 			if (addDoc)
-				addDocumentation(data.function)
+				addFuncDocumentation(data.function)
 		}
 		else
 			addRes(callToString(data, settings, settings.verboseHover))
 		range = null
 	}
-	let describeVariable = (data: VariableData, showCall = false) => {
+	let describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
 		addRes(variableToString(data, settings, settings.verboseHover, showCall))
 		range = null
+		if (addDoc)
+			addVarDocumentation(data)
 	}
 	let describeConstant = (data: ConstantValue, showCall = false) => {
 		addRes(constantToString(data, showCall))
@@ -359,9 +369,9 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 				describeCall(cursorData.call, true, true)
 		}
 		if (cursorData.variables && cursorData.variables.length > 0)
-			cursorData.variables.forEach(it => describeVariable(it, cursorData.variables.length > 1))
+			cursorData.variables.forEach((it, idx) => describeVariable(it, cursorData.variables.length > 1, idx == cursorData.variables.length - 1))
 		else if (cursorData.variable)
-			describeVariable(cursorData.variable)
+			describeVariable(cursorData.variable, false, true)
 
 		if (cursorData.constants)
 			cursorData.constants.forEach(it => describeConstant(it, cursorData.constants.length > 1))
