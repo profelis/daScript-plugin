@@ -38,6 +38,7 @@ struct Item
 
 typedef
   Items = table<string; Item>
+  MetaItem = tuple< string; array<string> >
 
 let
   keywords = [[auto[] "struct"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new"; "typeinfo"; "type"; "in"; "is"; "as";
@@ -50,7 +51,15 @@ let
                       "float4"; "range"; "urange"; "block"; "int64"; "uint64"; "double"; "function"; "lambda"; "int8"; "uint8"; "int16"; "uint16"; "tuple";
                       "variant"; "generator"; "yield"]]
 
-  metaFunc = [[auto "assert"; "verify"; "static_assert"; "concept_assert"; "debug"; "memzero"; "invoke"]]
+  metaFunc <- [{ MetaItem[]
+              "assert", [{ auto[] "def assert(cond)"; "def assert(cond, string)" }];
+              "verify", [{ auto[] "def verify(cond)"; "def verify(cond, string)" }];
+              "static_assert", [{ auto[] "def static_assert(cond)"; "def static_assert(cond, string)" }];
+              "concept_assert", [{ auto[] "def concept_assert(cond)"; "def concept_assert(cond, string)" }];
+              "debug", [{ auto[] "def debug(value)"; "def debug(value, string)" }];
+              "memzero", [{ auto[] "def memzero(ref)" }];
+              "invoke", [{ auto[] "def invoke(block_or_function_or_lambda)"; "def invoke(block_or_function_or_lambda, ...)" }]
+            }]
 
   langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments"; "heap";
                        "string_heap"; "stack"; "intern_const_strings"; "intern_strings"; "no_aot"; "aot_prologue"; "plot"; "plot_read_write"; "log";
@@ -297,13 +306,13 @@ def parseModule(pMod; var items : Items)
 
 def addKeywords(var items : Items)
   for it in keywords
-    addItem([[Item name = it, fullName = it, desc = "keyword {it}", kind = ItemKind Keyword, impls <- [{auto[] "keyword {it}"}] ]], items)
+    addItem([[Item name = it, fullName = it, desc = "keyword {it}", kind = ItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)
   for it in basicTypes
-    addItem([[Item name = it, fullName = it, desc = "type {it}", kind = ItemKind Keyword, impls <- [{auto[] "type {it}"}] ]], items)
+    addItem([[Item name = it, fullName = it, desc = "type {it}", kind = ItemKind Keyword, impls <- [{ auto[] "type {it}" }] ]], items)
   for it in metaFunc
-    addItem([[Item name = it, fullName = it, desc = "{it}(...)", kind = ItemKind Function, impls <- [{auto[] "def {it} (...)"}] ]], items)
+    addItem([[Item name = it._0, fullName = it._0, desc = "def {it._0}", kind = ItemKind Function, impls <- clone_to_move(it._1) ]], items)
   for it in langOptions
-    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property, impls <- [{auto[] "option {it}"}] ]], items)
+    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
 [export]
 def dumpModule(name : string)
