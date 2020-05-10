@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -12,7 +12,8 @@
 	"publisher": "profelis",
 	"categories": [
 		"Programming Languages",
-		"Linters"
+		"Linters",
+		"Snippets"
 	],
 	"keywords": [
 		"dascript",
@@ -80,7 +81,13 @@
 					"description": "More information in hover"
 				}
 			}
-		}
+		},
+		"snippets": [
+			{
+				"language": "dascript",
+				"path": "./snippets/dascript.json"
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",

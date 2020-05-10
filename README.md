@@ -14,6 +14,7 @@ Plugin for scripting language [daScript](https://dascript.org/)
 - Code completion (limited support)
 - Hover hints
 - Go to definition
+- Snippets
 
 ## Development
 

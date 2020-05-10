@@ -1,0 +1,74 @@
+{
+	"struct": {
+		"prefix": "struct",
+		"body": "struct ${1:name}\n\t${2:field} : ${0:type}"
+	},
+	"enum": {
+		"prefix": "enum",
+		"body": "enum ${1:name}\n\t${0:ctor}"
+	},
+	"def": {
+		"prefix": "def",
+		"body": "def ${1:name}(${2:args})\n\t${0:pass}"
+	},
+	"blk": {
+		"prefix": "blk",
+		"body": "$(${1:args})\n\t${0:pass}"
+	},
+	"lambda": {
+		"prefix": "lambda",
+		"body": "@ <| (${1:args})\n\t${0:pass}"
+	},
+	"lt": {
+		"prefix": "lt",
+		"body": "let ${0:name}"
+	},
+	"vr": {
+		"prefix": "vr",
+		"body": "var ${0:name}"
+	},
+	"let": {
+		"prefix": "let",
+		"body": "let ${1:name} = ${0:value}"
+	},
+	"var": {
+		"prefix": "var",
+		"body": "var ${1:name} = ${0:value}"
+	},
+	"lett": {
+		"prefix": "lett",
+		"body": "let ${1:name} : ${2:type} = ${0:value}"
+	},
+	"vart": {
+		"prefix": "vart",
+		"body": "var ${1:name} : ${2:type} = ${0:value}"
+	},
+	"for": {
+		"prefix": "for",
+		"body": "for ${1:name} in ${2:iter}\n\t${0:pass}"
+	},
+	"while": {
+		"prefix": "while",
+		"body": "while ${1:cond}\n\t${0:pass}"
+	},
+	"if": {
+		"prefix": "if",
+		"body": "if ${1:cond}\n\t${0:pass}"
+	},
+	"ifelse": {
+		"prefix": "ifelse",
+		"body": "if ${1:cond}\n\t${2:pass}\nelse\n\t${0:pass}"
+	},
+	"elif": {
+		"prefix": "elif",
+		"body": "elif ${1:cond}\n\t${0:pass}"
+	},
+	"try": {
+		"prefix": "try",
+		"body": "try\n\t${1:pass}\nrecover\n\t${0:pass}"
+	},
+	"finally": {
+		"prefix": "fin",
+		"body": "finally\n\t${0:pass}"
+	}
+}
