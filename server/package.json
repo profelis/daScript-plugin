@@ -12,7 +12,7 @@
 		"url": "https://github.com/profelis/daScript-plugin"
 	},
 	"dependencies": {
-		"vscode-languageserver": "^6.1.1"
+		"vscode-languageserver": "^5.2.1"
 	},
 	"scripts": {}
 }
