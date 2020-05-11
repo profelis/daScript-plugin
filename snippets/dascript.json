@@ -11,7 +11,7 @@
 		"prefix": "def",
 		"body": "def ${1:name}(${2:args})\n\t${0:pass}"
 	},
-	"blk": {
+	"block": {
 		"prefix": "blk",
 		"body": "$(${1:args})\n\t${0:pass}"
 	},
