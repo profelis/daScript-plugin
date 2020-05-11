@@ -1,7 +1,7 @@
 import {
 	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
 	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
-	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent, SignatureHelp, SignatureInformation
+	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent, SignatureHelp, SignatureInformation, CompletionItemKind
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'
@@ -145,7 +145,8 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 		return null
 	idx--
 	const text = textDoc.getText()
-	while (idx > 0) {
+	let maxLen = 1024
+	while (idx > 0 && maxLen-- > 0) {
 		const ch = text[idx]
 		if (ch == "(")
 			break
@@ -154,9 +155,9 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 		idx--
 	}
 	let startIdx = idx - 1
-	while (startIdx > 0) {
+	while (startIdx > 0 && maxLen-- > 0) {
 		const ch = text[startIdx]
-		if (!(ch == "_" || ch == "$" || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))
+		if (!(ch == "_" || ch == "$" || ch == ":" || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))
 			break
 		startIdx--
 	}
