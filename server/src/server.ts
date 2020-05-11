@@ -382,8 +382,8 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	// for (const it of res)
 	// 	connection.console.log(JSON.stringify(it))
 
-	if (res.size == 0)
-		return settings.verboseHover ? { contents: { language: "json", value: JSON.stringify(range) } } : null
+	if ((settings.verboseHover ? verboseRes.length : res.size) == 0)
+		return settings.verboseHover && range ? { contents: { language: "json", value: JSON.stringify(range) } } : null
 	return { contents: settings.verboseHover ? verboseRes : Array.from(res.values()), range: range }
 }
 
