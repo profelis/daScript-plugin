@@ -41,13 +41,15 @@ typedef
   MetaItem = tuple< string; array<string> >
 
 let
-  keywords = [[auto[] "struct"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new"; "typeinfo"; "type"; "in"; "is"; "as";
-                      "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options"; "table"; "expect"; "const"; "require"; "operator"; "enum";
-                      "finally"; "delete"; "deref"; "scope"; "typedef"; "with"; "cast"; "override"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where";
-                      "pass"; "reinterpret"; "module"; "public"; "label"; "goto"; "implicit"; "shared"
+  // src\parser\ds_parser.ypp:129
+  keywords = [[auto[] "struct"; "class"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new"; "typeinfo"; "type"; "in";
+                      "is"; "as"; "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options"; "table"; "expect"; "const"; "require"; "operator";
+                      "enum"; "finally"; "delete"; "deref"; "scope"; "typedef"; "with"; "cast"; "override"; "upcast"; "iterator"; "var"; "addr"; "continue";
+                      "where"; "pass"; "reinterpret"; "module"; "public"; "label"; "goto"; "implicit"; "shared"
               ]]
 
-  basicTypes = [[auto "bool"; "void"; "string"; "auto"; "int"; "int2"; "int3"; "int4"; "uint"; "uint2"; "uint3"; "uint4"; "float"; "float2"; "float3";
+  // src\parser\ds_parser.ypp:186
+  basicTypes = [[auto "bool"; "void"; "string"; "auto"; "int"; "int2"; "int3"; "int4"; "uint"; "bitfield"; "uint2"; "uint3"; "uint4"; "float"; "float2"; "float3";
                       "float4"; "range"; "urange"; "block"; "int64"; "uint64"; "double"; "function"; "lambda"; "int8"; "uint8"; "int16"; "uint16"; "tuple";
                       "variant"; "generator"; "yield"]]
 
@@ -61,11 +63,13 @@ let
               "invoke", [{ auto[] "def invoke(block_or_function_or_lambda)"; "def invoke(block_or_function_or_lambda, ...)" }]
             }]
 
+  // src\ast\ast_lint.cpp:312
   langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments"; "heap";
-                       "string_heap"; "stack"; "intern_const_strings"; "intern_strings"; "no_aot"; "aot_prologue"; "plot"; "plot_read_write"; "log";
-                       "log_optimization_passes"; "log_stack"; "log_nodes"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes"; "log_require";
-                       "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style"; "rtti"; "optimize";
-                       "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run"; "max_infer_passes"; "indenting"]]
+                       "heap_page"; "string_heap"; "string_heap_page"; "stack"; "intern_const_strings"; "intern_strings"; "no_aot"; "aot_prologue"; "plot";
+                       "plot_read_write"; "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
+                       "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
+                       "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
+                       "max_infer_passes"; "indenting"]]
 
 [unsafe]
 def addItem(var item : Item; var items : Items; once = false)
