@@ -126,6 +126,8 @@ connection.onDefinition(async (doc: TextDocumentPositionParams) => {
 		else
 			res = { uri: doUri(cursorData.call.function.uri), range: fixRange(cursorData.call.function.range) }
 	}
+	if (res && res.range.start.line < doc.position.line && res.range.end.line >= doc.position.line)
+		res.range.end = res.range.start
 	if (!res || res.uri == "") {
 		connection.console.log(`> goto: error \n ${JSON.stringify(cursorData, null, 2)}`)
 		res = null
