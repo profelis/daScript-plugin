@@ -199,19 +199,16 @@ documents.onDidClose(event => {
 })
 
 documents.onDidOpen(event => {
-	connection.console.log(`[open ${event.document.uri}]`)
 	validate(event.document)
 	lazyCompletion(event.document, lazyCompletions)
 })
 
 documents.onDidSave(event => {
-	connection.console.log(`[save ${event.document.uri}]`)
 	validate(event.document)
 	lazyCompletion(event.document, lazyCompletions)
 })
 
 documents.onDidChangeContent(event => {
-	connection.console.log(`[changed ${event.document.uri}]`)
 	lazyCompletion(event.document, lazyCompletions)
 })
 
@@ -400,7 +397,7 @@ async function validate(doc: TextDocument): Promise<void> {
 	execFile(settings.compiler, args, (err, data) => {
 		if (err)
 			connection.console.log(err.message)
-		connection.console.log(data)
+		// connection.console.log(data)
 		const diagnostics: Map<string, Diagnostic[]> = new Map()
 		if (data.trim().length > 0) {
 			try {
@@ -428,7 +425,7 @@ async function validate(doc: TextDocument): Promise<void> {
 				connection.console.log(error.message)
 				connection.console.log("> fallback to text log parser")
 				diagnostics.clear()
-				validateTextOutput(doc, path, data, settings, diagnostics)
+				validateTextOutput(path, data, settings, diagnostics)
 			}
 		}
 
@@ -473,7 +470,7 @@ function getGlobalCompletion(path: string, settings: DascriptSettings) {
 	})
 }
 
-function validateTextOutput(doc: TextDocument, path: string, data: string, settings: DascriptSettings, diagnostics: Map<string, Diagnostic[]>) {
+function validateTextOutput(path: string, data: string, settings: DascriptSettings, diagnostics: Map<string, Diagnostic[]>) {
 	const encodedPath = encodeURIComponent(path)
 	const lines = data.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 	let current: Diagnostic
