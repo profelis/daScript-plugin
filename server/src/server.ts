@@ -71,7 +71,7 @@ connection.onInitialize((params) => {
 	return {
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Full,
-			completionProvider: { resolveProvider: true, triggerCharacters: [":", "."] },
+			completionProvider: { resolveProvider: true, triggerCharacters: ["."] },
 			hoverProvider: true,
 			definitionProvider: true,
 			workspace: {
@@ -306,22 +306,26 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 		else
 			res.set(value, { language: "dascript", value: value })
 	}
-
+	let addDocumentation = (check: (item: CompletionItem) => boolean) => {
+		globalCompletion.forEach(it => {
+			if (it.documentation && check(it))
+				addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
+		})
+	}
 	let addFuncDocumentation = (data: FunctionData) => {
 		const shortname = data.generic?.shortname ?? data.shortname
 		if (shortname && shortname.length > 0)
-			globalCompletion.forEach(it => {
-				if (it.filterText == shortname && it.documentation)
-					addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
-			})
+			addDocumentation(it => it.filterText == shortname)
 	}
 	let addVarDocumentation = (data: VariableData) => {
 		const shortname = data.type
 		if (shortname && shortname.length > 0)
-			globalCompletion.forEach(it => {
-				if (shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " ") && it.documentation)
-					addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
-			})
+			addDocumentation(it => shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " "))
+	}
+	let addConstDocumentation = (data: ConstantValue) => {
+		const shortname = data.value
+		if (shortname && shortname.length > 0)
+			addDocumentation(it => shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " "))
 	}
 	let describeFunction = (data: FunctionData, includeGeneric = false) => {
 		if (includeGeneric && data.generic)
@@ -342,12 +346,14 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	}
 	let describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
 		addRes(variableToString(data, settings, settings.verboseHover, showCall))
-		range = null
 		if (addDoc)
 			addVarDocumentation(data)
+		range = null
 	}
-	let describeConstant = (data: ConstantValue, showCall = false) => {
+	let describeConstant = (data: ConstantValue, showCall = false, addDoc = false) => {
 		addRes(constantToString(data, showCall))
+		if (addDoc)
+			addConstDocumentation(data)
 		range = null
 	}
 
@@ -370,7 +376,7 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			describeVariable(cursorData.variable, false, true)
 
 		if (cursorData.constants)
-			cursorData.constants.forEach(it => describeConstant(it, cursorData.constants.length > 1))
+			cursorData.constants.forEach((it, idx) => describeConstant(it, cursorData.constants.length > 1, idx == cursorData.constants.length - 1))
 	}
 	// connection.console.log(JSON.stringify(range))
 	// for (const it of res)
