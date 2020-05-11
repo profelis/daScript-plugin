@@ -167,7 +167,7 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 
 	let searchCompletion = (getText: (text: CompletionItem) => string): SignatureHelp | null => {
 		for (const it of globalCompletion.values()) {
-			if (!it.documentation)
+			if (!it.documentation || it.kind == CompletionItemKind.Keyword)
 				continue
 			let text = getText(it)
 			if (!text)
