@@ -42,16 +42,16 @@ typedef
 
 let
   // src\parser\ds_parser.ypp:129
-  keywords = [[auto[] "struct"; "class"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new"; "typeinfo"; "type"; "in";
-                      "is"; "as"; "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options"; "table"; "expect"; "const"; "require"; "operator";
-                      "enum"; "finally"; "delete"; "deref"; "scope"; "typedef"; "with"; "cast"; "override"; "upcast"; "iterator"; "var"; "addr"; "continue";
-                      "where"; "pass"; "reinterpret"; "module"; "public"; "label"; "goto"; "implicit"; "shared"
-              ]]
+  keywords = [[string "struct"; "class"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new";
+                      "typeinfo"; "type"; "in"; "is"; "as"; "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options";
+                      "table"; "expect"; "const"; "require"; "operator"; "enum"; "finally"; "delete"; "deref"; "scope"; "typedef";
+                      "with"; "cast"; "override"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where"; "pass"; "reinterpret";
+                      "module"; "public"; "label"; "goto"; "implicit"; "shared"; "smart_ptr"]]
 
   // src\parser\ds_parser.ypp:186
-  basicTypes = [[auto "bool"; "void"; "string"; "auto"; "int"; "int2"; "int3"; "int4"; "uint"; "bitfield"; "uint2"; "uint3"; "uint4"; "float"; "float2"; "float3";
-                      "float4"; "range"; "urange"; "block"; "int64"; "uint64"; "double"; "function"; "lambda"; "int8"; "uint8"; "int16"; "uint16"; "tuple";
-                      "variant"; "generator"; "yield"]]
+  basicTypes = [[string "bool"; "void"; "string"; "auto"; "int"; "int2"; "int3"; "int4"; "uint"; "bitfield"; "uint2"; "uint3"; "uint4";
+                        "float"; "float2"; "float3"; "float4"; "range"; "urange"; "block"; "int64"; "uint64"; "double"; "function";
+                        "lambda"; "int8"; "uint8"; "int16"; "uint16"; "tuple"; "variant"; "generator"; "yield"]]
 
   metaFunc <- [{ MetaItem[]
               "assert", [{ auto[] "def assert(cond)"; "def assert(cond, string)" }];
