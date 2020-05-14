@@ -11,7 +11,7 @@
 		"prefix": "struct",
 		"body": "struct ${1:name}\n\t${2:field} : ${0:type}"
 	},
-	"variant": {
+	"varianttype": {
 		"prefix": "variant",
 		"body": "variant ${1:name}\n\t${2:field} : ${0:type}"
 	},
@@ -87,6 +87,10 @@
 		"prefix": "elif",
 		"body": "elif ${1:cond}\n\t${0:pass}"
 	},
+	"where": {
+		"prefix": "where",
+		"body": "where ${0:cond}"
+	},
 	"try": {
 		"prefix": "try",
 		"body": "try\n\t${1:pass}\nrecover\n\t${0:pass}"
@@ -94,5 +98,21 @@
 	"finally": {
 		"prefix": "fin",
 		"body": "finally\n\t${0:pass}"
+	},
+	"array": {
+		"prefix": "array",
+		"body": "array<${0:type}>"
+	},
+	"table": {
+		"prefix": "table",
+		"body": "table<${1:keyType}; ${0:type}>"
+	},
+	"tuple": {
+		"prefix": "tuple",
+		"body": "tuple<$0>"
+	},
+	"variant": {
+		"prefix": "variant",
+		"body": "variant<$0>"
 	}
 }

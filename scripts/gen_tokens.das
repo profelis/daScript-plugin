@@ -3,8 +3,9 @@ require fio
 let
 	dasRoot = ""
 
-typedef
-	Tokens = variant< status:bool; tokens:array<string> >
+variant Tokens
+	status : bool
+	tokens : array<string>
 
 [init]
 def init
@@ -26,7 +27,7 @@ def buildString(data : array<string>; prefix, postfix, decorator, delimeter : st
 		for i in range(0, length(data))
 			let it = data[i]
 			if length(line) + length(delimeter) + 2 * length(decorator) >= maxLen
-				res += "\n{line}"
+				res += (length(res) > 0 ? "\n" : "") + line
 				line = repeat(" ", prefix |> length())
 			line += "{decorator}{it}{decorator}"
 			if i < length(data) - 1
@@ -44,25 +45,24 @@ def getBasicTypes()
 
 def getTokens(from, to : string) : Tokens
 	let path = dasRoot + "src/parser/ds_parser.ypp"
-	var res : array<string>
-	let f = fio::fopen(path, "rb")
-	if f == null
-		debug("error: can't open {path}")
-		return <- [[Tokens status = false]]
-	let data = fio::fread(f)
-	let start = find(data, from) + length(from)
-	let end = find(data, to)
-	if start == -1 | end == -1
-		debug("error: can't find bounds")
-		return <- [[Tokens status = false]]
-	let sub = slice(data, start, end)
-	let tokens <- split(sub, "\r\n")
-	for it in tokens
-		if it |> strip() |> length() == 0
-			continue
-		let b = find(it, "\"") + 1
-		res |> push(slice(it, b, find(it, "\"", b)))
-	return <- [[Tokens tokens <- res]]
-finally
-	if f != null
-		fclose(f)
+	var res <- [[Tokens status = false]]
+	fio::fopen(path, "rb") <| $(f)
+		if f == null
+			debug("error: can't open {path}")
+			return
+		let data = fio::fread(f)
+		let start = find(data, from) + length(from)
+		let end = find(data, to)
+		if start == -1 | end == -1
+			debug("error: can't find bounds")
+			return
+		let sub = slice(data, start, end)
+		let tokens <- split(sub, "\r\n")
+		var list : array<string>
+		for it in tokens
+			if it |> strip() |> length() == 0
+				continue
+			let b = find(it, "\"") + 1
+			list |> push(slice(it, b, find(it, "\"", b)))
+		res <- [[Tokens tokens <- list]]
+	return <- res
