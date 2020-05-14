@@ -1,11 +1,27 @@
 {
+	"options": {
+		"prefix": "ops",
+		"body": "options ${1:name} = ${0:value}"
+	},
+	"require": {
+		"prefix": "req",
+		"body": "require ${0:module}"
+	},
 	"struct": {
 		"prefix": "struct",
 		"body": "struct ${1:name}\n\t${2:field} : ${0:type}"
 	},
+	"variant": {
+		"prefix": "variant",
+		"body": "variant ${1:name}\n\t${2:field} : ${0:type}"
+	},
 	"enum": {
 		"prefix": "enum",
 		"body": "enum ${1:name}\n\t${0:ctor}"
+	},
+	"typedef": {
+		"prefix": "tdef",
+		"body": "typedef\n\t${1:name} = ${0:value}"
 	},
 	"def": {
 		"prefix": "def",
@@ -42,6 +58,14 @@
 	"vart": {
 		"prefix": "vart",
 		"body": "var ${1:name} : ${2:type} = ${0:value}"
+	},
+	"vars": {
+		"prefix": "vrs",
+		"body": "var in scope ${0:name}"
+	},
+	"delete": {
+		"prefix": "del",
+		"body": "delete ${0:name}"
 	},
 	"for": {
 		"prefix": "for",

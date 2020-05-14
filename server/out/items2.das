@@ -165,7 +165,7 @@ def getTypeName(info; var items : Items)
       res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
     res += ">"
   elif info.basicType == Type fakeContext
-    res = "[Context]"
+    res = "__context__"
   else
     res = get_das_type_name(info.basicType)
   res += join([{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}],"")
