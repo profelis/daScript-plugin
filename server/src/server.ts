@@ -310,24 +310,27 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	}
 	let addDocumentation = (check: (item: CompletionItem) => boolean) => {
 		globalCompletion.forEach(it => {
-			if (it.documentation && check(it))
+			if (it.documentation && it.kind != CompletionItemKind.Keyword && check(it))
 				addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
 		})
+	}
+	let addPartialDoc = (shortname: string) => {
+		const delems = { " ": true, "&": true, "#": true, "?": true, "<": true, "-": true }
+		if (shortname && shortname.length > 0) {
+			// tslint:disable-next-line: no-for-in
+			for (const del in delems)
+				shortname = shortname.split(del)[0]
+			addDocumentation(it => {
+				if (it.filterText && shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] in delems))
+					return true
+				return false
+			})
+		}
 	}
 	let addFuncDocumentation = (data: FunctionData) => {
 		const shortname = data.generic?.shortname ?? data.shortname
 		if (shortname && shortname.length > 0)
-			addDocumentation(it => it.filterText == shortname)
-	}
-	let addVarDocumentation = (data: VariableData) => {
-		const shortname = data.type
-		if (shortname && shortname.length > 0)
-			addDocumentation(it => shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " "))
-	}
-	let addConstDocumentation = (data: ConstantValue) => {
-		const shortname = data.value
-		if (shortname && shortname.length > 0)
-			addDocumentation(it => shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] == " "))
+			addPartialDoc(shortname)
 	}
 	let describeFunction = (data: FunctionData, includeGeneric = false) => {
 		if (includeGeneric && data.generic)
@@ -349,13 +352,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	let describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
 		addRes(variableToString(data, settings, settings.verboseHover, showCall))
 		if (addDoc)
-			addVarDocumentation(data)
+			addPartialDoc(data.type)
 		range = null
 	}
 	let describeConstant = (data: ConstantValue, showCall = false, addDoc = false) => {
 		addRes(constantToString(data, showCall))
 		if (addDoc)
-			addConstDocumentation(data)
+			addPartialDoc(data.value)
 		range = null
 	}
 
