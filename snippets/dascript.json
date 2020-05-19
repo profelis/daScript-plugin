@@ -31,6 +31,10 @@
 		"prefix": "def",
 		"body": "def ${1:name}(${2:args})\n\t${0:pass}"
 	},
+	"def-abstract": {
+		"prefix": "defa",
+		"body": "def abstract ${0:name}"
+	},
 	"block": {
 		"prefix": "blk",
 		"body": "$(${1:args})\n\t${0:pass}"
@@ -118,5 +122,9 @@
 	"variant": {
 		"prefix": "variant",
 		"body": "variant<$0>"
+	},
+	"smart_ptr": {
+		"prefix": "smart_ptr",
+		"body": "smart_ptr<$0>"
 	}
 }
