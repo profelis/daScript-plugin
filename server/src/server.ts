@@ -268,7 +268,7 @@ async function getCursorData(uri: string, x: number, y: number, settings: Dascri
 
 	return new Promise<CursorData | null>((onResolve, _) => {
 		connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
-		execFile(settings.compiler, args, (err, data) => {
+		execFile(settings.compiler, args, { maxBuffer: 10 * 1024 * 1024 }, (err, data) => {
 			if (err)
 				connection.console.log(err.message)
 			// connection.console.log(data)
@@ -405,7 +405,7 @@ async function validate(doc: TextDocument): Promise<void> {
 	const args = setupArgs(settings.compilerArgs, path)
 
 	connection.console.log(`> ${settings.compiler} ${args.join(' ')}`)
-	execFile(settings.compiler, args, (err, data) => {
+	execFile(settings.compiler, args, { maxBuffer: 10 * 1024 * 1024 }, (err, data) => {
 		if (err)
 			connection.console.log(err.message)
 		// connection.console.log(data)
@@ -459,7 +459,7 @@ async function validate(doc: TextDocument): Promise<void> {
 function getGlobalCompletion(path: string, settings: DascriptSettings) {
 	const itemsArgs = setupArgs(settings.compilerArgs, resolve(__dirname, path))
 	connection.console.log(`> ${settings.compiler} ${itemsArgs.join(' ')}`)
-	execFile(settings.compiler, itemsArgs, (err, data) => {
+	execFile(settings.compiler, itemsArgs, { maxBuffer: 10 * 1024 * 1024 }, (err, data) => {
 		if (err)
 			connection.console.log(err.message)
 		try {
