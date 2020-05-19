@@ -11,6 +11,10 @@
 		"prefix": "struct",
 		"body": "struct ${1:name}\n\t${2:field} : ${0:type}"
 	},
+	"class": {
+		"prefix": "class",
+		"body": "class ${1:name}\n\t$0"
+	},
 	"varianttype": {
 		"prefix": "variant",
 		"body": "variant ${1:name}\n\t${2:field} : ${0:type}"

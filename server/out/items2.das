@@ -45,7 +45,7 @@ let
   keywords = [[string "struct"; "class"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new";
                       "typeinfo"; "type"; "in"; "is"; "as"; "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options";
                       "table"; "expect"; "const"; "require"; "operator"; "enum"; "finally"; "delete"; "deref"; "scope"; "typedef";
-                      "with"; "cast"; "override"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where"; "pass"; "reinterpret";
+                      "with"; "cast"; "override"; "abstract"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where"; "pass"; "reinterpret";
                       "module"; "public"; "label"; "goto"; "implicit"; "shared"; "smart_ptr"]]
 
   // src\parser\ds_parser.ypp:186

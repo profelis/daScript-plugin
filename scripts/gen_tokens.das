@@ -14,8 +14,8 @@ def init
 	if data is status
 		debug("get tokens status: {data}")
 		return
-	let res = buildString(data as tokens, "[[string ", "]]", "\"", "; ")
-	// let res = buildString(data as tokens, "", "", "", " | ", 80)
+	let res = buildString(data as tokens, "[[string ", "]]", "\"", "; ") // das
+	// let res = buildString(data as tokens, "", "", "", " | ", 60) // tm syntax
 	print(res)
 
 def buildString(data : array<string>; prefix, postfix, decorator, delimeter : string; maxLen = 120)
