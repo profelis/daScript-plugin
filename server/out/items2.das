@@ -262,21 +262,28 @@ def parseModule(pMod; var items : Items)
   rtti::module_for_each_structure(pMod) <| $(info)
     let structName = "{info.name}"
     let fullName = "{fullModuleName}{structName}"
-    var structDesc = ""
+    var shortStructDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
       let argT = join([{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}],", ")
-      structDesc += "[{ann.name}({argT})]\\n"
-    structDesc += "struct {fullName}"
-
+      shortStructDesc += "[{ann.name}({argT})]\\n"
+    shortStructDesc += "struct {fullName}"
+    var structDesc = shortStructDesc
     var all : array<Item>
     for it in info
       let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
       structDesc += "\\n\\t{desc}"
       all |> emplace([[Item name = "{it.name}", fullName = "{fullModuleName}{structName}.{desc}", desc = desc, kind = ItemKind Field]])
     addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = ItemKind Struct]], items)
-    for it in all
-      it.impls |> push(structDesc)
-      addItem(it, items)
+
+    if structDesc |> length() > 500
+      structDesc = shortStructDesc
+      for it in all
+        it.impls |> push("{structDesc}\\n\\t...\\n\\t{it.desc}\\n\\t...")
+        addItem(it, items)
+    else
+      for it in all
+        it.impls |> push(structDesc)
+        addItem(it, items)
 
   rtti::module_for_each_function(pMod) <| $(info)
     if find(info.name, "`") == -1 // generic
