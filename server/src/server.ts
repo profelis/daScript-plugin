@@ -453,7 +453,6 @@ async function validate(doc: TextDocument): Promise<void> {
 		dependencies.set(doc.uri, depend)
 	})
 
-	getGlobalCompletion("items.das", settings)
 	getGlobalCompletion("items2.das", settings)
 }
 
