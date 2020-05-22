@@ -35,6 +35,10 @@
 		"prefix": "defa",
 		"body": "def abstract ${0:name}"
 	},
+	"def-override": {
+		"prefix": "defo",
+		"body": "def override ${0:name}"
+	},
 	"block": {
 		"prefix": "blk",
 		"body": "$(${1:args})\n\t${0:pass}"
