@@ -69,7 +69,7 @@ let
                        "plot_read_write"; "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
                        "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
-                       "max_infer_passes"; "indenting"]]
+                       "max_infer_passes"; "indenting"; "debugger"]]
 
 [unsafe]
 def addItem(var item : Item; var items : Items; once = false)
