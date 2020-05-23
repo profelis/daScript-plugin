@@ -29,23 +29,23 @@
 	},
 	"def": {
 		"prefix": "def",
-		"body": "def ${1:name}(${2:args})\n\t${0:pass}"
+		"body": "def ${1:name}($2)\n\t${0:pass}"
 	},
 	"def-abstract": {
 		"prefix": "defa",
-		"body": "def abstract ${0:name}"
+		"body": "def abstract ${1:name}($0)"
 	},
 	"def-override": {
 		"prefix": "defo",
-		"body": "def override ${0:name}"
+		"body": "def override ${1:name}($2)\n\t${0:pass}"
 	},
 	"block": {
 		"prefix": "blk",
-		"body": "$(${1:args})\n\t${0:pass}"
+		"body": "$(1)\n\t${0:pass}"
 	},
 	"lambda": {
 		"prefix": "lambda",
-		"body": "@ <| (${1:args})\n\t${0:pass}"
+		"body": "@ <| ($1)\n\t${0:pass}"
 	},
 	"lt": {
 		"prefix": "lt",
@@ -117,7 +117,7 @@
 	},
 	"table": {
 		"prefix": "table",
-		"body": "table<${1:keyType}; ${0:type}>"
+		"body": "table<${1:keyType}; ${0:valueType}>"
 	},
 	"tuple": {
 		"prefix": "tuple",
