@@ -148,12 +148,16 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 	idx--
 	const text = textDoc.getText()
 	let maxLen = 1024
+	let inside = 0;
 	while (idx > 0 && maxLen-- > 0) {
 		const ch = text[idx]
-		if (ch == "(")
-			break
-		if (ch == ")")
-			return null
+		if (ch == "(") {
+			if (inside == 0)
+				break
+			inside--
+		}
+		else if (ch == ")")
+			inside++
 		idx--
 	}
 	let startIdx = idx - 1
