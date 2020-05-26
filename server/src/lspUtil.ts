@@ -22,6 +22,10 @@ export function isRangeEmpty(range: Range): boolean {
 	return range.start.line == range.end.line && range.start.character == range.end.character
 }
 
+export function rangeLength(range: Range): number {
+	return range.start.line == range.end.line ? range.end.character - range.start.character : 0
+}
+
 export function fixPosition(pos: Position | null, lineOffset = 0): Position {
 	pos = pos ?? Position.create(0, 0)
 	pos.line = Math.max(0, (pos?.line ?? 0) + lineOffset)

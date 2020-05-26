@@ -1,12 +1,12 @@
 import {
 	Range, createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, DiagnosticSeverity, Diagnostic, Position, TextDocument,
 	DidChangeConfigurationNotification, WorkspaceFolder, TextDocumentPositionParams, CompletionItem, DiagnosticRelatedInformation, Location,
-	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent, SignatureHelp, SignatureInformation, CompletionItemKind
+	Hover, MarkedString, WorkspaceFoldersChangeEvent, MarkupContent, SignatureHelp, SignatureInformation, CompletionItemKind, ColorPresentationParams, ColorPresentation, DocumentColorParams, ColorInformation, Color
 } from 'vscode-languageserver'
 import { execFile } from 'child_process'
 import { isAbsolute, resolve } from 'path'
 import { existsSync } from 'fs'
-import { uriToFile, fixRange, markdownToString } from './lspUtil'
+import { uriToFile, fixRange, markdownToString, rangeLength } from './lspUtil'
 import { parseJson } from './jsonUtil'
 import { functionToString, callToString, variableToString, CursorData, FunctionData, CallData, VariableData, FuncData, ConstantValue, constantToString } from './cursor'
 import { lazyCompletion } from './lazyCompletion'
@@ -80,7 +80,8 @@ connection.onInitialize((params) => {
 					changeNotifications: true
 				}
 			},
-			signatureHelpProvider: { triggerCharacters: ["("] }
+			signatureHelpProvider: { triggerCharacters: ["("] },
+			colorProvider: true
 		}
 	}
 })
@@ -105,6 +106,43 @@ connection.onCompletion((doc: TextDocumentPositionParams): CompletionItem[] => {
 
 connection.onCompletionResolve((completion: CompletionItem): CompletionItem => {
 	return completion
+})
+
+connection.onDocumentColor((params: DocumentColorParams): ColorInformation[] => {
+	const doc = documents.get(params.textDocument.uri)
+	if (!doc)
+		return null
+	const text = doc.getText()
+	const res: ColorInformation[] = []
+	const tokenEreg = /0x[0-9a-f]{6,8}[^0-9a-f]/ig;
+	let m: RegExpExecArray;
+	// tslint:disable-next-line: no-constant-condition
+	do {
+		m = tokenEreg.exec(text)
+		if (!m)
+			break
+		const t = m.toString()
+		const color = parseInt(t, 16)
+		if (isNaN(color))
+			continue
+		const a = t.length > 9 ? (color >> 24) : 0xFF
+		const r = (color >> 16) & 0xFF
+		const g = (color >> 8) & 0xFF
+		const b = (color) & 0xFF
+		const clr = Color.create(r / 0xFF, g / 0xFF, b / 0xFF, (a < 0 ? 0xFF + a : a) / 0xFF)
+		res.push({ range: { start: doc.positionAt(m.index), end: doc.positionAt(m.index + t.length - 1) }, color: clr })
+	} while (true)
+	return res
+})
+
+connection.onColorPresentation((params: ColorPresentationParams): ColorPresentation[] => {
+	const len = rangeLength(params.range)
+	const clr = (val: number) => {
+		let res = Math.round(val * 0xFF).toString(16).toUpperCase()
+		return res.length < 2 ? "0" + res : res
+	}
+	const color = (len > 8 ? clr(params.color.alpha) : "") + clr(params.color.red) + clr(params.color.green) + clr(params.color.blue)
+	return [{ label: `0x${color}` }]
 })
 
 connection.onHover(async (doc: TextDocumentPositionParams) => {
