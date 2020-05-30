@@ -52,6 +52,7 @@ export interface ConstantValue {
 	function: FunctionData | null
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace VariableCategory {
 	export const LOCAL = "local"
 	export const GLOBAL = "global"

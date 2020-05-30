@@ -114,9 +114,8 @@ connection.onDocumentColor((params: DocumentColorParams): ColorInformation[] => 
 		return null
 	const text = doc.getText()
 	const res: ColorInformation[] = []
-	const tokenEreg = /0x[0-9a-f]{6,8}[^0-9a-f]/ig;
-	let m: RegExpExecArray;
-	// tslint:disable-next-line: no-constant-condition
+	const tokenEreg = /0x[0-9a-f]{6,8}[^0-9a-f]/ig
+	let m: RegExpExecArray
 	do {
 		m = tokenEreg.exec(text)
 		if (!m)
@@ -131,6 +130,7 @@ connection.onDocumentColor((params: DocumentColorParams): ColorInformation[] => 
 		const b = (color) & 0xFF
 		const clr = Color.create(r / 0xFF, g / 0xFF, b / 0xFF, (a < 0 ? 0xFF + a : a) / 0xFF)
 		res.push({ range: { start: doc.positionAt(m.index), end: doc.positionAt(m.index + t.length - 1) }, color: clr })
+		// eslint-disable-next-line no-constant-condition
 	} while (true)
 	return res
 })
@@ -138,7 +138,7 @@ connection.onDocumentColor((params: DocumentColorParams): ColorInformation[] => 
 connection.onColorPresentation((params: ColorPresentationParams): ColorPresentation[] => {
 	const len = rangeLength(params.range)
 	const clr = (val: number) => {
-		let res = Math.round(val * 0xFF).toString(16).toUpperCase()
+		const res = Math.round(val * 0xFF).toString(16).toUpperCase()
 		return res.length < 2 ? "0" + res : res
 	}
 	const color = (len > 8 ? clr(params.color.alpha) : "") + clr(params.color.red) + clr(params.color.green) + clr(params.color.blue)
@@ -186,7 +186,7 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 	idx--
 	const text = textDoc.getText()
 	let maxLen = 1024
-	let inside = 0;
+	let inside = 0
 	while (idx > 0 && maxLen-- > 0) {
 		const ch = text[idx]
 		if (ch == "(") {
@@ -210,20 +210,20 @@ connection.onSignatureHelp((doc: TextDocumentPositionParams): SignatureHelp => {
 	if (token.length == 0)
 		return null
 
-	let searchCompletion = (getText: (text: CompletionItem) => string): SignatureHelp | null => {
+	const searchCompletion = (getText: (text: CompletionItem) => string): SignatureHelp | null => {
 		for (const it of globalCompletion.values()) {
 			if (!it.documentation || it.kind == CompletionItemKind.Keyword)
 				continue
-			let text = getText(it)
+			const text = getText(it)
 			if (!text)
 				continue
 			if (!token.startsWith(text))
 				continue
 			if (token.length == text.length || token[text.length] == "(") {
-				let docs = markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()).split("\n")
+				const docs = markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()).split("\n")
 				if (docs.length == 0)
 					return null
-				let infos = docs.map(it => SignatureInformation.create(it))
+				const infos = docs.map(it => SignatureInformation.create(it))
 				return { signatures: infos, activeSignature: 0, activeParameter: 0 }
 			}
 		}
@@ -298,7 +298,6 @@ function setupArgs(initialArgs: string[], path: string): string[] {
 async function getCursorData(uri: string, x: number, y: number, settings: DascriptSettings): Promise<CursorData | null> {
 	const path = uriToFile(uri)
 	const args = setupArgs(settings.cursorArgs, path)
-	// tslint:disable-next-line: no-for-in
 	for (const i in args) {
 		if (args[i].indexOf("${line}") >= 0) {
 			args[i] = args[i].replace("${line}", y.toString())
@@ -344,22 +343,21 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const verboseRes: MarkedString[] = []
 	let range = fixRange(cursorData?.cursor?.range)
 
-	let addRes = (value: string) => {
+	const addRes = (value: string) => {
 		if (settings.verboseHover)
 			verboseRes.push({ language: "dascript", value: value })
 		else
 			res.set(value, { language: "dascript", value: value })
 	}
-	let addDocumentation = (check: (item: CompletionItem) => boolean) => {
+	const addDocumentation = (check: (item: CompletionItem) => boolean) => {
 		globalCompletion.forEach(it => {
 			if (it.documentation && it.kind != CompletionItemKind.Keyword && check(it))
 				addRes(markdownToString((<MarkupContent>it.documentation)?.value ?? it.documentation.toString()))
 		})
 	}
-	let addPartialDoc = (shortname: string) => {
+	const addPartialDoc = (shortname: string) => {
 		const delems = { " ": true, "&": true, "#": true, "?": true, "<": true, "-": true }
 		if (shortname && shortname.length > 0) {
-			// tslint:disable-next-line: no-for-in
 			for (const del in delems)
 				shortname = shortname.split(del)[0]
 			addDocumentation(it => {
@@ -369,17 +367,17 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			})
 		}
 	}
-	let addFuncDocumentation = (data: FunctionData) => {
+	const addFuncDocumentation = (data: FunctionData) => {
 		const shortname = data.generic?.shortname ?? data.shortname
 		if (shortname && shortname.length > 0)
 			addPartialDoc(shortname)
 	}
-	let describeFunction = (data: FunctionData, includeGeneric = false) => {
+	const describeFunction = (data: FunctionData, includeGeneric = false) => {
 		if (includeGeneric && data.generic)
 			addRes(functionToString(data.generic, settings, settings.verboseHover))
 		addRes(functionToString(data, settings, settings.verboseHover))
 	}
-	let describeCall = (data: CallData, includeGeneric = false, addDoc = false) => {
+	const describeCall = (data: CallData, includeGeneric = false, addDoc = false) => {
 		if (data.function) {
 			if (includeGeneric && data.function.generic)
 				addRes(functionToString(data.function.generic, settings, settings.verboseHover))
@@ -391,13 +389,13 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			addRes(callToString(data, settings, settings.verboseHover))
 		range = null
 	}
-	let describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
+	const describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
 		addRes(variableToString(data, settings, settings.verboseHover, showCall))
 		if (addDoc)
 			addPartialDoc(data.type)
 		range = null
 	}
-	let describeConstant = (data: ConstantValue, showCall = false, addDoc = false) => {
+	const describeConstant = (data: ConstantValue, showCall = false, addDoc = false) => {
 		addRes(constantToString(data, showCall))
 		if (addDoc)
 			addPartialDoc(data.value)

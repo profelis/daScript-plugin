@@ -1,13 +1,13 @@
 import { Position, Range } from "vscode-languageserver"
 
 export function uriToFile(uri: string): string {
-	uri = decodeURIComponent(uri);
+	uri = decodeURIComponent(uri)
 	if (!uri.startsWith("file://"))
-		return uri;
-	uri = uri.substr(7); // "file://".length
-	if (/\/\w\:/.test(uri.substr(0, 3)))
-		return uri.substr(1);
-	return uri;
+		return uri
+	uri = uri.substr(7) // "file://".length
+	if (/\/\w:/.test(uri.substr(0, 3)))
+		return uri.substr(1)
+	return uri
 }
 
 export function rangeToString(range: Range): string {

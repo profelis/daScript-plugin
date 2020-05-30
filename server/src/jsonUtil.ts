@@ -12,9 +12,9 @@ export function parseJson(data: string): any | null {
 		if (data[i] == '{' && (i == 0 || data[i - 1] != "\\")) {
 			if (open == 0)
 				start = i
-			open++;
+			open++
 		} else if (data[i] == '}' && open > 0 && data[i - 1] != "\\") {
-			open--;
+			open--
 			if (open == 0) {
 				try {
 					return JSON.parse(data.substring(start, i + 1))

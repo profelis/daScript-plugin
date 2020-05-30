@@ -8,7 +8,7 @@ import {
 } from 'vscode-languageclient'
 
 let defaultClient: LanguageClient
-let clients: Map<string, LanguageClient> = new Map()
+const clients: Map<string, LanguageClient> = new Map()
 
 let _sortedWorkspaceFolders: string[] | undefined
 function sortedWorkspaceFolders(): string[] {
@@ -28,8 +28,8 @@ function sortedWorkspaceFolders(): string[] {
 Workspace.onDidChangeWorkspaceFolders(() => _sortedWorkspaceFolders = undefined)
 
 function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
-	let sorted = sortedWorkspaceFolders()
-	for (let element of sorted) {
+	const sorted = sortedWorkspaceFolders()
+	for (const element of sorted) {
 		let uri = folder.uri.toString()
 		if (uri.charAt(uri.length - 1) !== '/')
 			uri = uri + '/'
@@ -41,22 +41,22 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 
 export function activate(context: ExtensionContext) {
 
-	let module = context.asAbsolutePath(path.join('server', 'out', 'server.js'))
-	let outputChannel: OutputChannel = Window.createOutputChannel('daScript')
+	const module = context.asAbsolutePath(path.join('server', 'out', 'server.js'))
+	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
 
 	function didOpenTextDocument(document: TextDocument): void {
 		if (document.languageId !== 'dascript' || (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
 			return
 		}
 
-		let uri = document.uri
+		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
-			let debugOptions = { execArgv: ["--nolazy", "--inspect=6010"] }
-			let serverOptions = {
+			const debugOptions = { execArgv: ["--nolazy", "--inspect=6010"] }
+			const serverOptions = {
 				run: { module, transport: TransportKind.ipc },
 				debug: { module, transport: TransportKind.ipc, options: debugOptions }
 			}
-			let clientOptions: LanguageClientOptions = {
+			const clientOptions: LanguageClientOptions = {
 				documentSelector: [{ scheme: 'untitled', language: 'dascript' }],
 				diagnosticCollectionName: 'dascript',
 				outputChannel: outputChannel
@@ -71,12 +71,12 @@ export function activate(context: ExtensionContext) {
 		folder = getOuterMostWorkspaceFolder(folder)
 
 		if (!clients.has(folder.uri.toString())) {
-			let debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
-			let serverOptions = {
+			const debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
+			const serverOptions = {
 				run: { module, transport: TransportKind.ipc },
 				debug: { module, transport: TransportKind.ipc, options: debugOptions }
 			}
-			let clientOptions: LanguageClientOptions = {
+			const clientOptions: LanguageClientOptions = {
 				documentSelector: [
 					{ scheme: 'file', language: 'dascript', pattern: `${folder.uri.fsPath}/**/*` }
 				],
@@ -84,7 +84,7 @@ export function activate(context: ExtensionContext) {
 				workspaceFolder: folder,
 				outputChannel: outputChannel
 			}
-			let client = new LanguageClient('dascript', serverOptions, clientOptions)
+			const client = new LanguageClient('dascript', serverOptions, clientOptions)
 			client.start()
 			clients.set(folder.uri.toString(), client)
 		}
@@ -93,8 +93,8 @@ export function activate(context: ExtensionContext) {
 	Workspace.onDidOpenTextDocument(didOpenTextDocument)
 	Workspace.textDocuments.forEach(didOpenTextDocument)
 	Workspace.onDidChangeWorkspaceFolders((event) => {
-		for (let folder of event.removed) {
-			let client = clients.get(folder.uri.toString())
+		for (const folder of event.removed) {
+			const client = clients.get(folder.uri.toString())
 			if (client) {
 				clients.delete(folder.uri.toString())
 				client.stop()
@@ -104,10 +104,10 @@ export function activate(context: ExtensionContext) {
 }
 
 export function deactivate(): Thenable<void> {
-	let promises: Thenable<void>[] = []
+	const promises: Thenable<void>[] = []
 	if (defaultClient)
 		promises.push(defaultClient.stop())
-	for (let client of clients.values())
+	for (const client of clients.values())
 		promises.push(client.stop())
 	return Promise.all(promises).then(() => undefined)
 }
