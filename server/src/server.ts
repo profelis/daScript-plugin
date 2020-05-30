@@ -358,11 +358,23 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 	const addPartialDoc = (shortname: string) => {
 		const delems = { " ": true, "&": true, "#": true, "?": true, "<": true, "-": true }
 		if (shortname && shortname.length > 0) {
+			let found = false
 			for (const del in delems)
 				shortname = shortname.split(del)[0]
 			addDocumentation(it => {
-				if (it.filterText && shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] in delems))
+				if (it.filterText && shortname.startsWith(it.filterText) && (shortname.length == it.filterText.length || shortname[it.filterText.length] in delems)) {
+					found = true
 					return true
+				}
+				return false
+			})
+			if (found)
+				return
+			addDocumentation(it => {
+				if (it.label && shortname.startsWith(it.label) && (shortname.length == it.label.length || shortname[it.label.length] in delems)) {
+					found = true
+					return true
+				}
 				return false
 			})
 		}
@@ -377,28 +389,25 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 			addRes(functionToString(data.generic, settings, settings.verboseHover))
 		addRes(functionToString(data, settings, settings.verboseHover))
 	}
-	const describeCall = (data: CallData, includeGeneric = false, addDoc = false) => {
+	const describeCall = (data: CallData, includeGeneric = false) => {
 		if (data.function) {
 			if (includeGeneric && data.function.generic)
 				addRes(functionToString(data.function.generic, settings, settings.verboseHover))
 			addRes(functionToString(data.function, settings, settings.verboseHover))
-			if (addDoc)
-				addFuncDocumentation(data.function)
+			addFuncDocumentation(data.function)
 		}
 		else
 			addRes(callToString(data, settings, settings.verboseHover))
 		range = null
 	}
-	const describeVariable = (data: VariableData, showCall = false, addDoc = false) => {
+	const describeVariable = (data: VariableData, showCall = false) => {
 		addRes(variableToString(data, settings, settings.verboseHover, showCall))
-		if (addDoc)
-			addPartialDoc(data.type)
+		addPartialDoc(data.type)
 		range = null
 	}
-	const describeConstant = (data: ConstantValue, showCall = false, addDoc = false) => {
+	const describeConstant = (data: ConstantValue, showCall = false) => {
 		addRes(constantToString(data, showCall))
-		if (addDoc)
-			addPartialDoc(data.value)
+		addPartialDoc(data.value)
 		range = null
 	}
 
@@ -411,17 +420,17 @@ async function cursor(uri: string, x: number, y: number): Promise<Hover> {
 		}
 		if (settings.verboseHover || !cursorData.variable) {
 			if (cursorData.calls && cursorData.calls.length > 0)
-				cursorData.calls.forEach((it, idx) => describeCall(it, cursorData.calls.length == 1, idx == cursorData.calls.length - 1))
+				cursorData.calls.forEach((it, idx) => describeCall(it, cursorData.calls.length == 1))
 			else if (cursorData.call)
-				describeCall(cursorData.call, true, true)
+				describeCall(cursorData.call, true)
 		}
 		if (cursorData.variables && cursorData.variables.length > 0)
-			cursorData.variables.forEach((it, idx) => describeVariable(it, cursorData.variables.length > 1, idx == cursorData.variables.length - 1))
+			cursorData.variables.forEach((it, idx) => describeVariable(it, cursorData.variables.length > 1))
 		else if (cursorData.variable)
-			describeVariable(cursorData.variable, false, true)
+			describeVariable(cursorData.variable, false)
 
 		if (cursorData.constants)
-			cursorData.constants.forEach((it, idx) => describeConstant(it, cursorData.constants.length > 1, idx == cursorData.constants.length - 1))
+			cursorData.constants.forEach((it, idx) => describeConstant(it, cursorData.constants.length > 1))
 	}
 	// connection.console.log(JSON.stringify(range))
 	// for (const it of res)
