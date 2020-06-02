@@ -1,10 +1,11 @@
+import * as net from 'net'
 import * as path from 'path'
 import {
 	workspace as Workspace, window as Window, ExtensionContext, TextDocument, OutputChannel, WorkspaceFolder, Uri
 } from 'vscode'
 
 import {
-	LanguageClient, LanguageClientOptions, TransportKind
+	LanguageClient, LanguageClientOptions, TransportKind, ServerOptions, Executable, StreamInfo
 } from 'vscode-languageclient'
 
 let defaultClient: LanguageClient
@@ -41,7 +42,7 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 
 export function activate(context: ExtensionContext) {
 
-	const module = context.asAbsolutePath(path.join('server', 'out', 'server.js'))
+	const cmd = "d:\\dev\\cpp\\daScript\\cmake_temp\\RelWithDebInfo\\daScript.exe" //context.asAbsolutePath(path.join('server', 'out', 'server.js'))
 	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
 
 	function didOpenTextDocument(document: TextDocument): void {
@@ -51,10 +52,19 @@ export function activate(context: ExtensionContext) {
 
 		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
-			const debugOptions = { execArgv: ["--nolazy", "--inspect=6010"] }
-			const serverOptions = {
-				run: { module, transport: TransportKind.ipc },
-				debug: { module, transport: TransportKind.ipc, options: debugOptions }
+			const debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
+			const args = ["D:\\dev\\vscode\\daScriptLangPlugin\\server\\das\\server.das"]
+			const connectionInfo = {
+				port: 9000
+			}
+			const serverOptions = () => {
+				// Connect to language server via socket
+				const socket = net.connect(connectionInfo)
+				const result: StreamInfo = {
+					writer: socket,
+					reader: socket
+				}
+				return Promise.resolve(result)
 			}
 			const clientOptions: LanguageClientOptions = {
 				documentSelector: [{ scheme: 'untitled', language: 'dascript' }],
@@ -72,9 +82,18 @@ export function activate(context: ExtensionContext) {
 
 		if (!clients.has(folder.uri.toString())) {
 			const debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
-			const serverOptions = {
-				run: { module, transport: TransportKind.ipc },
-				debug: { module, transport: TransportKind.ipc, options: debugOptions }
+			const args = ["D:\\dev\\vscode\\daScriptLangPlugin\\server\\das\\server.das"]
+			const connectionInfo = {
+				port: 9000
+			}
+			const serverOptions = () => {
+				// Connect to language server via socket
+				const socket = net.connect(connectionInfo)
+				const result: StreamInfo = {
+					writer: socket,
+					reader: socket
+				}
+				return Promise.resolve(result)
 			}
 			const clientOptions: LanguageClientOptions = {
 				documentSelector: [
