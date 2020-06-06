@@ -4,11 +4,12 @@
 options indenting=2
 options rtti = true
 require rtti
+require rtti_tools
 require daslib/json
 require lsp_types
 
 
-struct Item
+struct Completion
   name : string              // label
   desc : string              // detail
   fullName : string        //
@@ -16,7 +17,7 @@ struct Item
   kind : CompletionItemKind
 
 typedef
-  Items = table<string; Item>
+  Completions = table<string; Completion>
   MetaItem = tuple< string; array<string> >
 
 let
@@ -51,7 +52,7 @@ let
                        "max_infer_passes"; "indenting"; "debugger"]]
 
 [unsafe]
-def addItem(var item : Item; var items : Items; once = false)
+def addItem(var item : Completion; var items : Completions; once = false)
   let key = "{item.desc}{int(item.kind)}"
   var it = find_for_edit(items, key)
   if it != null
@@ -63,7 +64,7 @@ def addItem(var item : Item; var items : Items; once = false)
     return
   items[key] <- item
 
-def getTypeName(info; var items : Items)
+def getTypeName(info; var items : Completions)
   var res: string
   if info.basicType == Type tHandle
     res = info.annotation != null ? string(info.annotation.name) : "tHandle"
@@ -90,7 +91,7 @@ def getTypeName(info; var items : Items)
     if info.argTypes != null & info.argNames != null
       res = "variant<"
       var variantDesc = "variant<"
-      var in scope all : array<Item>
+      var in scope all : array<Completion>
       var f = true
       for argname,argtype in arg_names(info),arg_types(info)
         if !f
@@ -99,12 +100,12 @@ def getTypeName(info; var items : Items)
         var desc = "{argname}: {getTypeName(argtype, items)}"
         res += desc
         variantDesc += "\n\t{desc}"
-        all |> emplace([[Item name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
+        all |> emplace([[Completion name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
       res += ">"
       variantDesc += "\n>"
       for it in all
         it.impls |> emplace(variantDesc)
-        addItem(it, items, true)
+        addItem(move(it), items, true)
     else
       res = "variant"
   elif info.basicType == Type tFunction | info.basicType == Type tLambda | info.basicType == Type tBlock
@@ -139,7 +140,7 @@ def getValue(value)
   return " = {value}"
 
 [unsafe]
-def parseAnnotation(ann; fullModuleName : string; var items: Items)
+def parseAnnotation(ann; fullModuleName : string; var items: Completions)
   if ann.isBasicStructureAnnotation
     let sann & = reinterpret<BasicStructureAnnotation&>(ann)
     let structName = "{sann.name}"
@@ -147,7 +148,7 @@ def parseAnnotation(ann; fullModuleName : string; var items: Items)
     var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
     var in scope props : array<string>
     var in scope fields : array< tuple<uint; string> >
-    var in scope all : array<Item>
+    var in scope all : array<Completion>
     basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
       var field = "{getTypeName(xtype, items)} [{cppName}"
       if offset != -1u
@@ -157,7 +158,7 @@ def parseAnnotation(ann; fullModuleName : string; var items: Items)
         field += "]"
         props |> emplace("\n\t{name}: {field}")
       let fullItemName = "{fullModuleName}{structName}.{name}"
-      all |> emplace([[Item name = "{name}", fullName = fullItemName,
+      all |> emplace([[Completion name = "{name}", fullName = fullItemName,
                   desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
 
     if length(fields) > 0
@@ -170,25 +171,25 @@ def parseAnnotation(ann; fullModuleName : string; var items: Items)
         structDesc += "\n"
       structDesc += join(props, "")
 
-    addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}",
+    addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
       impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
     for it in all
       it.impls |> emplace(structDesc)
-      addItem(it, items)
+      addItem(move(it), items)
 
   elif ann.isTypeAnnotation
     let tann & = reinterpret<TypeAnnotation&>(ann)
     let structName = "{tann.name}"
     let fullName = "{fullModuleName}{structName}"
-    addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
+    addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
 
   else
     let structName = "{ann.name}"
     let fullName = "{fullModuleName}{structName}"
-    addItem([[Item name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
+    addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
 
-def parseFunction(info; fullModuleName : string; var items : Items)
-  var res <- [[Item name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
+def parseFunction(info; fullModuleName : string; var items : Completions)
+  var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
   res.fullName = "{fullModuleName}{info.name}"
   var impl = "def {fullModuleName}{info.name}("
   var firstArg = true
@@ -205,12 +206,12 @@ def parseFunction(info; fullModuleName : string; var items : Items)
   if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN & info.cppName != ""
     impl += " [{info.cppName}]"
   res.impls |> emplace(impl)
-  addItem(res, items)
+  addItem(move(res), items)
 
-def parseModule(pMod; var items : Items)
+def parseModule(pMod; var items : Completions)
   let fullModuleName = "{pMod.name}::"
 
-  addItem([[Item name = "{pMod.name}", desc = "module {pMod.name}", kind = CompletionItemKind Module]], items)
+  addItem([[Completion name = "{pMod.name}", desc = "module {pMod.name}", kind = CompletionItemKind Module]], items)
   rtti::module_for_each_structure(pMod) <| $(info)
     let structName = "{info.name}"
     let fullName = "{fullModuleName}{structName}"
@@ -221,22 +222,22 @@ def parseModule(pMod; var items : Items)
       shortStructDesc += "[{ann.name}({argT})]\n"
     shortStructDesc += "struct {fullName}"
     var structDesc = shortStructDesc
-    var in scope all : array<Item>
+    var in scope all : array<Completion>
     for it in info
       let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
       structDesc += "\n\t{desc}"
-      all |> emplace([[Item name = "{it.name}", fullName = "{fullModuleName}{structName}.{desc}", desc = desc, kind = CompletionItemKind Field]])
-    addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = CompletionItemKind Struct]], items)
+      all |> emplace([[Completion name = "{it.name}", fullName = "{fullModuleName}{structName}.{desc}", desc = desc, kind = CompletionItemKind Field]])
+    addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = CompletionItemKind Struct]], items)
 
     if structDesc |> length() > 500
       structDesc = shortStructDesc
       for it in all
         it.impls |> emplace("{structDesc}\n\t...\n\t{it.desc}\n\t...")
-        addItem(it, items)
+        addItem(move(it), items)
     else
       for it in all
         it.impls |> emplace(structDesc)
-        addItem(it, items)
+        addItem(move(it), items)
 
   rtti::module_for_each_function(pMod) <| $(info)
     if find(info.name, "`") == -1 // generic
@@ -249,68 +250,77 @@ def parseModule(pMod; var items : Items)
     let enumName = "{info.name}"
     let fullName = "{fullModuleName}{enumName}"
     var enumDesc = "enum {fullName}"
-    var in scope all : array< tuple < int64; Item > >
+    var in scope all : array< tuple < int64; Completion > >
     for it in info
       enumDesc += "\n\t{it.name} = {it.value}"
       let fullItemName = "{fullModuleName}{enumName} {it.name}"
-      all |> emplace([[auto it.value, [[Item name = "{it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
+      all |> emplace([[auto it.value, [[Completion name = "{it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
 
-    addItem([[Item name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
+    addItem([[Completion name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
     for it in all
       it._1.impls |> emplace(enumDesc)
-      addItem(it._1, items)
+      addItem(move(it._1), items)
 
   rtti::module_for_each_global(pMod) <| $ (glob)
     let globName = "{glob.name}"
     let fullName = "{fullModuleName}{globName}"
-    addItem([[Item name = globName, fullName = fullName, desc = "const {fullName}{getValue(get_variable_value(glob))}", kind = CompletionItemKind Constant]], items)
+    addItem([[Completion name = globName, fullName = fullName, desc = "const {fullName}{getValue(get_variable_value(glob))}", kind = CompletionItemKind Constant]], items)
 
   rtti::module_for_each_annotation(pMod) <| $(ann)
     parseAnnotation(ann, fullModuleName, items)
 
-def addKeywords(var items : Items)
+def addKeywords(var items : Completions)
   for it in keywords
-    addItem([[Item name = it, fullName = it, desc = "keyword {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)
+    addItem([[Completion name = it, fullName = it, desc = "keyword {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)
   for it in basicTypes
-    addItem([[Item name = it, fullName = it, desc = "type {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "type {it}" }] ]], items)
+    addItem([[Completion name = it, fullName = it, desc = "type {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "type {it}" }] ]], items)
   for it in metaFunc
-    addItem([[Item name = it._0, fullName = it._0, desc = "def {it._0}", kind = CompletionItemKind Function, impls <- clone_to_move(it._1) ]], items)
+    addItem([[Completion name = it._0, fullName = it._0, desc = "def {it._0}", kind = CompletionItemKind Function, impls <- clone_to_move(it._1) ]], items)
   for it in langOptions
-    addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
+    addItem([[Completion name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
-def js(it : Item) : JsonValue?
+[export]
+def js(it : Completion; doc = true) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(double(int(it.kind))) }}
   if it.fullName != ""
     tab["filterName"] = js(it.fullName)
     tab["sortText"] = js(it.fullName)
-  if length(it.impls) > 0
+  if doc & length(it.impls) > 0
     tab["documentation"] = js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
   return js(tab)
 
-def dumpItems(items : Items) : JsonValue?
-  var list <- [{ for it in values(items); js(it) }]
-  let res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
-  return res
-
-
 [export]
-def getProgramCompletion(program, blk)
-  var res : JsonValue?
-  var items : Items
-  addKeywords(items)
-  program_for_each_module(program) <| $(var mod)
-    parseModule(mod, items)
-    res = dumpItems(items)
-  invoke(lkb, res)
-  delete items
+def js(items : Completions; doc = true) : JsonValue?
+  var list <- [{ for it in values(items); js(it, doc) }]
+  return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
-[export]
-def getGlobalCompletion(blk)
-  var items : Items
-  addKeywords(items)
-  program_for_each_registered_module() <| $(var mod)
-    parseModule(mod, items)
-  var res = dumpItems(items)
-  invoke(blk, res)
-  delete items
+[export] class CompletionData
+  globalCompletionUpdate : clock
+  globalCompletion : Completions
 
+  def updateGlobalList(force : bool)
+    if !force & get_clock() - globalCompletionUpdate < 6f
+      return
+    globalCompletionUpdate = get_clock()
+    delete globalCompletion
+    addKeywords(globalCompletion)
+    program_for_each_registered_module() <| $(var mod)
+      parseModule(mod, globalCompletion)
+    print("completion: got {length(globalCompletion)} global items\n")
+
+  def programCompletion(program : smart_ptr<Program>; var items : Completions)
+    var in scope temp : Completions
+    program_for_each_module(program) <| $(var mod)
+      parseModule(mod, temp)
+    let was = length(items)
+    for key, value in keys(temp), values(temp)
+      if !globalCompletion |> key_exists(key)
+        items[key] <- value
+    print("completion: got {length(items)} items for {program}\n")
+
+  def getCompletion(items : Completions)
+    var list <- [{ for it in values(items); js(it) }]
+    for val in values(globalCompletion)
+      list |> push(js(val))
+    print("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n")
+    return js({{ "isIncomplete" => js(false); "items" => js(list)}})

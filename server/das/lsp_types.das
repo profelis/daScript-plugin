@@ -324,3 +324,12 @@ struct CompletionItem
 struct CompletionList
 	isIncomplete : bool = false
 	items : array<CompletionItem>
+
+
+struct CompletionParams
+	textDocument : TextDocumentIdentifier
+	position : Position
+	// context : void? { triggerKind : 1}
+
+def CompletionParams(val : JsonValue?)
+	return [[CompletionParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), position = Position(joj(val, "position"))]]
