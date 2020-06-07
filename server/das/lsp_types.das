@@ -17,18 +17,18 @@ typedef
 // 	return join(split(str, ":"), "%3A")
 
 // [unsafe]
-// def uriToPath(str : string)
+// def uri_to_path(str : string)
 // 	let path = urlDecode(str)
 // 	return path |> character_at(9) == ':' ? chop(path, 8, length(path) - 8) : chop(path, 7, length(path) - 7)
 
-// def pathToUri(str : string)
+// def path_to_uri(str : string)
 // 	let prefix = str |> character_at(1) == ':' ? "file:///" : "file://"
 // 	return "{prefix}{urlEncode(str)}"
 
-def uriToPath(str : string)
+def uri_to_path(str : string)
 	return uri_to_file_name(str)
 
-def pathToUri(str : string)
+def path_to_uri(str : string)
 	return file_name_to_uri(str) // escape_uri(str, false, false)
 
 def js(val : int)
@@ -108,17 +108,25 @@ def js(val : ResponseError)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#position
 struct Position
-    line : uint = 0u
-    character : uint = 0u
+    line : int = 0
+    character : int = 0
 
 def Position(val : JsonValue?)
 	if val == null | val.value is _null
 		return [[Position]]
-	return [[Position line = uint(jon(val, "line")), character = uint(jon(val, "character")) ]]
+	return [[Position line = int(jon(val, "line")), character = int(jon(val, "character")) ]]
 
 def js(val : Position)
 	return js({{ "line" => js(double(val.line)); "character" => js(double(val.character)) }})
 
+def operator <(a, b : Position)
+	return a.line < b.line | (a.line == b.line & a.character < b.character)
+
+def operator <=(a, b : Position)
+	return a.line < b.line | (a.line == b.line & a.character <= b.character)
+
+def to_string(val : Position)
+	return "{int(val.line)}:{int(val.character)}"
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#range
 struct Range
     start : Position
@@ -129,8 +137,17 @@ def Range(val : JsonValue?)
 		return [[Range start = [[Position]], end = [[Position]] ]]
 	return [[Range start = Position(joj(val, "start")), end = Position(joj(val, "end")) ]]
 
+def range_in(r : Range; pos : Position)
+	return r.start <= pos & pos <= r.end
+
+def range_in(a, b : Range)
+	return a.start <= b.start & b.end <= a.end
+
 def js(val : Range)
 	return JV({{ "start" => js(val.start); "end" => js(val.end) }})
+
+def to_string(val : Range)
+	return "{to_string(val.start)} - {to_string(val.end)}"
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#location
 struct Location
@@ -204,9 +221,9 @@ struct DidChangeTextDocumentParams
 
 def DidChangeTextDocumentParams(val : JsonValue?)
 	var contentChanges : array<TextDocumentContentChangeEvent>
-	let changesVal = jojn(val, "contentChanges")
+	let changesVal = joj(val, "contentChanges")
 	if changesVal != null
-		for it in (*changesVal).value as _array
+		for it in changesVal.value as _array
 			contentChanges |> push(TextDocumentContentChangeEvent(it))
 	return <- [[DidChangeTextDocumentParams textDocument = VersionedTextDocumentIdentifier(joj(val, "textDocument")), contentChanges <- contentChanges ]]
 
@@ -280,6 +297,11 @@ def js(val : PublishDiagnosticsParams)
 	res["diagnostics"] = JV(diagnostics)
 	return JV(res)
 
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentPositionParams
+struct TextDocumentPositionParams
+	textDocument : TextDocumentIdentifier
+	position : Position
+
 enum CompletionItemKind
 	Text = 1
 	Method = 2
@@ -325,11 +347,25 @@ struct CompletionList
 	isIncomplete : bool = false
 	items : array<CompletionItem>
 
-
-struct CompletionParams
-	textDocument : TextDocumentIdentifier
-	position : Position
-	// context : void? { triggerKind : 1}
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_completion
+struct CompletionParams : TextDocumentPositionParams {}
+	// context : void? //{ triggerKind : 1}
 
 def CompletionParams(val : JsonValue?)
 	return [[CompletionParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), position = Position(joj(val, "position"))]]
+
+struct HoverParams : TextDocumentPositionParams {}
+
+def HoverParams(val : JsonValue?)
+	return [[HoverParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), position = Position(joj(val, "position"))]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_hover
+struct Hover
+	contents : array<string>
+	_range : Range
+
+def js(val : Hover)
+	var contents : array<JsonValue?>
+	for it in val.contents
+		contents |> emplace(js(it))
+	return js({{ "contents" => js(contents); "range" => js(val._range)  }})

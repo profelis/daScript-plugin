@@ -51,7 +51,7 @@ let
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
-[unsafe]
+[private,unsafe]
 def addItem(var item : Completion; var items : Completions; once = false)
   let key = "{item.desc}{int(item.kind)}"
   var it = find_for_edit(items, key)
@@ -64,6 +64,7 @@ def addItem(var item : Completion; var items : Completions; once = false)
     return
   items[key] <- item
 
+[private]
 def getTypeName(info; var items : Completions)
   var res: string
   if info.basicType == Type tHandle
@@ -132,6 +133,7 @@ def getTypeName(info; var items : Completions)
     res += " implicit"
   return res
 
+[private]
 def getValue(value)
   if value is nothing
     return ""
@@ -139,7 +141,7 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
-[unsafe]
+[private,unsafe]
 def parseAnnotation(ann; fullModuleName : string; var items: Completions)
   if ann.isBasicStructureAnnotation
     let sann & = reinterpret<BasicStructureAnnotation&>(ann)
@@ -188,6 +190,7 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
     let fullName = "{fullModuleName}{structName}"
     addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
 
+[private]
 def parseFunction(info; fullModuleName : string; var items : Completions)
   var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
   res.fullName = "{fullModuleName}{info.name}"
@@ -208,6 +211,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   res.impls |> emplace(impl)
   addItem(move(res), items)
 
+[private]
 def parseModule(pMod; var items : Completions)
   let fullModuleName = "{pMod.name}::"
 
@@ -269,6 +273,7 @@ def parseModule(pMod; var items : Completions)
   rtti::module_for_each_annotation(pMod) <| $(ann)
     parseAnnotation(ann, fullModuleName, items)
 
+[private]
 def addKeywords(var items : Completions)
   for it in keywords
     addItem([[Completion name = it, fullName = it, desc = "keyword {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)

@@ -5,6 +5,7 @@
 options debugger=true
 
 require fio
+require ast
 require rtti
 require network
 require fio
@@ -24,15 +25,19 @@ struct Dascript
     text : string
     version : double
     completionData : Completions
+    ast : AstTokens
 
 def Dascript(var txt : TextDocumentItem)
-    return <- [[Dascript uri = txt.uri, path = uriToPath(txt.uri), version = txt.version, text = move(txt.text)]]
+    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = move(txt.text)]]
 
 def Dascript(var doc : DidChangeTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uriToPath(doc.textDocument.uri), version = doc.textDocument.version, text <- doc.contentChanges[0].text]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text <- doc.contentChanges[0].text]]
 
 def Dascript(var doc : DidSaveTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uriToPath(doc.textDocument.uri), version = -1lf, text = move(doc.text)]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = move(doc.text)]]
+
+def Dascript(var doc : HoverParams)
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
 
 class TelnetServer : Server
     done : bool = false // server is done
@@ -98,7 +103,7 @@ class TelnetServer : Server
         var cap <- [[ServerCapabilities
             textDocumentSync = TextDocumentSyncKind Full,
             completionProvider <- cmpl,
-            hoverProvider = false
+            hoverProvider = true
         ]]
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
         self->sendResponse(id, js(res), true)
@@ -114,7 +119,7 @@ class TelnetServer : Server
 
         registry |> find_for_edit_if_exists(path) <| $(var data)
             print("> validate '{path}'\n")
-            let uri = pathToUri(path)
+            let uri = path_to_uri(path)
             var in scope access <- make_file_access("")
             if withContent
                 set_file_source(access, path, data.text)
@@ -124,28 +129,45 @@ class TelnetServer : Server
                 // debug(program)
                 // debug(error)
 
+                var diags : array<Diagnostic>
+
+                if program != null
+                    registry |> find_for_edit_if_exists(path) <| $(var data)
+                        for it in data.ast
+                            delete it
+                        clear(data.ast)
+                        var in scope visitor = AstData()
+                        visitor.tokens = addr(data.ast)
+                        var in scope adapter <- make_visitor(visitor)
+                        visit(program, adapter)
+                        visitor.tokens = null
+
+                        collect_diag(data.ast, diags) // TODO: move out, data is null!!!
+
                 if ok
                     if program != null
                         registry |> find_for_edit_if_exists(path) <| $(var data)
+                            for it in values(data.completionData)
+                                delete it
                             clear(data.completionData)
                             completionData->programCompletion(program, data.completionData)
-                    var in scope params <- [[PublishDiagnosticsParams uri = uri ]]
+
+                    var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params), true)
                     return
 
                 if program == null
-                    var diag <- [[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]]
-                    var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- [{ auto[] diag }] ]]
+                    diags |> emplace([[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
+                    var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params), true)
                     return
-
                 // print("{error}\n")
                 // debug(program.errors)
                 var map : table<string; array<Diagnostic>>
 
                 for err in program.errors
-                    let localUri = pathToUri(string(err.at.fileInfo.name))
-                    let at = lineInfoToRange(err.at)
+                    let localUri = path_to_uri(string(err.at.fileInfo.name))
+                    let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
                     var extra = "{err.extra}"
                     let fixme = "{err.fixme}"
@@ -159,23 +181,24 @@ class TelnetServer : Server
                         *list |> emplace(diag)
                     else
                         map[localUri] <- [{ auto[] diag }]
-                    debug(err)
 
                 for k, v in keys(map), values(map)
+                    registry |> find_if_exists(uri_to_path(k)) <| $(data)
+                        collect_diag(data.ast, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params), true)
 
 
     def didOpen(id : double; params : JsonValue?)
         var in scope doc = DidOpenTextDocumentParams(params)
-        let path = uriToPath(doc.textDocument.uri)
+        let path = uri_to_path(doc.textDocument.uri)
         registry[path] <- Dascript(doc.textDocument)
         print("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n")
         self->validate(path, false)
 
     [unsafe] def didSave(id : double; params : JsonValue?)
         var in scope doc = DidSaveTextDocumentParams(params)
-        let path = uriToPath(doc.textDocument.uri)
+        let path = uri_to_path(doc.textDocument.uri)
         print("> save file {path} len {length(doc.text)}, total files {length(registry)}\n")
         var version = -1lf
         var data = find_for_edit(registry, path)
@@ -191,7 +214,7 @@ class TelnetServer : Server
 
     [unsafe] def didChange(id : double; params : JsonValue?)
         var in scope doc <- DidChangeTextDocumentParams(params)
-        let path = uriToPath(doc.textDocument.uri)
+        let path = uri_to_path(doc.textDocument.uri)
         print("> file changed? {path} changes {length(doc.contentChanges)}\n")
         if length(doc.contentChanges) > 0
             var data = find_for_edit(registry, path)
@@ -208,23 +231,45 @@ class TelnetServer : Server
 
     [unsafe] def didClose(id : double; params : JsonValue?)
         var in scope doc = DidCloseTextDocumentParams(params)
-        let path = uriToPath(doc.textDocument.uri)
+        let path = uri_to_path(doc.textDocument.uri)
         find_for_edit_if_exists(registry, path) <| $(var data)
             // delete_string(data.text) // TODO:
             delete *data
         erase(registry, path)
         print("> close file {path}, total files {length(registry)}\n")
 
-        var params <- [[PublishDiagnosticsParams uri = pathToUri(path) ]]
+        var params <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(params), true)
 
-    def hover(id : double; params : JsonValue?)
-        debug("TODO: hover")
+    [unsafe] def hover(id : double; params : JsonValue?)
+        var in scope req = HoverParams(params)
+        // debug(req)
+        var found = false
+        let path = uri_to_path(req.textDocument.uri)
+        if !registry |> key_exists(path)
+            registry[path] <- Dascript(req)
+            print("> [WARN] {path} unknown? register again, total files {length(registry)}\n")
+            self->validate(path, false)
+        find_if_exists(registry, path) <| $(var data)
+            var tokens : AstTokens
+            collect_token(data.ast, req.position, tokens)
+            if tokens |> length() > 0
+                var hovers : array<string>
+                for it in tokens
+                    hovers |> emplace(to_hover(it))
+                var in scope h <- [[ Hover _range = tokens[0]._range, contents <- hovers ]]
+                self->sendResponse(id, js(h), true)
+                found = true
+            clear(tokens)
+        if !found
+            print("< [WARN] hover info not found @ {to_string(req.position)}\n")
+            self->sendResponse(id, js(), true)
+
 
     [unsafe] def completion(id : double; params : JsonValue?)
         var in scope params <- CompletionParams(params)
         debug(params)
-        let data = find(registry, uriToPath(params.textDocument.uri))
+        let data = find(registry, uri_to_path(params.textDocument.uri))
         if data != null
             print("< [INFO] send program completion {length(data.completionData)}\n")
             self->sendResponse(id, completionData->getCompletion(data.completionData), true)
@@ -386,3 +431,616 @@ def mainLoop(fn : string)
     delete telnet
 
     return true
+
+
+enum AstTokenKind
+    File = 1
+    Module = 2
+    Namespace = 3
+    Package = 4
+    Class = 5
+    Method = 6
+    Property = 7
+    Field = 8
+    Constructor = 9
+    Enum = 10
+    Interface = 11
+    Function = 12
+    Variable = 13
+    Constant = 14
+    String = 15
+    Number = 16
+    Boolean = 17
+    Array = 18
+    Object = 19
+    Key = 20
+    Null = 21
+    EnumMember = 22
+    Struct = 23
+    Event = 24
+    Operator = 25
+    TypeParameter = 26
+
+
+bitfield AstTokenWarn
+    unused
+    deprecated
+
+struct AstToken
+    _range : Range
+    name : string
+    desc : string
+    kind : AstTokenKind
+    _type : string
+    warn : AstTokenWarn
+    children : array<AstToken?>
+
+def to_hover(val : AstToken?)
+    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind} @ {to_string(val._range)}\n```"
+    return <- res
+
+typedef
+    AstTokens = array<AstToken?>
+
+def collect_diag(val : AstToken?; var diag : array<Diagnostic>)
+    if val.warn != bitfield(0)
+        var d <- [[Diagnostic _range = val._range ]]
+        if val.warn.unused
+            d.message = "[Unused] {val.desc}"
+            d.severity = DiagnosticSeverity Information
+        else
+            d.message = "[Deprecated] {val.desc}"
+            d.severity = DiagnosticSeverity Warning
+        diag |> emplace(move(d))
+    for it in val.children
+        collect_diag(it, diag)
+
+def collect_diag(val : AstTokens; var diag : array<Diagnostic>)
+    for it in val
+        collect_diag(it, diag)
+
+def collect_token(val : AstToken?; pos : Position; var res : AstTokens)
+    // print(">> {to_string(val._range)} {to_string(pos)}")
+    for it in val.children
+        collect_token(it, pos, res)
+    if range_in(val._range, pos)
+        res |> push(val)
+
+def collect_token(val : AstTokens; pos : Position; var res : AstTokens)
+    for it in val
+        collect_token(it, pos, res)
+
+def var_to_token(arg; kind = AstTokenKind Variable)
+    let typ = "{describe([decl=arg.typeDecl,extra=true])}"
+    var desc = "{arg.name} : {typ}"
+    if !arg.typeDecl.flags.constant
+        desc = "var " + desc
+    var token <- new [[AstToken
+        _range = line_info_to_range(arg.at),
+        name = "{arg.name}",
+        desc = desc,
+        kind = kind,
+        _type = typ,
+        warn = arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
+    ]]
+    return <- token
+
+def field_to_token(expr; kind = AstTokenKind Variable)
+    let typ = "{describe([decl=expr.typeDecl,extra=true])}"
+    var desc = "{expr.name} : {typ}"
+    var token <- new [[AstToken
+        _range = line_info_to_range(expr.atField),
+        name = "{expr.name}",
+        desc = desc,
+        kind = AstTokenKind Field,
+        _type = typ
+    ]]
+    return <- token
+
+[unsafe]
+def call_to_token(expr)
+    var typ = "def {expr.name}"
+    if expr.arguments.length > 0
+        typ += "("
+        var first = true
+        for arg in expr.arguments
+            if !first
+                typ += ", "
+            first = false
+            if arg is ExprMakeBlock
+                // var blk & = reinterpret<smart_ptr<ExprMakeBlock>>(arg)
+                // debug(blk)
+                typ += "__blk__"
+                continue
+            if !arg.typeDecl.flags.constant
+                typ += "var "
+            typ += "{describe(arg)} : {describe([decl=arg.typeDecl,extra=true])}"
+        typ += ")"
+    if expr.typeDecl != null
+        typ += " : {describe([decl=expr.typeDecl,extra=true])}"
+    return <- new [[AstToken
+        _range = line_info_to_range(expr.at),
+        name = "{expr.name}",
+        desc = typ,
+        kind = AstTokenKind Function,
+        _type = typ
+    ]]
+
+[unsafe]
+def expr_to_token(arg)
+    let typ = "{describe([decl=arg.typeDecl,extra=true])}"
+    let name = "{describe(arg)}"
+    return <- new [[AstToken
+        _range = line_info_to_range(arg.at),
+        name = name,
+        desc = "{name} : {typ}",
+        kind = AstTokenKind Variable,
+        _type = "{typ}"
+    ]]
+
+class AstData : AstVisitor
+    tokens : AstTokens?
+    extraTypeInfo : bool = true
+// // program
+//     def override preVisitProgram(prog:ProgramPtr) : void
+//     def override visitProgram(porg:ProgramPtr) : void
+//     def override preVisitProgramBody(prog:ProgramPtr) : void
+// // type
+//     def override preVisitTypeDecl(typ:TypeDeclPtr) : void
+//     def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
+// // type alias
+//     def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
+//     def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
+// // enumeration
+//     def override preVisitEnumeration(enu:EnumerationPtr) : void
+//     def override preVisitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : void
+//     def override visitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : ExpressionPtr
+//     def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
+// // structure
+    def override preVisitStructure(str:StructurePtr) : void
+        // debug(str)
+        // debug(str.structureModule)
+        var token <- new [[AstToken
+            _range = line_info_to_range(str.at),
+            name = "{str.name}",
+            desc = "struct {str.name}",
+            kind = AstTokenKind Struct,
+            _type = "struct {str.name}"
+        ]]
+        for decl in str.fields
+            let typ = "{describe([decl=decl.typeDecl,extra=true])}"
+            var tok <- new [[AstToken
+                _range = line_info_to_range(decl.at),
+                name = "{decl.name}",
+                desc = "{decl.name} : {typ}",
+                kind = AstTokenKind Field,
+                _type = "{str.name}.{typ}"
+            ]]
+            token.children |> emplace(tok)
+        *tokens |> emplace(token)
+    // def override preVisitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
+//     def override visitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
+//     def override visitStructure(str:StructurePtr) : StructurePtr
+// // function
+    def override preVisitFunction(fun:FunctionPtr) : void
+        if fun.flags.generated & (!fun.flags._generator | !fun.flags._lambda)
+            return
+        var desc = "def " // TODO: + (func.module != null & length(string(func.module.name)) > 0 ? "{func.module.name}::" : "")
+        desc += "{fun.name}"
+        if fun.arguments.length >= 0
+            desc += "("
+            var first = true
+            for arg in fun.arguments
+                if !first
+                    desc += ", "
+                first = false
+                if !arg.typeDecl.flags.constant
+                    desc += "var "
+                desc += "{arg.name} : {describe([decl=arg.typeDecl,extra=true])}"
+            desc += ")"
+        if fun.result != null
+            desc += " : {describe([decl=fun.result,extra=true])}"
+        var token <- new [[AstToken
+            _range = line_info_to_range(fun.at),
+            name = "{fun.name}",
+            desc = desc,
+            kind = AstTokenKind Function,
+            _type = desc
+        ]]
+        for it in fun.arguments
+            var arg <- var_to_token(it)
+            token.children |> emplace(arg)
+        *tokens |> emplace(token)
+//     def override visitFunction(fun:FunctionPtr) : FunctionPtr
+    // def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
+//     def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
+//     def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
+//     def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
+//     def override preVisitFunctionBody(fun:FunctionPtr) : void
+//     def override visitFunctionBody(fun:FunctionPtr) : void
+// // any expression there is
+//     def override preVisitExpression(expr:ExpressionPtr) : void
+//     def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
+// // block
+//     def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
+//     def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
+    def override preVisitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool): void
+        var token <- var_to_token(arg)
+        *tokens |> emplace(token)
+//     def override visitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool) : VariablePtr
+//     def override preVisitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr): void
+//     def override visitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+//     def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+//     def override visitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
+//     def override preVisitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
+//     def override visitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
+//     def override preVisitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+//     def override visitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
+// // let
+    def override preVisitExprLet(expr:smart_ptr<ExprLet>) : void
+        for it in expr.variables
+            var token <- var_to_token(it)
+            *tokens |> emplace(token)
+//     def override visitExprLet(expr:smart_ptr<ExprLet>) : ExpressionPtr
+    // def override preVisitExprLetVariable(expr:smart_ptr<ExprLet>;arg:VariablePtr;lastArg:bool) : void
+//     def override visitExprLetVariable(expr:smart_ptr<ExprLet>;arg:VariablePtr;lastArg:bool) : VariablePtr
+//     def override preVisitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr): void
+//     def override visitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+// // global let
+    // def override preVisitGlobalLet(prog:ProgramPtr) : void
+//     def override visitGlobalLet(prog:ProgramPtr) : void
+    def override preVisitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : void
+        var token <- var_to_token(arg)
+        *tokens |> emplace(token)
+//     def override visitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : VariablePtr
+//     def override preVisitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr): void
+//     def override visitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+// // string builder
+//     def override preVisitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>): void
+//     def override visitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>) : ExpressionPtr
+//     def override preVisitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool): void
+//     def override visitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool) : ExpressionPtr
+// // new
+//     def override preVisitExprNew(expr:smart_ptr<ExprNew>): void
+//     def override visitExprNew(expr:smart_ptr<ExprNew>) : ExpressionPtr
+//     def override preVisitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool): void
+//     def override visitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+// // named call (this one only exists before or during the infer)
+//     def override preVisitExprNamedCall(expr:smart_ptr<ExprNamedCall>): void
+//     def override visitExprNamedCall(expr:smart_ptr<ExprNamedCall>) : ExpressionPtr
+//     def override preVisitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool): void
+//     def override visitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
+    def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
+        var token <- call_to_token(expr)
+        for it in expr.arguments
+            if it is ExprMakeBlock
+                continue
+            var arg <- expr_to_token(it)
+            token.children |> emplace(arg)
+        *tokens |> emplace(token)
+//     def override visitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>) : ExpressionPtr
+    // def override preVisitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool): void
+//     def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+// // call
+    def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
+        var token <- call_to_token(expr)
+        for it in expr.arguments
+            if it is ExprMakeBlock
+                continue
+            var arg <- expr_to_token(it)
+            token.children |> emplace(arg)
+        *tokens |> emplace(token)
+//     def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
+//     def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
+//     def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+// // null coaelescing
+//     def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+//     def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
+//     def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
+// // at
+    // def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
+    //     var token <- expr_to_token(expr.subexpr)
+    //     *tokens |> emplace(token)
+//     def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
+//     def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
+// // safe at
+    // def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
+    //     var token <- expr_to_token(expr.subexpr)
+    //     *tokens |> emplace(token)
+//     def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
+//     def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
+// // is
+    def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
+        var token <- expr_to_token(expr.subexpr)
+        *tokens |> emplace(token)
+//     def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
+//     def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
+// // op2
+    // def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
+// //     def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
+// //     def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
+// // // op3
+    // def override preVisitExprOp3(expr:smart_ptr<ExprOp3>): void
+//     def override visitExprOp3(expr:smart_ptr<ExprOp3>) : ExpressionPtr
+//     def override preVisitExprOp3Left(expr:smart_ptr<ExprOp3>;left:ExpressionPtr): void
+//     def override preVisitExprOp3Right(expr:smart_ptr<ExprOp3>;right:ExpressionPtr): void
+// // copy
+    // def override preVisitExprCopy(expr:smart_ptr<ExprCopy>): void
+//     def override visitExprCopy(expr:smart_ptr<ExprCopy>) : ExpressionPtr
+//     def override preVisitExprCopyRight(expr:smart_ptr<ExprCopy>;right:ExpressionPtr): void
+// // move
+//     def override preVisitExprMove(expr:smart_ptr<ExprMove>): void
+// //     def override visitExprMove(expr:smart_ptr<ExprMove>) : ExpressionPtr
+// //     def override preVisitExprMoveRight(expr:smart_ptr<ExprMove>;right:ExpressionPtr) : void
+// // clone
+//     def override preVisitExprClone(expr:smart_ptr<ExprClone>) : void
+//     def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
+//     def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
+// // with
+    def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
+        var token <- expr_to_token(expr._with)
+        *tokens |> emplace(token)
+//     def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
+//     def override preVisitExprWithBody(expr:smart_ptr<ExprWith>;right:ExpressionPtr) : void
+// // while
+    def override preVisitExprWhile(expr:smart_ptr<ExprWhile>) : void
+        var token <- expr_to_token(expr.cond)
+        *tokens |> emplace(token)
+//     def override visitExprWhile(expr:smart_ptr<ExprWhile>) : ExpressionPtr
+//     def override preVisitExprWhileBody(expr:smart_ptr<ExprWhile>;right:ExpressionPtr) : void
+// // try-catch
+//     def override preVisitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : void
+//     def override visitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : ExpressionPtr
+//     def override preVisitExprTryCatchCatch(expr:smart_ptr<ExprTryCatch>;right:ExpressionPtr) : void
+// // if-then-else
+//     def override preVisitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : void
+//     def override visitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : ExpressionPtr
+//     def override preVisitExprIfThenElseIfBlock(expr:smart_ptr<ExprIfThenElse>;ifBlock:ExpressionPtr) : void
+//     def override preVisitExprIfThenElseElseBlock(expr:smart_ptr<ExprIfThenElse>;elseBlock:ExpressionPtr) : void
+// // for
+//     def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
+//     def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
+    def override preVisitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : void
+        var token <- var_to_token(svar)
+        *tokens |> emplace(token)
+//     def override visitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : VariablePtr
+//     def override preVisitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : void
+//     def override visitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : ExpressionPtr
+//     def override preVisitExprForStack(expr:smart_ptr<ExprFor>) : void
+//     def override preVisitExprForBody(expr:smart_ptr<ExprFor>) : void
+// // make variant
+//     def override preVisitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : void
+//     def override visitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : ExpressionPtr
+//     def override preVisitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
+//     def override visitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// // make structure
+//     def override preVisitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : void
+//     def override visitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : ExpressionPtr
+//     def override preVisitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
+//     def override visitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
+//     def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
+//     def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// // make array
+//     def override preVisitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : void
+//     def override visitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : ExpressionPtr
+//     def override preVisitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : void
+//     def override visitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
+// // make tuple
+//     def override preVisitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : void
+//     def override visitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : ExpressionPtr
+//     def override preVisitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : void
+//     def override visitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
+// // array comprehension
+//     def override preVisitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : void
+//     def override visitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : ExpressionPtr
+//     def override preVisitExprArrayComprehensionSubexpr(expr:smart_ptr<ExprArrayComprehension>;subexrp:ExpressionPtr) : void
+//     def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
+// // type info
+//     def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
+//     def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
+// // ptr to ref
+//     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+//     def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
+// // label
+//     def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
+//     def override visitExprLabel(expr:smart_ptr<ExprLabel>) : ExpressionPtr
+// // goto
+//     def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
+//     def override visitExprGoto(expr:smart_ptr<ExprGoto>) : ExpressionPtr
+// // ref to value
+//     def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
+//     def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
+// // ref to ptr
+//     def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
+//     def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
+// // @@
+//     def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
+//     def override visitExprAddr(expr:smart_ptr<ExprAddr>) : ExpressionPtr
+// // assert / verify
+//     def override preVisitExprAssert(expr:smart_ptr<ExprAssert>) : void
+//     def override visitExprAssert(expr:smart_ptr<ExprAssert>) : ExpressionPtr
+// // static_assert
+//     def override preVisitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : void
+//     def override visitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : ExpressionPtr
+// // debug
+//     def override preVisitExprDebug(expr:smart_ptr<ExprDebug>) : void
+//     def override visitExprDebug(expr:smart_ptr<ExprDebug>) : ExpressionPtr
+// // invoke
+//     def override preVisitExprInvoke(expr:smart_ptr<ExprInvoke>) : void
+//     def override visitExprInvoke(expr:smart_ptr<ExprInvoke>) : ExpressionPtr
+// // erase
+//     def override preVisitExprErase(expr:smart_ptr<ExprErase>) : void
+//     def override visitExprErase(expr:smart_ptr<ExprErase>) : ExpressionPtr
+// // find
+//     def override preVisitExprFind(expr:smart_ptr<ExprFind>) : void
+//     def override visitExprFind(expr:smart_ptr<ExprFind>) : ExpressionPtr
+// // key exists
+//     def override preVisitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : void
+//     def override visitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : ExpressionPtr
+// // ascend
+//     def override preVisitExprAscend(expr:smart_ptr<ExprAscend>) : void
+//     def override visitExprAscend(expr:smart_ptr<ExprAscend>) : ExpressionPtr
+// // cast
+//     def override preVisitExprCast(expr:smart_ptr<ExprCast>) : void
+//     def override visitExprCast(expr:smart_ptr<ExprCast>) : ExpressionPtr
+// // delete
+//     def override preVisitExprDelete(expr:smart_ptr<ExprDelete>) : void
+//     def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
+// // var
+    def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
+        var token <- var_to_token(expr.variable)
+        token._range = line_info_to_range(expr.at)
+        // debug(token)
+        *tokens |> emplace(token)
+//     def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
+// // field
+    def override preVisitExprField(expr:smart_ptr<ExprField>) : void
+        var token <- field_to_token(expr)
+        *tokens |> emplace(token)
+//     def override visitExprField(expr:smart_ptr<ExprField>) : ExpressionPtr
+// // safe field
+    def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
+        var token <- field_to_token(expr)
+        *tokens |> emplace(token)
+//     def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
+// // swizzle
+    def override preVisitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : void
+        var swizzle = ""
+        let f2name = [[string "x";"y";"z";"w"]]
+        for fch in expr.fields
+            let f = int(fch)
+            swizzle += "{f>=0 & f<=3 ? f2name[f] : "?"}"
+        let typ = "{describe([decl=expr.value.typeDecl,extra=true])}.{swizzle}"
+        let name = "{describe(expr.value)}.{swizzle}"
+        var token <- new [[AstToken
+            _range = line_info_to_range(expr.value.at),
+            name = name,
+            desc = "{name} : {typ}",
+            kind = AstTokenKind Variable,
+            _type = "{typ}"
+        ]]
+        token._range.start.character = token._range.end.character + 1
+        token._range.end.character += length(swizzle) + 1
+        *tokens |> emplace(token)
+//     def override visitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : ExpressionPtr
+// // is variant
+//     def override preVisitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : void
+//     def override visitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : ExpressionPtr
+// // as variant
+//     def override preVisitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : void
+//     def override visitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : ExpressionPtr
+// // safe as variant
+//     def override preVisitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : void
+//     def override visitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : ExpressionPtr
+// // op1
+//     def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
+//     def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
+// // return
+//     def override preVisitExprReturn(expr:smart_ptr<ExprReturn>) : void
+//     def override visitExprReturn(expr:smart_ptr<ExprReturn>) : ExpressionPtr
+// // yield
+//     def override preVisitExprYield(expr:smart_ptr<ExprYield>) : void
+//     def override visitExprYield(expr:smart_ptr<ExprYield>) : ExpressionPtr
+// // break
+//     def override preVisitExprBreak(expr:smart_ptr<ExprBreak>) : void
+//     def override visitExprBreak(expr:smart_ptr<ExprBreak>) : ExpressionPtr
+// // continue
+//     def override preVisitExprContinue(expr:smart_ptr<ExprContinue>) : void
+//     def override visitExprContinue(expr:smart_ptr<ExprContinue>) : ExpressionPtr
+// // make block
+//     def override preVisitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : void
+//     def override visitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : ExpressionPtr
+// // make generator
+//     def override preVisitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : void
+//     def override visitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : ExpressionPtr
+// // memzero
+//     def override preVisitExprMemZero(expr:smart_ptr<ExprMemZero>) : void
+//     def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
+// // const
+//     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
+//     def override visitExprConst(expr:smart_ptr<ExprConst>) : ExpressionPtr
+// // const ptr
+//     def override preVisitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : void
+//     def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
+// // const enumeration
+//     def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
+//     def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr
+// // cont bitfield
+//     def override preVisitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : void
+//     def override visitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : ExpressionPtr
+// // const int 8
+//     def override preVisitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : void
+//     def override visitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : ExpressionPtr
+// // const int 16
+//     def override preVisitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : void
+//     def override visitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : ExpressionPtr
+// // const int 64
+//     def override preVisitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : void
+//     def override visitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : ExpressionPtr
+// // const int
+//     def override preVisitExprConstInt(expr:smart_ptr<ExprConstInt>) : void
+//     def override visitExprConstInt(expr:smart_ptr<ExprConstInt>) : ExpressionPtr
+// // const int2
+//     def override preVisitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : void
+//     def override visitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : ExpressionPtr
+// // const int3
+//     def override preVisitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : void
+//     def override visitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : ExpressionPtr
+// // const int4
+//     def override preVisitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : void
+//     def override visitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : ExpressionPtr
+// // const uint 8
+//     def override preVisitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : void
+//     def override visitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : ExpressionPtr
+// // const uint 16
+//     def override preVisitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : void
+//     def override visitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : ExpressionPtr
+// // const uint 64
+//     def override preVisitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : void
+//     def override visitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : ExpressionPtr
+// // const uint
+//     def override preVisitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : void
+//     def override visitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : ExpressionPtr
+// // const uint2
+//     def override preVisitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : void
+//     def override visitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : ExpressionPtr
+// // const uint3
+//     def override preVisitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : void
+//     def override visitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : ExpressionPtr
+// // const uint4
+//     def override preVisitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : void
+//     def override visitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : ExpressionPtr
+// // const range
+//     def override preVisitExprConstRange(expr:smart_ptr<ExprConstRange>) : void
+//     def override visitExprConstRange(expr:smart_ptr<ExprConstRange>) : ExpressionPtr
+// // const urnage
+//     def override preVisitExprConstURange(expr:smart_ptr<ExprConstURange>) : void
+//     def override visitExprConstURange(expr:smart_ptr<ExprConstURange>) : ExpressionPtr
+// // const bool
+//     def override preVisitExprConstBool(expr:smart_ptr<ExprConstBool>) : void
+//     def override visitExprConstBool(expr:smart_ptr<ExprConstBool>) : ExpressionPtr
+// // const float
+//     def override preVisitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : void
+//     def override visitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : ExpressionPtr
+// // const float2
+//     def override preVisitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : void
+//     def override visitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : ExpressionPtr
+// // const float3
+//     def override preVisitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : void
+//     def override visitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : ExpressionPtr
+// // const float4
+//     def override preVisitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : void
+//     def override visitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : ExpressionPtr
+// // const string
+//     def override preVisitExprConstString(expr:smart_ptr<ExprConstString>) : void
+//     def override visitExprConstString(expr:smart_ptr<ExprConstString>) : ExpressionPtr
+// // const double
+//     def override preVisitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : void
+//     def override visitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : ExpressionPtr
+// // fake context
+//     def override preVisitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : void
+//     def override visitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : ExpressionPtr
+// // fake line info
+//     def override preVisitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : void
+//     def override visitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : ExpressionPtr
