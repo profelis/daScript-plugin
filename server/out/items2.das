@@ -325,18 +325,6 @@ def addKeywords(var items : Items)
   for it in langOptions
     addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
-[export]
-def dumpModule(name : string)
-  compile_file(name) <| $(ok, program, err)
-    if !ok
-      print(string(err))
-      return
-    var items : Items
-    addKeywords(items)
-    program_for_each_module(program) <| $(var mod)
-      parseModule(mod, items)
-    dumpItems(items)
-
 def dumpAllModules()
   var items : Items
   addKeywords(items)
