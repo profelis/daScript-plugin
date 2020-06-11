@@ -1,10 +1,6 @@
 require rtti
 require lsp_types
 
-
-def move ( var a )
-    return <- a
-
 def line_info_to_range(val : rtti::LineInfo)
     return [[Range
         start = [[Position line = int(val.line) - 1, character = int(val.column)]],

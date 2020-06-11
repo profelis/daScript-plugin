@@ -1,4 +1,5 @@
 require fio
+require daslib/strings
 
 let
 	dasRoot = ""
@@ -63,6 +64,6 @@ def getTokens(from, to : string) : Tokens
 			if it |> strip() |> length() == 0
 				continue
 			let b = find(it, "\"") + 1
-			list |> push(slice(it, b, find(it, "\"", b)))
+			list |> emplace(slice(it, b, find(it, "\"", b)))
 		res <- [[Tokens tokens <- list]]
 	return <- res

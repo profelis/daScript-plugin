@@ -224,7 +224,7 @@ def DidChangeTextDocumentParams(val : JsonValue?)
 	let changesVal = joj(val, "contentChanges")
 	if changesVal != null
 		for it in changesVal.value as _array
-			contentChanges |> push(TextDocumentContentChangeEvent(it))
+			contentChanges |> emplace(TextDocumentContentChangeEvent(it))
 	return <- [[DidChangeTextDocumentParams textDocument = VersionedTextDocumentIdentifier(joj(val, "textDocument")), contentChanges <- contentChanges ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didSave

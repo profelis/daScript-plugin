@@ -6,7 +6,9 @@ options rtti = true
 require rtti
 require rtti_tools
 require daslib/json
+require daslib/strings
 require lsp_types
+require lib
 
 
 struct Completion
@@ -221,8 +223,15 @@ def parseModule(pMod; var items : Completions)
     let fullName = "{fullModuleName}{structName}"
     var shortStructDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
-      var in scope args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}]
-      let argT = join(args,", ")
+      // var in scope args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}] // BUG: workaround
+      // let argT = join(args,", ")
+      var argT = ""
+      var first = true
+      for arg in annArgs
+        if !first
+          argT += ", "
+        first = false
+        argT += "{arg.name}{getValue(get_annotation_argument_value(arg))}"
       shortStructDesc += "[{ann.name}({argT})]\n"
     shortStructDesc += "struct {fullName}"
     var structDesc = shortStructDesc
@@ -299,6 +308,11 @@ def js(items : Completions; doc = true) : JsonValue?
   var list <- [{ for it in values(items); js(it, doc) }]
   return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
+[private]
+def first_part(str : string; del : string)
+  let parts <- split(str, del)
+  return parts[0]
+
 [export] class CompletionData
   globalCompletionUpdate : clock
   globalCompletion : Completions
@@ -326,6 +340,25 @@ def js(items : Completions; doc = true) : JsonValue?
   def getCompletion(items : Completions)
     var list <- [{ for it in values(items); js(it) }]
     for val in values(globalCompletion)
-      list |> push(js(val))
+      list |> emplace(js(val))
     print("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n")
     return js({{ "isIncomplete" => js(false); "items" => js(list)}})
+
+  def findCompletion(name : string; blk : block<(val : Completion):void>)
+    print("{name}\n")
+    var n = name |> strip_left("smart_ptr<") |> strip_left("array<")
+    n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-")
+    n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
+    print("---- {name} / {n} ------\n")
+    var found = false
+    for it in values(globalCompletion)
+      if it.fullName == n
+        invoke(blk, it)
+        found = true
+
+    if found
+      return
+
+    for it in values(globalCompletion)
+      if it.name == n
+        invoke(blk, it)
