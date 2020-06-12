@@ -311,7 +311,7 @@ def js(items : Completions; doc = true) : JsonValue?
 [private]
 def first_part(str : string; del : string)
   let parts <- split(str, del)
-  return parts[0]
+  return parts |> length() > 0 ? parts[0] : str // BUG: temp fix
 
 [export] class CompletionData
   globalCompletionUpdate : clock
@@ -344,15 +344,15 @@ def first_part(str : string; del : string)
     print("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n")
     return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
-  def findCompletion(name : string; blk : block<(val : Completion):void>)
+  def findCompletion(name : string; field : bool; blk : block<(val : Completion):void>)
     print("{name}\n")
-    var n = name |> strip_left("smart_ptr<") |> strip_left("array<")
-    n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-")
+    var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ")
+    n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
     print("---- {name} / {n} ------\n")
     var found = false
     for it in values(globalCompletion)
-      if it.fullName == n
+      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
         invoke(blk, it)
         found = true
 
@@ -360,5 +360,5 @@ def first_part(str : string; del : string)
       return
 
     for it in values(globalCompletion)
-      if it.name == n
+      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.name == n
         invoke(blk, it)
