@@ -143,6 +143,12 @@ def range_in(r : Range; pos : Position)
 def range_in(a, b : Range)
 	return a.start <= b.start & b.end <= a.end
 
+def range_oneline(a : Range)
+	return a.start.line == a.end.line
+
+def length(a : Range)
+	return a.end.character - a.start.character
+
 def js(val : Range)
 	return JV({{ "start" => js(val.start); "end" => js(val.end) }})
 

@@ -524,7 +524,7 @@ def module_name(mod)
     if mod == null
         return ""
     let name = "{mod.name}"
-    return length(name) == 0 ? "" : "::{name}"
+    return length(name) == 0 ? "" : "{name}::"
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     if arg == null | arg.flags.generated
@@ -587,9 +587,9 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
                 // debug(blk)
                 // typ += "__blk__"
                 // continue
-            if !arg._type.flags.constant
+            if arg._type != null & !arg._type.flags.constant
                 typ += "var "
-            typ += "arg{idx} : {describe([decl=arg._type,extra=true])}"
+            typ += "arg{idx} : {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
             idx++
         typ += ")"
     // if firstArg |> starts_with("self.")
@@ -604,11 +604,26 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
         kind = AstTokenKind Function,
         _type = typ
     ]]
-    if firstArg |> starts_with("self.")
+    if range_oneline(res._range) & firstArg |> starts_with("self.")
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
         res._range.end.character += length(firstArg) - selfLen - 1
     invoke(blk, res)
+    return true
+
+def type_to_token(typ; blk : block<(var token:AstToken?):void>)
+    if typ == null
+        return false
+    let typeName = describe([decl=typ,extra=true])
+    var tok <- new [[AstToken
+        _range = line_info_to_range(typ.at),
+        path = typ.at.fileInfo != null ? "{typ.at.fileInfo.name}" : "",
+        name = typeName,
+        desc = typeName,
+        kind = AstTokenKind Struct,
+        _type = typeName
+    ]]
+    invoke(blk, tok)
     return true
 
 [unsafe]
@@ -636,14 +651,48 @@ class AstData : AstVisitor
 //     def override visitProgram(porg:ProgramPtr) : void
 //     def override preVisitProgramBody(prog:ProgramPtr) : void
 // // type
-//     def override preVisitTypeDecl(typ:TypeDeclPtr) : void
+    def override preVisitTypeDecl(typ:TypeDeclPtr) : void
+        type_to_token(typ) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
 //     def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
 // // type alias
-//     def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
+    def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
+        type_to_token(typ) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
 //     def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
 // // enumeration
-//     def override preVisitEnumeration(enu:EnumerationPtr) : void
-//     def override preVisitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : void
+    def override preVisitEnumeration(enu:EnumerationPtr) : void
+        if enu == null
+            return
+        var name = "{module_name(enu._module)}{enu.name}"
+        var token <- new [[AstToken
+            _range = line_info_to_range(enu.at),
+            path = enu.at.fileInfo != null ? "{enu.at.fileInfo.name}" : "",
+            name = name,
+            desc = "enum {name} : {get_das_type_name(enu.baseType)}",
+            kind = AstTokenKind Enum,
+            _type = name
+        ]]
+        if range_oneline(token._range) & length(token._range) < length(token.name)
+            token._range.end.character += length(token.name) + 1
+        *tokens |> emplace(token)
+
+    def override preVisitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : void
+        var typ = value._type != null ? describe(value._type) : ""
+        var desc = "{enu.name} {name}"
+        if value != null
+            desc += " = {describe(value)}"
+        var token <- new [[AstToken
+            _range = line_info_to_range(value.at),
+            path = value.at.fileInfo != null ? "{value.at.fileInfo.name}" : "",
+            name = "{name}",
+            desc = desc,
+            kind = AstTokenKind EnumMember,
+            _type = typ
+        ]]
+        if range_oneline(token._range)
+            token._range.start.character -= length(token.name) + 1
+        *tokens |> emplace(token)
 //     def override visitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : ExpressionPtr
 //     def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
@@ -659,7 +708,7 @@ class AstData : AstVisitor
             path = str.at.fileInfo != null ? "{str.at.fileInfo.name}" : "",
             name = name,
             desc = desc,
-            kind = AstTokenKind Struct,
+            kind = str.flags.isClass ? AstTokenKind Class : AstTokenKind Struct,
             _type = name
         ]]
         for decl in str.fields
@@ -800,7 +849,7 @@ class AstData : AstVisitor
 //     def override visitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>) : ExpressionPtr
     // def override preVisitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool): void
 //     def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
-// // call
+// call
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
         if skipExprs
             return
@@ -814,20 +863,28 @@ class AstData : AstVisitor
 //     def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
 //     def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
 //     def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
-// // null coaelescing
-//     def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+// null coaelescing
+    def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+        if skipExprs
+            return
+        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
 //     def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
 //     def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
-// // at
-    // def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
-    //     var token <- expr_to_token(expr.subexpr)
-    //     *tokens |> emplace(token)
+// at
+    def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
+        if skipExprs
+            return
+        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
 //     def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
 //     def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // // safe at
-    // def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
-    //     var token <- expr_to_token(expr.subexpr)
-    //     *tokens |> emplace(token)
+    def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
+        if skipExprs
+            return
+        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
 //     def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
 //     def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // // is
@@ -981,7 +1038,6 @@ class AstData : AstVisitor
             return
         var_to_token(expr.variable) <| $(var token)
             token._range = line_info_to_range(expr.at)
-            // debug(token)
             *tokens |> emplace(token)
 //     def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
 // // field
