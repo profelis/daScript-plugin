@@ -644,23 +644,22 @@ def expr_to_token(arg; blk : block<(var token:AstToken?):void>)
 
 class AstData : AstVisitor
     tokens : AstTokens?
-    extraTypeInfo : bool = true
     skipExprs : bool = false
-// // program
-//     def override preVisitProgram(prog:ProgramPtr) : void
-//     def override visitProgram(porg:ProgramPtr) : void
-//     def override preVisitProgramBody(prog:ProgramPtr) : void
-// // type
+// program
+    // def override preVisitProgram(prog:ProgramPtr) : void
+    // def override visitProgram(porg:ProgramPtr) : void
+    // def override preVisitProgramBody(prog:ProgramPtr) : void
+// type
     def override preVisitTypeDecl(typ:TypeDeclPtr) : void
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
-// // type alias
+    // def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
+// type alias
     def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
-// // enumeration
+    // def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
+// enumeration
     def override preVisitEnumeration(enu:EnumerationPtr) : void
         if enu == null
             return
@@ -673,28 +672,25 @@ class AstData : AstVisitor
             kind = AstTokenKind Enum,
             _type = name
         ]]
-        if range_oneline(token._range) & length(token._range) < length(token.name)
-            token._range.end.character += length(token.name) + 1
+        for it in enu.list
+            var typ = it.value._type != null ? describe(it.value._type) : ""
+            var desc = "{enu.name} {it.name}"
+            if it.value != null
+                desc += " = {describe(it.value)}"
+            var tok <- new [[AstToken
+                _range = line_info_to_range(it.at),
+                path = it.at.fileInfo != null ? "{it.at.fileInfo.name}" : "",
+                name = "{it.name}",
+                desc = desc,
+                kind = AstTokenKind EnumMember,
+                _type = typ
+            ]]
+            token.children |> emplace(tok)
         *tokens |> emplace(token)
 
-    def override preVisitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : void
-        var typ = value._type != null ? describe(value._type) : ""
-        var desc = "{enu.name} {name}"
-        if value != null
-            desc += " = {describe(value)}"
-        var token <- new [[AstToken
-            _range = line_info_to_range(value.at),
-            path = value.at.fileInfo != null ? "{value.at.fileInfo.name}" : "",
-            name = "{name}",
-            desc = desc,
-            kind = AstTokenKind EnumMember,
-            _type = typ
-        ]]
-        if range_oneline(token._range)
-            token._range.start.character -= length(token.name) + 1
-        *tokens |> emplace(token)
-//     def override visitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : ExpressionPtr
-//     def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
+    // def override preVisitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : void
+    // def override visitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : ExpressionPtr
+    // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
         if str.flags.generated
@@ -729,9 +725,9 @@ class AstData : AstVisitor
             token.children |> emplace(tok)
         *tokens |> emplace(token)
     // def override preVisitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
-//     def override visitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
-//     def override visitStructure(str:StructurePtr) : StructurePtr
-// // function
+    // def override visitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
+    // def override visitStructure(str:StructurePtr) : StructurePtr
+// function
     def override preVisitFunction(fun:FunctionPtr) : void
         if fun.flags.generated & (!fun.flags._generator | !fun.flags._lambda)
             skipExprs = true
@@ -768,74 +764,74 @@ class AstData : AstVisitor
         skipExprs = false
         return fun
     // def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
-//     def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
-//     def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
-//     def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
-//     def override preVisitFunctionBody(fun:FunctionPtr) : void
-//     def override visitFunctionBody(fun:FunctionPtr) : void
-// // any expression there is
-//     def override preVisitExpression(expr:ExpressionPtr) : void
-//     def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
-// // block
-//     def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
-//     def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
+    // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
+    // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
+    // def override preVisitFunctionBody(fun:FunctionPtr) : void
+    // def override visitFunctionBody(fun:FunctionPtr) : void
+// any expression there is
+    // def override preVisitExpression(expr:ExpressionPtr) : void
+    // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
+// block
+    // def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
+    // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
     def override preVisitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool): void
         if skipExprs
             return
         var_to_token(arg) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool) : VariablePtr
-//     def override preVisitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr): void
-//     def override visitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
-//     def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
-//     def override visitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
-//     def override preVisitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
-//     def override visitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
-//     def override preVisitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
-//     def override visitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
-// // let
+    // def override visitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr): void
+    // def override visitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+    // def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+    // def override visitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
+    // def override preVisitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
+    // def override visitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
+    // def override preVisitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+    // def override visitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
+// let
     def override preVisitExprLet(expr:smart_ptr<ExprLet>) : void
         if skipExprs
             return
         for it in expr.variables
             var_to_token(it) <| $(var token : AstToken?)
                 *tokens |> emplace(token)
-//     def override visitExprLet(expr:smart_ptr<ExprLet>) : ExpressionPtr
+    // def override visitExprLet(expr:smart_ptr<ExprLet>) : ExpressionPtr
     // def override preVisitExprLetVariable(expr:smart_ptr<ExprLet>;arg:VariablePtr;lastArg:bool) : void
-//     def override visitExprLetVariable(expr:smart_ptr<ExprLet>;arg:VariablePtr;lastArg:bool) : VariablePtr
-//     def override preVisitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr): void
-//     def override visitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
-// // global let
+    // def override visitExprLetVariable(expr:smart_ptr<ExprLet>;arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr): void
+    // def override visitExprLetVariableInit(blk:smart_ptr<ExprLet>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+// global let
     // def override preVisitGlobalLet(prog:ProgramPtr) : void
-//     def override visitGlobalLet(prog:ProgramPtr) : void
+    // def override visitGlobalLet(prog:ProgramPtr) : void
     def override preVisitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : void
         if skipExprs
             return
         var_to_token(arg) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : VariablePtr
-//     def override preVisitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr): void
-//     def override visitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
-// // string builder
-//     def override preVisitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>): void
-//     def override visitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>) : ExpressionPtr
-//     def override preVisitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool): void
-//     def override visitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool) : ExpressionPtr
-// // new
-//     def override preVisitExprNew(expr:smart_ptr<ExprNew>): void
-//     def override visitExprNew(expr:smart_ptr<ExprNew>) : ExpressionPtr
-//     def override preVisitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool): void
-//     def override visitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool) : ExpressionPtr
-// // named call (this one only exists before or during the infer)
+    // def override visitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr): void
+    // def override visitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
+// string builder
+    // def override preVisitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>): void
+    // def override visitExprStringBuilder(expr:smart_ptr<ExprStringBuilder>) : ExpressionPtr
+    // def override preVisitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool): void
+    // def override visitExprStringBuilderElement(expr:smart_ptr<ExprStringBuilder>;elem:ExpressionPtr;last:bool) : ExpressionPtr
+// new
+    // def override preVisitExprNew(expr:smart_ptr<ExprNew>): void
+    // def override visitExprNew(expr:smart_ptr<ExprNew>) : ExpressionPtr
+    // def override preVisitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool): void
+    // def override visitExprNewArgument(expr:smart_ptr<ExprNew>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+// named call (this one only exists before or during the infer)
     def override preVisitExprNamedCall(expr:smart_ptr<ExprNamedCall>): void
         if skipExprs
             return
         print("-------------\n")
         debug(expr)
-//     def override visitExprNamedCall(expr:smart_ptr<ExprNamedCall>) : ExpressionPtr
-//     def override preVisitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool): void
-//     def override visitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
-// // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
+    // def override visitExprNamedCall(expr:smart_ptr<ExprNamedCall>) : ExpressionPtr
+    // def override preVisitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool): void
+    // def override visitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
         if skipExprs
             return
@@ -846,9 +842,9 @@ class AstData : AstVisitor
         //         continue
         //     var arg <- expr_to_token(it)
         //     token.children |> emplace(arg)
-//     def override visitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>) : ExpressionPtr
+    // def override visitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>) : ExpressionPtr
     // def override preVisitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool): void
-//     def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+    // def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // call
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
         if skipExprs
@@ -860,201 +856,201 @@ class AstData : AstVisitor
         //         continue
         //     var arg <- expr_to_token(it)
         //     token.children |> emplace(arg)
-//     def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
-//     def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
-//     def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+    // def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
+    // def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
+    // def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // null coaelescing
     def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
         if skipExprs
             return
         expr_to_token(expr.subexpr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
-//     def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
+    // def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
+    // def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
 // at
     def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
         if skipExprs
             return
         expr_to_token(expr.subexpr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
-//     def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
+    // def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
+    // def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // // safe at
     def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
         if skipExprs
             return
         expr_to_token(expr.subexpr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
-//     def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
-// // is
+    // def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
+    // def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
+// is
     def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
         if skipExprs
             return
         expr_to_token(expr.subexpr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
-//     def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
-// // op2
+    // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
+    // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
+// op2
     // def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
-// //     def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
-// //     def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
-// // // op3
+    // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
+    // def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
+// op3
     // def override preVisitExprOp3(expr:smart_ptr<ExprOp3>): void
-//     def override visitExprOp3(expr:smart_ptr<ExprOp3>) : ExpressionPtr
-//     def override preVisitExprOp3Left(expr:smart_ptr<ExprOp3>;left:ExpressionPtr): void
-//     def override preVisitExprOp3Right(expr:smart_ptr<ExprOp3>;right:ExpressionPtr): void
-// // copy
+    // def override visitExprOp3(expr:smart_ptr<ExprOp3>) : ExpressionPtr
+    // def override preVisitExprOp3Left(expr:smart_ptr<ExprOp3>;left:ExpressionPtr): void
+    // def override preVisitExprOp3Right(expr:smart_ptr<ExprOp3>;right:ExpressionPtr): void
+// copy
     // def override preVisitExprCopy(expr:smart_ptr<ExprCopy>): void
-//     def override visitExprCopy(expr:smart_ptr<ExprCopy>) : ExpressionPtr
-//     def override preVisitExprCopyRight(expr:smart_ptr<ExprCopy>;right:ExpressionPtr): void
-// // move
-//     def override preVisitExprMove(expr:smart_ptr<ExprMove>): void
-// //     def override visitExprMove(expr:smart_ptr<ExprMove>) : ExpressionPtr
-// //     def override preVisitExprMoveRight(expr:smart_ptr<ExprMove>;right:ExpressionPtr) : void
-// // clone
-//     def override preVisitExprClone(expr:smart_ptr<ExprClone>) : void
-//     def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
-//     def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
-// // with
+    // def override visitExprCopy(expr:smart_ptr<ExprCopy>) : ExpressionPtr
+    // def override preVisitExprCopyRight(expr:smart_ptr<ExprCopy>;right:ExpressionPtr): void
+// move
+    // def override preVisitExprMove(expr:smart_ptr<ExprMove>): void
+    // def override visitExprMove(expr:smart_ptr<ExprMove>) : ExpressionPtr
+    // def override preVisitExprMoveRight(expr:smart_ptr<ExprMove>;right:ExpressionPtr) : void
+// clone
+    // def override preVisitExprClone(expr:smart_ptr<ExprClone>) : void
+    // def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
+    // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
+// with
     def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
         if skipExprs
             return
         expr_to_token(expr._with) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
-//     def override preVisitExprWithBody(expr:smart_ptr<ExprWith>;right:ExpressionPtr) : void
-// // while
+    // def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
+    // def override preVisitExprWithBody(expr:smart_ptr<ExprWith>;right:ExpressionPtr) : void
+// while
     def override preVisitExprWhile(expr:smart_ptr<ExprWhile>) : void
         if skipExprs
             return
         expr_to_token(expr.cond) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprWhile(expr:smart_ptr<ExprWhile>) : ExpressionPtr
-//     def override preVisitExprWhileBody(expr:smart_ptr<ExprWhile>;right:ExpressionPtr) : void
-// // try-catch
-//     def override preVisitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : void
-//     def override visitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : ExpressionPtr
-//     def override preVisitExprTryCatchCatch(expr:smart_ptr<ExprTryCatch>;right:ExpressionPtr) : void
-// // if-then-else
-//     def override preVisitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : void
-//     def override visitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : ExpressionPtr
-//     def override preVisitExprIfThenElseIfBlock(expr:smart_ptr<ExprIfThenElse>;ifBlock:ExpressionPtr) : void
-//     def override preVisitExprIfThenElseElseBlock(expr:smart_ptr<ExprIfThenElse>;elseBlock:ExpressionPtr) : void
-// // for
-//     def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
-//     def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
+    // def override visitExprWhile(expr:smart_ptr<ExprWhile>) : ExpressionPtr
+    // def override preVisitExprWhileBody(expr:smart_ptr<ExprWhile>;right:ExpressionPtr) : void
+// try-catch
+    // def override preVisitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : void
+    // def override visitExprTryCatch(expr:smart_ptr<ExprTryCatch>) : ExpressionPtr
+    // def override preVisitExprTryCatchCatch(expr:smart_ptr<ExprTryCatch>;right:ExpressionPtr) : void
+// if-then-else
+    // def override preVisitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : void
+    // def override visitExprIfThenElse(expr:smart_ptr<ExprIfThenElse>) : ExpressionPtr
+    // def override preVisitExprIfThenElseIfBlock(expr:smart_ptr<ExprIfThenElse>;ifBlock:ExpressionPtr) : void
+    // def override preVisitExprIfThenElseElseBlock(expr:smart_ptr<ExprIfThenElse>;elseBlock:ExpressionPtr) : void
+// for
+    // def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
+    // def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
     def override preVisitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : void
         if skipExprs
             return
         var_to_token(svar) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-//     def override visitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : VariablePtr
-//     def override preVisitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : void
-//     def override visitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : ExpressionPtr
-//     def override preVisitExprForStack(expr:smart_ptr<ExprFor>) : void
-//     def override preVisitExprForBody(expr:smart_ptr<ExprFor>) : void
-// // make variant
-//     def override preVisitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : void
-//     def override visitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : ExpressionPtr
-//     def override preVisitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
-//     def override visitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
-// // make structure
-//     def override preVisitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : void
-//     def override visitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : ExpressionPtr
-//     def override preVisitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
-//     def override visitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
-//     def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
-//     def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
-// // make array
-//     def override preVisitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : void
-//     def override visitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : ExpressionPtr
-//     def override preVisitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : void
-//     def override visitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
-// // make tuple
-//     def override preVisitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : void
-//     def override visitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : ExpressionPtr
-//     def override preVisitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : void
-//     def override visitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
-// // array comprehension
-//     def override preVisitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : void
-//     def override visitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : ExpressionPtr
-//     def override preVisitExprArrayComprehensionSubexpr(expr:smart_ptr<ExprArrayComprehension>;subexrp:ExpressionPtr) : void
-//     def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
-// // type info
-//     def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
-//     def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
-// // ptr to ref
-//     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
-//     def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
-// // label
-//     def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
-//     def override visitExprLabel(expr:smart_ptr<ExprLabel>) : ExpressionPtr
-// // goto
-//     def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
-//     def override visitExprGoto(expr:smart_ptr<ExprGoto>) : ExpressionPtr
-// // ref to value
-//     def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
-//     def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
-// // ref to ptr
-//     def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
-//     def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
-// // @@
-//     def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
-//     def override visitExprAddr(expr:smart_ptr<ExprAddr>) : ExpressionPtr
-// // assert / verify
-//     def override preVisitExprAssert(expr:smart_ptr<ExprAssert>) : void
-//     def override visitExprAssert(expr:smart_ptr<ExprAssert>) : ExpressionPtr
-// // static_assert
-//     def override preVisitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : void
-//     def override visitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : ExpressionPtr
-// // debug
-//     def override preVisitExprDebug(expr:smart_ptr<ExprDebug>) : void
-//     def override visitExprDebug(expr:smart_ptr<ExprDebug>) : ExpressionPtr
-// // invoke
+    // def override visitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : VariablePtr
+    // def override preVisitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : void
+    // def override visitExprForSource(expr:smart_ptr<ExprFor>;source:ExpressionPtr;last:bool) : ExpressionPtr
+    // def override preVisitExprForStack(expr:smart_ptr<ExprFor>) : void
+    // def override preVisitExprForBody(expr:smart_ptr<ExprFor>) : void
+// make variant
+    // def override preVisitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : void
+    // def override visitExprMakeVariant(expr:smart_ptr<ExprMakeVariant>) : ExpressionPtr
+    // def override preVisitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
+    // def override visitExprMakeVariantField(expr:smart_ptr<ExprMakeVariant>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// make structure
+    // def override preVisitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : void
+    // def override visitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : ExpressionPtr
+    // def override preVisitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
+    // def override visitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
+    // def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
+    // def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
+// make array
+    // def override preVisitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : void
+    // def override visitExprMakeArray(expr:smart_ptr<ExprMakeArray>) : ExpressionPtr
+    // def override preVisitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : void
+    // def override visitExprMakeArrayIndex(expr:smart_ptr<ExprMakeArray>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
+// make tuple
+    // def override preVisitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : void
+    // def override visitExprMakeTuple(expr:smart_ptr<ExprMakeTuple>) : ExpressionPtr
+    // def override preVisitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : void
+    // def override visitExprMakeTupleIndex(expr:smart_ptr<ExprMakeTuple>;index:int;init:ExpressionPtr;last:bool) : ExpressionPtr
+// array comprehension
+    // def override preVisitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : void
+    // def override visitExprArrayComprehension(expr:smart_ptr<ExprArrayComprehension>) : ExpressionPtr
+    // def override preVisitExprArrayComprehensionSubexpr(expr:smart_ptr<ExprArrayComprehension>;subexrp:ExpressionPtr) : void
+    // def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
+// type info
+    // def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
+    // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
+// ptr to ref
+    // def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+    // def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
+// label
+    // def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
+    // def override visitExprLabel(expr:smart_ptr<ExprLabel>) : ExpressionPtr
+// goto
+    // def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
+    // def override visitExprGoto(expr:smart_ptr<ExprGoto>) : ExpressionPtr
+// ref to value
+    // def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
+    // def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
+// ref to ptr
+    // def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
+    // def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
+// @@
+    // def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
+    // def override visitExprAddr(expr:smart_ptr<ExprAddr>) : ExpressionPtr
+// assert / verify
+    // def override preVisitExprAssert(expr:smart_ptr<ExprAssert>) : void
+    // def override visitExprAssert(expr:smart_ptr<ExprAssert>) : ExpressionPtr
+// static_assert
+    // def override preVisitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : void
+    // def override visitExprStaticAssert(expr:smart_ptr<ExprStaticAssert>) : ExpressionPtr
+// debug
+    // def override preVisitExprDebug(expr:smart_ptr<ExprDebug>) : void
+    // def override visitExprDebug(expr:smart_ptr<ExprDebug>) : ExpressionPtr
+// invoke
     // def override preVisitExprInvoke(expr:smart_ptr<ExprInvoke>) : void
-//     def override visitExprInvoke(expr:smart_ptr<ExprInvoke>) : ExpressionPtr
-// // erase
-//     def override preVisitExprErase(expr:smart_ptr<ExprErase>) : void
-//     def override visitExprErase(expr:smart_ptr<ExprErase>) : ExpressionPtr
-// // find
-//     def override preVisitExprFind(expr:smart_ptr<ExprFind>) : void
-//     def override visitExprFind(expr:smart_ptr<ExprFind>) : ExpressionPtr
-// // key exists
-//     def override preVisitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : void
-//     def override visitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : ExpressionPtr
-// // ascend
-//     def override preVisitExprAscend(expr:smart_ptr<ExprAscend>) : void
-//     def override visitExprAscend(expr:smart_ptr<ExprAscend>) : ExpressionPtr
-// // cast
-//     def override preVisitExprCast(expr:smart_ptr<ExprCast>) : void
-//     def override visitExprCast(expr:smart_ptr<ExprCast>) : ExpressionPtr
-// // delete
-//     def override preVisitExprDelete(expr:smart_ptr<ExprDelete>) : void
-//     def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
-// // var
+    // def override visitExprInvoke(expr:smart_ptr<ExprInvoke>) : ExpressionPtr
+// erase
+    // def override preVisitExprErase(expr:smart_ptr<ExprErase>) : void
+    // def override visitExprErase(expr:smart_ptr<ExprErase>) : ExpressionPtr
+// find
+    // def override preVisitExprFind(expr:smart_ptr<ExprFind>) : void
+    // def override visitExprFind(expr:smart_ptr<ExprFind>) : ExpressionPtr
+// key exists
+    // def override preVisitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : void
+    // def override visitExprKeyExists(expr:smart_ptr<ExprKeyExists>) : ExpressionPtr
+// ascend
+    // def override preVisitExprAscend(expr:smart_ptr<ExprAscend>) : void
+    // def override visitExprAscend(expr:smart_ptr<ExprAscend>) : ExpressionPtr
+// cast
+    // def override preVisitExprCast(expr:smart_ptr<ExprCast>) : void
+    // def override visitExprCast(expr:smart_ptr<ExprCast>) : ExpressionPtr
+// delete
+    // def override preVisitExprDelete(expr:smart_ptr<ExprDelete>) : void
+    // def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
+// var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
         if skipExprs
             return
         var_to_token(expr.variable) <| $(var token)
             token._range = line_info_to_range(expr.at)
             *tokens |> emplace(token)
-//     def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
-// // field
+    // def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
+// field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
         if skipExprs
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
-//     def override visitExprField(expr:smart_ptr<ExprField>) : ExpressionPtr
-// // safe field
+    // def override visitExprField(expr:smart_ptr<ExprField>) : ExpressionPtr
+// safe field
     def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
         if skipExprs
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
-//     def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
-// // swizzle
+    // def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
+// swizzle
     def override preVisitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : void
         if skipExprs
             return
@@ -1075,124 +1071,124 @@ class AstData : AstVisitor
         token._range.start.character = token._range.end.character + 1
         token._range.end.character += length(swizzle) + 1
         *tokens |> emplace(token)
-//     def override visitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : ExpressionPtr
-// // is variant
-//     def override preVisitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : void
-//     def override visitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : ExpressionPtr
-// // as variant
-//     def override preVisitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : void
-//     def override visitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : ExpressionPtr
-// // safe as variant
-//     def override preVisitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : void
-//     def override visitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : ExpressionPtr
-// // op1
-//     def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
-//     def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
-// // return
-//     def override preVisitExprReturn(expr:smart_ptr<ExprReturn>) : void
-//     def override visitExprReturn(expr:smart_ptr<ExprReturn>) : ExpressionPtr
-// // yield
-//     def override preVisitExprYield(expr:smart_ptr<ExprYield>) : void
-//     def override visitExprYield(expr:smart_ptr<ExprYield>) : ExpressionPtr
-// // break
-//     def override preVisitExprBreak(expr:smart_ptr<ExprBreak>) : void
-//     def override visitExprBreak(expr:smart_ptr<ExprBreak>) : ExpressionPtr
-// // continue
-//     def override preVisitExprContinue(expr:smart_ptr<ExprContinue>) : void
-//     def override visitExprContinue(expr:smart_ptr<ExprContinue>) : ExpressionPtr
-// // make block
-//     def override preVisitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : void
-//     def override visitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : ExpressionPtr
-// // make generator
-//     def override preVisitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : void
-//     def override visitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : ExpressionPtr
-// // memzero
-//     def override preVisitExprMemZero(expr:smart_ptr<ExprMemZero>) : void
-//     def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
-// // const
-//     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
-//     def override visitExprConst(expr:smart_ptr<ExprConst>) : ExpressionPtr
-// // const ptr
-//     def override preVisitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : void
-//     def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
-// // const enumeration
-//     def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
-//     def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr
-// // cont bitfield
-//     def override preVisitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : void
-//     def override visitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : ExpressionPtr
-// // const int 8
-//     def override preVisitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : void
-//     def override visitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : ExpressionPtr
-// // const int 16
-//     def override preVisitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : void
-//     def override visitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : ExpressionPtr
-// // const int 64
-//     def override preVisitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : void
-//     def override visitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : ExpressionPtr
-// // const int
-//     def override preVisitExprConstInt(expr:smart_ptr<ExprConstInt>) : void
-//     def override visitExprConstInt(expr:smart_ptr<ExprConstInt>) : ExpressionPtr
-// // const int2
-//     def override preVisitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : void
-//     def override visitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : ExpressionPtr
-// // const int3
-//     def override preVisitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : void
-//     def override visitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : ExpressionPtr
-// // const int4
-//     def override preVisitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : void
-//     def override visitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : ExpressionPtr
-// // const uint 8
-//     def override preVisitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : void
-//     def override visitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : ExpressionPtr
-// // const uint 16
-//     def override preVisitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : void
-//     def override visitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : ExpressionPtr
-// // const uint 64
-//     def override preVisitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : void
-//     def override visitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : ExpressionPtr
-// // const uint
-//     def override preVisitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : void
-//     def override visitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : ExpressionPtr
-// // const uint2
-//     def override preVisitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : void
-//     def override visitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : ExpressionPtr
-// // const uint3
-//     def override preVisitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : void
-//     def override visitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : ExpressionPtr
-// // const uint4
-//     def override preVisitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : void
-//     def override visitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : ExpressionPtr
-// // const range
-//     def override preVisitExprConstRange(expr:smart_ptr<ExprConstRange>) : void
-//     def override visitExprConstRange(expr:smart_ptr<ExprConstRange>) : ExpressionPtr
-// // const urnage
-//     def override preVisitExprConstURange(expr:smart_ptr<ExprConstURange>) : void
-//     def override visitExprConstURange(expr:smart_ptr<ExprConstURange>) : ExpressionPtr
-// // const bool
-//     def override preVisitExprConstBool(expr:smart_ptr<ExprConstBool>) : void
-//     def override visitExprConstBool(expr:smart_ptr<ExprConstBool>) : ExpressionPtr
-// // const float
-//     def override preVisitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : void
-//     def override visitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : ExpressionPtr
-// // const float2
-//     def override preVisitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : void
-//     def override visitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : ExpressionPtr
-// // const float3
-//     def override preVisitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : void
-//     def override visitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : ExpressionPtr
-// // const float4
-//     def override preVisitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : void
-//     def override visitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : ExpressionPtr
-// // const string
-//     def override preVisitExprConstString(expr:smart_ptr<ExprConstString>) : void
-//     def override visitExprConstString(expr:smart_ptr<ExprConstString>) : ExpressionPtr
-// // const double
-//     def override preVisitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : void
-//     def override visitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : ExpressionPtr
-// // fake context
-//     def override preVisitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : void
-//     def override visitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : ExpressionPtr
-// // fake line info
-//     def override preVisitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : void
-//     def override visitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : ExpressionPtr
+    // def override visitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : ExpressionPtr
+// is variant
+    // def override preVisitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : void
+    // def override visitExprIsVariant(expr:smart_ptr<ExprIsVariant>) : ExpressionPtr
+// as variant
+    // def override preVisitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : void
+    // def override visitExprAsVariant(expr:smart_ptr<ExprAsVariant>) : ExpressionPtr
+// safe as variant
+    // def override preVisitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : void
+    // def override visitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : ExpressionPtr
+// op1
+    // def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
+    // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
+// return
+    // def override preVisitExprReturn(expr:smart_ptr<ExprReturn>) : void
+    // def override visitExprReturn(expr:smart_ptr<ExprReturn>) : ExpressionPtr
+// yield
+    // def override preVisitExprYield(expr:smart_ptr<ExprYield>) : void
+    // def override visitExprYield(expr:smart_ptr<ExprYield>) : ExpressionPtr
+// break
+    // def override preVisitExprBreak(expr:smart_ptr<ExprBreak>) : void
+    // def override visitExprBreak(expr:smart_ptr<ExprBreak>) : ExpressionPtr
+// continue
+    // def override preVisitExprContinue(expr:smart_ptr<ExprContinue>) : void
+    // def override visitExprContinue(expr:smart_ptr<ExprContinue>) : ExpressionPtr
+// make block
+    // def override preVisitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : void
+    // def override visitExprMakeBlock(expr:smart_ptr<ExprMakeBlock>) : ExpressionPtr
+// make generator
+    // def override preVisitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : void
+    // def override visitExprMakeGenerator(expr:smart_ptr<ExprMakeGenerator>) : ExpressionPtr
+// memzero
+    // def override preVisitExprMemZero(expr:smart_ptr<ExprMemZero>) : void
+    // def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
+// const
+    // def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
+    // def override visitExprConst(expr:smart_ptr<ExprConst>) : ExpressionPtr
+// const ptr
+    // def override preVisitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : void
+    // def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
+// const enumeration
+    // def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
+    // def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr
+// cont bitfield
+    // def override preVisitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : void
+    // def override visitExprConstBitfield(expr:smart_ptr<ExprConstBitfield>) : ExpressionPtr
+// const int 8
+    // def override preVisitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : void
+    // def override visitExprConstInt8(expr:smart_ptr<ExprConstInt8>) : ExpressionPtr
+// const int 16
+    // def override preVisitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : void
+    // def override visitExprConstInt16(expr:smart_ptr<ExprConstInt16>) : ExpressionPtr
+// const int 64
+    // def override preVisitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : void
+    // def override visitExprConstInt64(expr:smart_ptr<ExprConstInt64>) : ExpressionPtr
+// const int
+    // def override preVisitExprConstInt(expr:smart_ptr<ExprConstInt>) : void
+    // def override visitExprConstInt(expr:smart_ptr<ExprConstInt>) : ExpressionPtr
+// const int2
+    // def override preVisitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : void
+    // def override visitExprConstInt2(expr:smart_ptr<ExprConstInt2>) : ExpressionPtr
+// const int3
+    // def override preVisitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : void
+    // def override visitExprConstInt3(expr:smart_ptr<ExprConstInt3>) : ExpressionPtr
+// const int4
+    // def override preVisitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : void
+    // def override visitExprConstInt4(expr:smart_ptr<ExprConstInt4>) : ExpressionPtr
+// const uint 8
+    // def override preVisitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : void
+    // def override visitExprConstUInt8(expr:smart_ptr<ExprConstUInt8>) : ExpressionPtr
+// const uint 16
+    // def override preVisitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : void
+    // def override visitExprConstUInt16(expr:smart_ptr<ExprConstUInt16>) : ExpressionPtr
+// const uint 64
+    // def override preVisitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : void
+    // def override visitExprConstUInt64(expr:smart_ptr<ExprConstUInt64>) : ExpressionPtr
+// const uint
+    // def override preVisitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : void
+    // def override visitExprConstUInt(expr:smart_ptr<ExprConstUInt>) : ExpressionPtr
+// const uint2
+    // def override preVisitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : void
+    // def override visitExprConstUInt2(expr:smart_ptr<ExprConstUInt2>) : ExpressionPtr
+// const uint3
+    // def override preVisitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : void
+    // def override visitExprConstUInt3(expr:smart_ptr<ExprConstUInt3>) : ExpressionPtr
+// const uint4
+    // def override preVisitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : void
+    // def override visitExprConstUInt4(expr:smart_ptr<ExprConstUInt4>) : ExpressionPtr
+// const range
+    // def override preVisitExprConstRange(expr:smart_ptr<ExprConstRange>) : void
+    // def override visitExprConstRange(expr:smart_ptr<ExprConstRange>) : ExpressionPtr
+// const urnage
+    // def override preVisitExprConstURange(expr:smart_ptr<ExprConstURange>) : void
+    // def override visitExprConstURange(expr:smart_ptr<ExprConstURange>) : ExpressionPtr
+// const bool
+    // def override preVisitExprConstBool(expr:smart_ptr<ExprConstBool>) : void
+    // def override visitExprConstBool(expr:smart_ptr<ExprConstBool>) : ExpressionPtr
+// const float
+    // def override preVisitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : void
+    // def override visitExprConstFloat(expr:smart_ptr<ExprConstFloat>) : ExpressionPtr
+// const float2
+    // def override preVisitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : void
+    // def override visitExprConstFloat2(expr:smart_ptr<ExprConstFloat2>) : ExpressionPtr
+// const float3
+    // def override preVisitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : void
+    // def override visitExprConstFloat3(expr:smart_ptr<ExprConstFloat3>) : ExpressionPtr
+// const float4
+    // def override preVisitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : void
+    // def override visitExprConstFloat4(expr:smart_ptr<ExprConstFloat4>) : ExpressionPtr
+// const string
+    // def override preVisitExprConstString(expr:smart_ptr<ExprConstString>) : void
+    // def override visitExprConstString(expr:smart_ptr<ExprConstString>) : ExpressionPtr
+// const double
+    // def override preVisitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : void
+    // def override visitExprConstDouble(expr:smart_ptr<ExprConstDouble>) : ExpressionPtr
+// fake context
+    // def override preVisitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : void
+    // def override visitExprFakeContext(expr:smart_ptr<ExprFakeContext>) : ExpressionPtr
+// fake line info
+    // def override preVisitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : void
+    // def override visitExprFakeLineInfo(expr:smart_ptr<ExprFakeLineInfo>) : ExpressionPtr
