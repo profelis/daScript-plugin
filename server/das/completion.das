@@ -342,15 +342,20 @@ def first_part(str : string; del : string)
     for val in values(globalCompletion)
       list |> emplace(js(val))
     print("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n")
-    return js({{ "isIncomplete" => js(false); "items" => js(list)}})
+    return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
 
-  def findCompletion(name : string; field : bool; blk : block<(val : Completion):void>)
+  def findCompletion(completions : Completions; name : string; field : bool; blk : block<(val : Completion):void>)
     print("{name}\n")
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
     print("---- {name} / {n} ------\n")
     var found = false
+    for it in values(completions)
+      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
+        invoke(blk, it)
+        found = true
+
     for it in values(globalCompletion)
       if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
         invoke(blk, it)
@@ -359,6 +364,9 @@ def first_part(str : string; del : string)
     if found
       return
 
+    for it in values(completions)
+      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.name == n
+        invoke(blk, it)
     for it in values(globalCompletion)
       if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.name == n
         invoke(blk, it)

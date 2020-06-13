@@ -300,20 +300,22 @@ class TelnetServer : Server
             print("> [WARN] {path} unknown? register again, total files {length(registry)}\n")
             self->validate(path, false)
         find_if_exists(registry, path) <| $(var data)
-            var in scope tokens : AstTokens
-            collect_token(data.ast, path, req.position, tokens)
-            if tokens |> length() > 0
-                var hovers : array<string>
-                for it in tokens
-                    hovers |> emplace(to_hover(it))
-                    completionData->findCompletion(it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
-                        hovers |> emplace("```dascript\n" + join(val.impls, "\n") + "\n```")
-                // TODO: sort/filter tokens
-                // TODO: fix range
-                var in scope h <- [[ Hover _range = tokens[0]._range, contents <- hovers ]]
+            var hovers : array<string>
+            var _range : Range
+            var first = true
+            collect_token(data.ast, path, req.position) <| $(it : AstToken?)
+                if first
+                    _range = it._range
+                    first = false
+                hovers |> emplace(to_hover(it))
+                completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
+                    hovers |> emplace("```dascript\n" + join(val.impls, "\n") + "\n```")
+            // TODO: sort/filter tokens
+            // TODO: fix range
+            if hovers |> length() > 0
+                var in scope h <- [[ Hover _range = _range, contents <- hovers ]]
                 self->sendResponse(id, js(h), true)
                 found = true
-            clear(tokens)
         if !found
             print("< [WARN] hover info not found @ {to_string(req.position)}\n")
             self->sendResponse(id, js(), true)
@@ -321,10 +323,26 @@ class TelnetServer : Server
     [unsafe] def completion(id : double; params : JsonValue?)
         var in scope params <- CompletionParams(params)
         debug(params)
-        let data = find(registry, uri_to_path(params.textDocument.uri))
+        let path = uri_to_path(params.textDocument.uri)
+        let data = find(registry, path)
         if data != null
-            print("< [INFO] send program completion {length(data.completionData)}\n")
-            self->sendResponse(id, completionData->getCompletion(data.completionData), true)
+            var list <- [{ for it in values(data.completionData); js(it) }]
+            for val in values(completionData.globalCompletion)
+                list |> emplace(js(val))
+            print("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n")
+            var in scope tokensList : table<string; void?>
+            collect_token(data.ast, path) <| $(token : AstToken?)
+                if (token.kind == AstTokenKind Constant
+                  | data.completionData |> key_exists(token.name)
+                  | completionData.globalCompletion |> key_exists(token.name)
+                  | tokensList |> key_exists(token.name)
+                )
+                    return
+                tokensList[token.name] = null
+                list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
+
+            var res = js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
+            self->sendResponse(id, res, true)
         else
             print("< [WARN] send global completion {length(completionData.globalCompletion)}\n")
             self->sendResponse(id, js(completionData.globalCompletion), true)
@@ -346,7 +364,7 @@ class TelnetServer : Server
                     continue
                 var str = string(current_string)
                 if str |> starts_with(prefix)
-                    var lenStr = str |> chop(16, length(current_string) - length(prefix) - 2) // \r\n length
+                    var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
                     toRead = to_int(lenStr)
                     print("> content len {lenStr} as int {toRead}\n")
                     clear(current_string)
@@ -508,16 +526,25 @@ def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
     for it in val
         collect_diag(it, path, diag)
 
-def collect_token(val : AstToken?; path : string; pos : Position; var res : AstTokens)
-    // print(">> {to_string(val._range)} {to_string(pos)}")
+def collect_token(val : AstToken?; path : string; blk : block<(token:AstToken?):void>)
     for it in val.children
-        collect_token(it, path, pos, res)
-    if val.path == path & range_in(val._range, pos)
-        res |> push(val)
+        collect_token(it, path, blk)
+    if val.path == path
+        invoke(blk, val)
 
-def collect_token(val : AstTokens; path : string; pos : Position; var res : AstTokens)
+def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
     for it in val
-        collect_token(it, path, pos, res)
+        collect_token(it, path, blk)
+
+def collect_token(val : AstToken?; path : string; pos : Position; blk : block<(token:AstToken?):void>)
+    for it in val.children
+        collect_token(it, path, pos, blk)
+    if val.path == path & range_in(val._range, pos)
+        invoke(blk, val)
+
+def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token:AstToken?):void>)
+    for it in val
+        collect_token(it, path, pos, blk)
 
 def module_name(mod)
     if mod == null
@@ -566,6 +593,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(res, expr.atField)
     if range_oneline(res._range) & typ |> starts_with("function<")
+        res.kind = AstTokenKind Method
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
         res._range.end.character += length(res.name)
@@ -1104,7 +1132,9 @@ class AstData : AstVisitor
     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
         if skipExprs
             return
-        let typ = describe([decl=expr._type,extra=true])
+        if expr.at.line == 0u & expr.at.column == 0u
+            return
+        let typ = expr._type != null ? describe([decl=expr._type,extra=true]) : ""
         var name = describe(ExpressionPtr(expr))
         var token <- new [[AstToken
             name = name,
@@ -1122,7 +1152,7 @@ class AstData : AstVisitor
     def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
         if skipExprs
             return
-        let typ = describe(expr._type, false, false, false)
+        let typ = expr._type != null ? describe(expr._type, false, false, false) : ""
         var name = "{expr.value}"
         var token <- new [[AstToken
             name = name,
