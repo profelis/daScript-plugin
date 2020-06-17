@@ -2,6 +2,7 @@
 // options log_nodes = true
 // options heap_page = 0
 // options string_heap_page = 0
+// options optimize = false
 options debugger=true // required for GC
 
 require fio
@@ -67,6 +68,9 @@ struct AstToken
     warn : AstTokenWarn
     children : array<AstToken?>
 
+    defRange : Range
+    defPath : string
+
 struct Dascript
     uri : DocumentUri
     path : string
@@ -97,6 +101,9 @@ class TelnetServer : Server
     completionData <- CompletionData()
     registry : table<DocumentUri; Dascript>
 
+    hasConfigurationCapability : bool
+    hasDiagnosticRelatedInformationCapability : bool
+
     def TelnetServer
         Server`Server(cast<Server> self)
 
@@ -113,7 +120,7 @@ class TelnetServer : Server
             clear(current_string)
         print("disconnected\n")
 
-    [unsafe] def restart
+    def restart
         if _server != null
             var session : smart_ptr<NetworkServer>
             self->save(session)
@@ -123,12 +130,13 @@ class TelnetServer : Server
         completionData->updateGlobalList(force)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
-    [unsafe] def sendRawResponse(var data : JsonValue?; free = true)
+    def sendRawResponse(var data : JsonValue?; free = true)
         var in scope msg = write_json(data)
         var in scope packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
         print("<---- send data {length(packStr)}\n")
-        self->send(reinterpret<uint8?> packStr, length(packStr))
+        unsafe
+            self->send(reinterpret<uint8?> packStr, length(packStr))
         if free
             delete data
 
@@ -147,12 +155,19 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
-        var cmpl <- [[CompletionOptions resolveProvider = true]]
+        // print(write_json(params))
+        var in scope ini <- InitializeParams(params)
+        hasConfigurationCapability = ini.capabilities.workspace.configuration
+        hasDiagnosticRelatedInformationCapability = ini.capabilities.textDocument.publishDiagnostics.relatedInformation
+        // debug(ini)
+        var cmpl <- [[CompletionOptions resolveProvider = true, triggerCharacters <- [{ auto[] "." }] ]]
         var cap <- [[ServerCapabilities
             textDocumentSync = TextDocumentSyncKind Full,
             completionProvider <- cmpl,
-            hoverProvider = true
+            hoverProvider = true,
+            definitionProvider = true
         ]]
+
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
         self->sendResponse(id, js(res), true)
         delete res
@@ -162,7 +177,7 @@ class TelnetServer : Server
         print("> initialized!\n")
         self->updateGlobalCompletion(true)
 
-    [unsafe] def validate(path : string; withContent : bool = false)
+    def validate(path : string; withContent : bool = false)
         print("> validate? '{path}'\n")
 
         registry |> find_for_edit_if_exists(path) <| $(var data)
@@ -183,12 +198,11 @@ class TelnetServer : Server
                         delete it
                     clear(data.ast)
                     var in scope visitor = AstData()
-                    visitor.tokens = addr(data.ast)
-                    var in scope adapter <- make_visitor(visitor)
-                    visit(program, adapter)
-                    visitor.tokens = null
-
-                    collect_diag(data.ast, path, diags) // TODO: move out, data is null!!!
+                    unsafe
+                        visitor.tokens = addr(data.ast)
+                        var in scope adapter <- make_visitor(visitor)
+                        visit(program, adapter)
+                        visitor.tokens = null
 
                 if ok
                     if program != null
@@ -196,6 +210,8 @@ class TelnetServer : Server
                             delete it
                         clear(data.completionData)
                         completionData->programCompletion(program, data.completionData)
+
+                        collect_diag(data.ast, path, diags)
 
                     var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params), true)
@@ -209,26 +225,27 @@ class TelnetServer : Server
                 // print("{error}\n")
                 // debug(program.errors)
                 var map : table<string; array<Diagnostic>>
-
                 for err in program.errors
-                    if err.at.fileInfo == null
-                        debug(err)
-                        print("< error without file info\n")
+                    // if err.at.fileInfo == null
+                        // debug(err)
+                        // print("< error without file info\n")
                     let localUri = err.at.fileInfo != null ? path_to_uri(string(err.at.fileInfo.name)) : uri
                     let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-                    var extra = "{err.extra}"
-                    let fixme = "{err.fixme}"
-                    if extra != "" | fixme != ""
-                        if fixme != ""
-                            extra += "\n{fixme}"
-                        var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                        diag.relatedInformation <- [{ auto[] info }]
-                    var list = find_for_edit(map, localUri)
-                    if list != null
-                        *list |> emplace(diag)
-                    else
-                        map[localUri] <- [{ auto[] diag }]
+                    if hasDiagnosticRelatedInformationCapability
+                        var extra = "{err.extra}"
+                        let fixme = "{err.fixme}"
+                        if extra != "" | fixme != ""
+                            if fixme != ""
+                                extra += "\n{fixme}"
+                            var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
+                            diag.relatedInformation <- [{ auto[] info }]
+                    unsafe
+                        var list = find_for_edit(map, localUri)
+                        if list != null
+                            *list |> emplace(diag)
+                        else
+                            map[localUri] <- [{ auto[] diag }]
 
                 for k, v in keys(map), values(map)
                     let localPath = uri_to_path(k)
@@ -245,40 +262,42 @@ class TelnetServer : Server
         print("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n")
         self->validate(path, false)
 
-    [unsafe] def didSave(id : double; params : JsonValue?)
+    def didSave(id : double; params : JsonValue?)
         var in scope doc = DidSaveTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         print("> save file {path} len {length(doc.text)}, total files {length(registry)}\n")
         var version = -1lf
-        var data = find_for_edit(registry, path)
-        if data != null
-            version = data.version
-            if length(doc.text) > 0
-                // delete_string(data.text) // TODO:
-                data.text = doc.text
-        else
-            registry[path] <- Dascript(doc)
-            print("> unknown? register again, total files {length(registry)}\n")
-        self->validate(path, false)
+        unsafe
+            var data = find_for_edit(registry, path)
+            if data != null
+                version = data.version
+                if length(doc.text) > 0
+                    // delete_string(data.text) // TODO:
+                    data.text = doc.text
+            else
+                registry[path] <- Dascript(doc)
+                print("> unknown? register again, total files {length(registry)}\n")
+            self->validate(path, false)
 
-    [unsafe] def didChange(id : double; params : JsonValue?)
+    def didChange(id : double; params : JsonValue?)
         var in scope doc <- DidChangeTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         print("> file changed? {path} changes {length(doc.contentChanges)}\n")
         if length(doc.contentChanges) > 0
-            var data = find_for_edit(registry, path)
-            if data != null
-                // delete_string(data.text) // TODO:
-                data.text <- doc.contentChanges[0].text
-                if doc.textDocument.version >= 0lf
-                    data.version = doc.textDocument.version
-                print("> file changed {path} len {length(data.text)}, total files {length(registry)}\n")
-            else
-                print("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n")
-                registry[path] <- Dascript(doc)
-            self->validate(path, true)
+            unsafe
+                var data = find_for_edit(registry, path)
+                if data != null
+                    // delete_string(data.text) // TODO:
+                    data.text <- doc.contentChanges[0].text
+                    if doc.textDocument.version >= 0lf
+                        data.version = doc.textDocument.version
+                    print("> file changed {path} len {length(data.text)}, total files {length(registry)}\n")
+                else
+                    print("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n")
+                    registry[path] <- Dascript(doc)
+                // self->validate(path, true) // TODO: validate every N sec
 
-    [unsafe] def didClose(id : double; params : JsonValue?)
+    def didClose(id : double; params : JsonValue?)
         var in scope doc = DidCloseTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         find_for_edit_if_exists(registry, path) <| $(var data)
@@ -290,9 +309,8 @@ class TelnetServer : Server
         var params <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(params), true)
 
-    [unsafe] def hover(id : double; params : JsonValue?)
+    def hover(id : double; params : JsonValue?)
         var in scope req = HoverParams(params)
-        // debug(req)
         var found = false
         let path = uri_to_path(req.textDocument.uri)
         if !registry |> key_exists(path)
@@ -320,7 +338,7 @@ class TelnetServer : Server
             print("< [WARN] hover info not found @ {to_string(req.position)}\n")
             self->sendResponse(id, js(), true)
 
-    [unsafe] def completion(id : double; params : JsonValue?)
+    def completion(id : double; params : JsonValue?)
         var in scope params <- CompletionParams(params)
         debug(params)
         let path = uri_to_path(params.textDocument.uri)
@@ -341,7 +359,7 @@ class TelnetServer : Server
                 tokensList[token.name] = null
                 list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
 
-            var res = js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
+            var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res, true)
         else
             print("< [WARN] send global completion {length(completionData.globalCompletion)}\n")
@@ -350,89 +368,110 @@ class TelnetServer : Server
     def resolveCompletion(id : double; var params : JsonValue?)
         self->sendResponse(id, params, false)
 
-    [unsafe] def override onData(msg:uint8?; size:int)
+    def definition(id : double; var params : JsonValue?)
+        var in scope params <- DefinitionParams(params)
+        let path = uri_to_path(params.textDocument.uri)
+        var found = false
+        let data = find(registry, path)
+        if data != null
+            collect_token(data.ast, path, params.position) <| $(token : AstToken?)
+                if !found & token.defPath != ""
+                    found = true
+                    debug(token)
+                    var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
+                    debug(loc)
+                    self->sendResponse(id, js(loc), true)
+        if !found
+            self->sendResponse(id, JV(null), true)
+
+    def override onData(msg:uint8?; size:int)
         for i in range(0,size)
-            let uch = msg[i]
-            let ch = int(uch)
+            unsafe
+                let uch = msg[i]
+                let ch = int(uch)
 
-            if toRead == 0
+                if toRead == 0
+                    push(current_string, uch)
+                    let prefix = "Content-Length: "
+                    if length(current_string) <= length(prefix)
+                        continue
+                    if ch != '\n'
+                        continue
+                    var str = string(current_string)
+                    if str |> starts_with(prefix)
+                        unsafe
+                            var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
+                            toRead = to_int(lenStr)
+                            print("> content len {lenStr} as int {toRead}\n")
+                            clear(current_string)
+                    continue
+
+                if ch == '\n' | ch == '\r'
+                    continue
+
                 push(current_string, uch)
-                let prefix = "Content-Length: "
-                if length(current_string) <= length(prefix)
-                    continue
-                if ch != '\n'
-                    continue
-                var str = string(current_string)
-                if str |> starts_with(prefix)
-                    var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
-                    toRead = to_int(lenStr)
-                    print("> content len {lenStr} as int {toRead}\n")
-                    clear(current_string)
-                continue
-
-            if ch == '\n' | ch == '\r'
-                continue
-
-            push(current_string, uch)
-            if toRead == length(current_string)
-                toRead = 0
-                // print(">------\n{string(current_string)}\n------\n")
-                var in scope error : string
-                var in scope msg = read_json(current_string, error)
-                // debug(msg)
-                if msg == null
-                    print("Json read error: {error}\n")
-                else
-                    if msg.value is _object
-                        let method = jos(msg, "method")
-                        print("method {method}\n")
-                        if method == "initialize"
-                            self->initialize(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "initialized"
-                            self->initialized()
-
-                        elif method == "textDocument/didOpen"
-                            self->didOpen(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didSave"
-                            self->didSave(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didChange"
-                            self->didChange(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didClose"
-                            self->didClose(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/hover"
-                            self->hover(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/completion"
-                            self->completion(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "completionItem/resolve"
-                            self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "shutdown"
-                            done = true
-
-                        elif method == "$/cancelRequest"
-                            pass // ignore???
-
-                        elif method == "$/setTraceNotification"
-                            print(write_json(msg))
-                            pass // ignore
-
-                        else
-                            print("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
-                            print(write_json(msg))
+                if toRead == length(current_string)
+                    toRead = 0
+                    // print(">------\n{string(current_string)}\n------\n")
+                    var in scope error : string
+                    var in scope msg = read_json(current_string, error)
+                    // debug(msg)
+                    if msg == null
+                        print("Json read error: {error}\n")
                     else
-                        print(write_json(msg))
-                        print("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
-                clear(current_string)
-                if inited
-                    self->updateGlobalCompletion(false)
-        // print(current_string)
+                        if msg.value is _object
+                            let method = jos(msg, "method")
+                            print("method {method}\n")
+                            if method == "initialize"
+                                self->initialize(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "initialized"
+                                self->initialized()
+
+                            elif method == "textDocument/didOpen"
+                                self->didOpen(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/didSave"
+                                self->didSave(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/didChange"
+                                self->didChange(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/didClose"
+                                self->didClose(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/hover"
+                                self->hover(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/completion"
+                                self->completion(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "completionItem/resolve"
+                                self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/definition"
+                                self->definition(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "shutdown"
+                                done = true
+
+                            elif method == "$/cancelRequest"
+                                pass // ignore???
+
+                            elif method == "$/setTraceNotification"
+                                print(write_json(msg))
+                                pass // ignore
+
+                            else
+                                print("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                                print(write_json(msg))
+                        else
+                            print(write_json(msg))
+                            print("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
+                    clear(current_string)
+                    if inited
+                        self->updateGlobalCompletion(false)
+            // print(current_string)
 
 [export]
 def main(fn : string)
@@ -443,10 +482,9 @@ def main(fn : string)
 def init()
     mainLoop("")
 
-[unsafe]
 def mainLoop(fn : string)
     let main_time = stat(fn).mtime
-    let port = 9000
+    let port = 9010
     print("server start: port: {port} file:{fn} ts:{main_time}\n")
     var telnet = new TelnetServer()
 
@@ -470,7 +508,8 @@ def mainLoop(fn : string)
         if alloc > strLimit
             // string_heap_report()
             print("STRING HEAP FREE: {alloc} {int(alloc)}\n")
-            string_heap_collect()
+            unsafe
+                string_heap_collect()
             alloc = string_heap_bytes_allocated()
             if alloc > strLimit
                 strLimit += strLimit
@@ -482,14 +521,14 @@ def mainLoop(fn : string)
             let h = heap_bytes_allocated()
             print("str heap: {int(alloc)} heap : {int(h)}\n")
 
-            step = 100u
+            step = 500u
             // if h > 15000u
-            //     print("------------------\n")
-            //     heap_report()
-            //     print("------------------\n")
-            //     string_heap_report()
-            //     print("------------------\n")
-            //     step = 100u
+            // print("------------------\n")
+            // heap_report()
+            // print("------------------\n")
+            // string_heap_report()
+            // print("------------------\n")
+            // step = 100u
 
 
         sleep(0u)
@@ -498,12 +537,13 @@ def mainLoop(fn : string)
             print("restarting via source change {new_time}\n")
             telnet->restart()
             break
-    delete telnet
+    unsafe
+        delete telnet
 
     return true
 
 def to_hover(val : AstToken?)
-    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n```"
+    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n```"
     return <- res
 
 typedef
@@ -527,20 +567,20 @@ def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
         collect_diag(it, path, diag)
 
 def collect_token(val : AstToken?; path : string; blk : block<(token:AstToken?):void>)
-    for it in val.children
-        collect_token(it, path, blk)
     if val.path == path
         invoke(blk, val)
+    for it in val.children
+        collect_token(it, path, blk)
 
 def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
     for it in val
         collect_token(it, path, blk)
 
 def collect_token(val : AstToken?; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    for it in val.children
-        collect_token(it, path, pos, blk)
     if val.path == path & range_in(val._range, pos)
         invoke(blk, val)
+    for it in val.children
+        collect_token(it, path, pos, blk)
 
 def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token:AstToken?):void>)
     for it in val
@@ -555,6 +595,10 @@ def module_name(mod)
 def set_token_path(var token : AstToken?; at)
     token._range = line_info_to_range(at)
     token.path = at.fileInfo != null ? "{at.fileInfo.name}" : ""
+
+def set_token_def_path(var token : AstToken?; at)
+    token.defRange = line_info_to_range(at)
+    token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     if arg == null | arg.flags.generated
@@ -573,6 +617,7 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
         warn = arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
     ]]
     set_token_path(token, arg.at)
+    set_token_def_path(token, arg.at)
     invoke(blk, token)
     return true
 
@@ -592,6 +637,8 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
         _type = typ
     ]]
     set_token_path(res, expr.atField)
+    if expr.field != null
+        set_token_def_path(res, expr.field.at)
     if range_oneline(res._range) & typ |> starts_with("function<")
         res.kind = AstTokenKind Method
         let selfLen = 4
@@ -600,9 +647,11 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     invoke(blk, res)
     return true
 
-def call_to_token(expr; blk : block<(var token:AstToken?):void>)
+
+def like_call_to_token(expr; blk : block<(var token:AstToken?):void>)
     if expr == null
         return false
+    // debug(expr._type)
     var typ = "def {expr.name}"
     var firstArg : string
     if expr.arguments.length > 0
@@ -641,6 +690,50 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     invoke(blk, res)
     return true
 
+def call_to_token(expr; blk : block<(var token:AstToken?):void>)
+    if expr == null
+        return false
+    // debug(expr._type)
+    var typ = "def {expr.name}"
+    var firstArg : string
+    if expr.arguments.length > 0
+        typ += "("
+        var idx = 1
+        for arg in expr.arguments
+            if idx == 1
+                firstArg = describe(arg)
+            else
+                typ += ", "
+            // if arg is ExprMakeBlock
+                // var blk & = reinterpret<smart_ptr<ExprMakeBlock>>(arg)
+                // debug(blk)
+                // typ += "__blk__"
+                // continue
+            if arg._type != null & !arg._type.flags.constant
+                typ += "var "
+            typ += "arg{idx} : {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
+            idx++
+        typ += ")"
+    // if firstArg |> starts_with("self.")
+    //     return false
+    if expr._type != null
+        typ += " : {describe([decl=expr._type,extra=true])}"
+    var res <- new [[AstToken
+        name = "{expr.name}",
+        desc = typ,
+        kind = AstTokenKind Function,
+        _type = typ
+    ]]
+    set_token_path(res, expr.at)
+    if expr.func != null
+        set_token_def_path(res, expr.func.atDecl)
+    if range_oneline(res._range) & firstArg |> starts_with("self.")
+        let selfLen = 4
+        res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
+        res._range.end.character += length(firstArg) - selfLen - 1
+    invoke(blk, res)
+    return true
+
 def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     if typ == null
         return false
@@ -652,6 +745,8 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
         _type = typeName
     ]]
     set_token_path(tok, typ.at)
+    if typ.structType != null
+        set_token_def_path(tok, typ.structType.at)
     invoke(blk, tok)
     return true
 
@@ -663,7 +758,7 @@ def expr_to_token(arg; blk : block<(var token:AstToken?):void>)
     var token <- new [[AstToken
         name = name,
         desc = "{name} : {typ}",
-        kind = AstTokenKind Null,
+        kind = AstTokenKind Field,
         _type = "{typ}"
     ]]
     set_token_path(token, arg.at)
@@ -779,6 +874,7 @@ class AstData : AstVisitor
             _type = desc
         ]]
         set_token_path(token, fun.at)
+        set_token_def_path(token, fun.atDecl)
         for it in fun.arguments
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)
@@ -854,7 +950,7 @@ class AstData : AstVisitor
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
         if skipExprs
             return
-        call_to_token(expr) <| $(var token : AstToken?)
+        like_call_to_token(expr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
     // def override visitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>) : ExpressionPtr
     // def override preVisitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool): void
@@ -869,35 +965,35 @@ class AstData : AstVisitor
     // def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
     // def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // null coaelescing
-    def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
-        if skipExprs
-            return
-        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
     // def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
 // at
-    def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
-        if skipExprs
-            return
-        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
     // def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // // safe at
-    def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
-        if skipExprs
-            return
-        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
     // def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // is
-    def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
-        if skipExprs
-            return
-        expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op2
@@ -922,19 +1018,19 @@ class AstData : AstVisitor
     // def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
     // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
 // with
-    def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
-        if skipExprs
-            return
-        expr_to_token(expr._with) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr._with) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
     // def override preVisitExprWithBody(expr:smart_ptr<ExprWith>;right:ExpressionPtr) : void
 // while
-    def override preVisitExprWhile(expr:smart_ptr<ExprWhile>) : void
-        if skipExprs
-            return
-        expr_to_token(expr.cond) <| $(var token : AstToken?)
-            *tokens |> emplace(token)
+    // def override preVisitExprWhile(expr:smart_ptr<ExprWhile>) : void
+    //     if skipExprs
+    //         return
+    //     expr_to_token(expr.cond) <| $(var token : AstToken?)
+    //         *tokens |> emplace(token)
     // def override visitExprWhile(expr:smart_ptr<ExprWhile>) : ExpressionPtr
     // def override preVisitExprWhileBody(expr:smart_ptr<ExprWhile>;right:ExpressionPtr) : void
 // try-catch
@@ -983,6 +1079,8 @@ class AstData : AstVisitor
             _type = typ
         ]]
         set_token_path(token, decl.at)
+        if expr._type != null & expr._type.structType != null
+            set_token_def_path(token, expr._type.structType.at)
         *tokens |> emplace(token)
     // def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // make array
@@ -1056,6 +1154,8 @@ class AstData : AstVisitor
         if skipExprs
             return
         var_to_token(expr.variable) <| $(var token)
+            token.defPath = token.path
+            token.defRange = token._range
             set_token_path(token, expr.at)
             *tokens |> emplace(token)
     // def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr

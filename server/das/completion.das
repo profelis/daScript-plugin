@@ -53,18 +53,19 @@ let
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
-[private,unsafe]
+[private]
 def addItem(var item : Completion; var items : Completions; once = false)
   let key = "{item.desc}{int(item.kind)}"
-  var it = find_for_edit(items, key)
-  if it != null
-    if once
+  unsafe
+    var it = find_for_edit(items, key)
+    if it != null
+      if once
+        return
+      for impl in item.impls
+        (*it).impls |> emplace(impl)
+      delete item
       return
-    for impl in item.impls
-      (*it).impls |> emplace(impl)
-    delete item
-    return
-  items[key] <- item
+    items[key] <- item
 
 [private]
 def getTypeName(info; var items : Completions)
@@ -143,49 +144,51 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
-[private,unsafe]
+[private]
 def parseAnnotation(ann; fullModuleName : string; var items: Completions)
   if ann.isBasicStructureAnnotation
-    let sann & = reinterpret<BasicStructureAnnotation&>(ann)
-    let structName = "{sann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-    var in scope props : array<string>
-    var in scope fields : array< tuple<uint; string> >
-    var in scope all : array<Completion>
-    basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
-      var field = "{getTypeName(xtype, items)} [{cppName}"
-      if offset != -1u
-        field += " @ {offset}]"
-        fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
-      else
-        field += "]"
-        props |> emplace("\n\t{name}: {field}")
-      let fullItemName = "{fullModuleName}{structName}.{name}"
-      all |> emplace([[Completion name = "{name}", fullName = fullItemName,
-                  desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
+    unsafe
+      let sann & = reinterpret<BasicStructureAnnotation&>(ann)
+      let structName = "{sann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
+      var in scope props : array<string>
+      var in scope fields : array< tuple<uint; string> >
+      var in scope all : array<Completion>
+      basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
+        var field = "{getTypeName(xtype, items)} [{cppName}"
+        if offset != -1u
+          field += " @ {offset}]"
+          fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
+        else
+          field += "]"
+          props |> emplace("\n\t{name}: {field}")
+        let fullItemName = "{fullModuleName}{structName}.{name}"
+        all |> emplace([[Completion name = "{name}", fullName = fullItemName,
+                    desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
 
-    if length(fields) > 0
-      fields |> sort() <| $(a; b)
-        return a._0 < b._0
-      for it in fields
-        structDesc += it._1
-    if length(props) > 0
       if length(fields) > 0
-        structDesc += "\n"
-      structDesc += join(props, "")
+        fields |> sort() <| $(a; b)
+          return a._0 < b._0
+        for it in fields
+          structDesc += it._1
+      if length(props) > 0
+        if length(fields) > 0
+          structDesc += "\n"
+        structDesc += join(props, "")
 
-    addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
-      impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
-    for it in all
-      it.impls |> emplace(structDesc)
-      addItem(move(it), items)
+      addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
+        impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
+      for it in all
+        it.impls |> emplace(structDesc)
+        addItem(move(it), items)
 
   elif ann.isTypeAnnotation
-    let tann & = reinterpret<TypeAnnotation&>(ann)
-    let structName = "{tann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
+    unsafe
+      let tann & = reinterpret<TypeAnnotation&>(ann)
+      let structName = "{tann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
 
   else
     let structName = "{ann.name}"
@@ -297,10 +300,10 @@ def addKeywords(var items : Completions)
 def js(it : Completion; doc = true) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(double(int(it.kind))) }}
   if it.fullName != ""
-    tab["filterName"] = js(it.fullName)
-    tab["sortText"] = js(it.fullName)
+    tab["filterName"] <- js(it.fullName)
+    tab["sortText"] <- js(it.fullName)
   if doc & length(it.impls) > 0
-    tab["documentation"] = js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
+    tab["documentation"] <- js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
   return js(tab)
 
 [export]

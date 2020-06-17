@@ -53,6 +53,244 @@ def js()
 	return new [[JsonValue value <- [[JsValue _null = null]]]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
+struct WorkspaceFolder
+	name : string
+	uri : DocumentUri
+
+def WorkspaceFolder(val : JsonValue?)
+	return [[WorkspaceFolder name = jos(val, "name"), uri = jos(val, "uri") ]]
+
+struct ClientInfo
+	name : string
+	version : string
+
+def ClientInfo(val : JsonValue?)
+	return [[ClientInfo name = jos(val, "name"), version = jos(val, "version")]]
+
+struct TextDocumentSyncClientCapabilities
+	dynamicRegistration : bool
+	willSave : bool
+	willSaveWaitUntil : bool
+	didSave : bool
+
+def TextDocumentSyncClientCapabilities(val : JsonValue?)
+	return [[TextDocumentSyncClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration"),
+		willSave = job(val, "willSave"),
+		willSaveWaitUntil = job(val, "willSaveWaitUntil"),
+		didSave = job(val, "didSave")
+	]]
+
+struct CompletionClientCapabilitiesCompletionItem
+	snippetSupport : bool
+	commitCharactersSupport : bool
+	documentationFormat : array<string>
+	deprecatedSupport : bool
+	preselectSupport : bool
+	// tagSupport : { valueSet: CompletionItemTag[] }
+
+def CompletionClientCapabilitiesCompletionItem(val : JsonValue?)
+	var documentationFormat : array<string>
+	// TODO:
+	return <- [[CompletionClientCapabilitiesCompletionItem
+		snippetSupport = job(val, "snippetSupport"),
+		commitCharactersSupport = job(val, "commitCharactersSupport"),
+		documentationFormat <- documentationFormat,
+		deprecatedSupport = job(val, "deprecatedSupport"),
+		preselectSupport = job(val, "preselectSupport")
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_completion
+struct CompletionClientCapabilities
+	dynamicRegistration : bool
+	completionItem : CompletionClientCapabilitiesCompletionItem
+	// completionItemKind : array<CompletionItemKind> // { valueSet?: CompletionItemKind[]; }
+	contextSupport : bool
+
+def CompletionClientCapabilities(val : JsonValue?)
+	return <- [[CompletionClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration"),
+		completionItem <- CompletionClientCapabilitiesCompletionItem(joj(val, "completionItem")),
+		contextSupport = job(val, "contextSupport")
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_hover
+struct HoverClientCapabilities
+	dynamicRegistration : bool
+	// contentFormat : array<MarkupKind>
+
+def HoverClientCapabilities(val : JsonValue?)
+	return [[HoverClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration")
+	]]
+
+struct PublishDiagnosticsClientCapabilities
+	relatedInformation : bool
+	// tagSupport : // valueSet: DiagnosticTag[];
+	versionSupport : bool
+
+def PublishDiagnosticsClientCapabilities(val : JsonValue?)
+	return [[PublishDiagnosticsClientCapabilities
+		relatedInformation = job(val, "relatedInformation"),
+		versionSupport = job(val, "versionSupport")
+	]]
+
+struct TextDocumentClientCapabilities
+	synchronization : TextDocumentSyncClientCapabilities
+	completion : CompletionClientCapabilities
+	hover : HoverClientCapabilities
+	// signatureHelp : SignatureHelpClientCapabilities
+	// declaration : DeclarationClientCapabilities
+	// definition : DefinitionClientCapabilities
+	// typeDefinition : TypeDefinitionClientCapabilities
+	// implementation : ImplementationClientCapabilities
+	// references : ReferenceClientCapabilities
+	// documentHighlight : DocumentHighlightClientCapabilities
+	// documentSymbol : DocumentSymbolClientCapabilities
+	// codeAction : CodeActionClientCapabilities
+	// codeLens : CodeLensClientCapabilities
+	// documentLink : DocumentLinkClientCapabilities
+	// colorProvider : DocumentColorClientCapabilities
+	// formatting : DocumentFormattingClientCapabilities
+	// rangeFormatting : DocumentRangeFormattingClientCapabilities
+	// onTypeFormatting : DocumentOnTypeFormattingClientCapabilities
+	// rename : RenameClientCapabilities
+	publishDiagnostics : PublishDiagnosticsClientCapabilities
+	// foldingRange : FoldingRangeClientCapabilities
+	// selectionRange : SelectionRangeClientCapabilities
+
+def TextDocumentClientCapabilities(val : JsonValue?)
+	return <- [[TextDocumentClientCapabilities
+		synchronization <- TextDocumentSyncClientCapabilities(joj(val, "synchronization")),
+		completion <- CompletionClientCapabilities(joj(val, "completion")),
+		hover <- HoverClientCapabilities(joj(val, "hover")),
+		publishDiagnostics <- PublishDiagnosticsClientCapabilities(joj(val, "publishDiagnostics"))
+	]]
+
+struct WorkspaceEditClientCapabilities
+	documentChanges : bool
+	resourceOperations : array<string> // ResourceOperationKind = 'create' | 'rename' | 'delete'
+	failureHandling : string // FailureHandlingKind = 'abort' | 'transactional' | 'undo' | 'textOnlyTransactional';
+
+def WorkspaceEditClientCapabilities(val : JsonValue?)
+	var resourceOperations : array<string>
+	var resourceOperationsVal = joj(val, "resourceOperations")
+	if resourceOperationsVal != null
+		for it in resourceOperationsVal.value as _array
+			resourceOperations |> push(j_s(it))
+	return <- [[WorkspaceEditClientCapabilities
+		documentChanges = job(val, "documentChanges"),
+		resourceOperations <- resourceOperations,
+		failureHandling = jos(val, "failureHandling")
+	]]
+
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
+struct DidChangeConfigurationClientCapabilities
+	dynamicRegistration : bool
+
+def DidChangeConfigurationClientCapabilities(val : JsonValue?)
+	return <- [[DidChangeConfigurationClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration")
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWatchedFiles
+struct DidChangeWatchedFilesClientCapabilities
+	dynamicRegistration : bool
+
+def DidChangeWatchedFilesClientCapabilities(val : JsonValue?)
+	return <- [[DidChangeWatchedFilesClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration")
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
+struct WorkspaceSymbolClientCapabilities
+	dynamicRegistration : bool
+	// symbolKind // { valueSet?: SymbolKind[]; }
+
+def WorkspaceSymbolClientCapabilities(val : JsonValue?)
+	return <- [[WorkspaceSymbolClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration")
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_executeCommand
+struct ExecuteCommandClientCapabilities
+	dynamicRegistration : bool
+
+def ExecuteCommandClientCapabilities(val : JsonValue?)
+	return <- [[ExecuteCommandClientCapabilities
+		dynamicRegistration = job(val, "dynamicRegistration")
+	]]
+
+struct ClientCapabilitiesWorkspace
+	applyEdit : bool
+	workspaceEdit : WorkspaceEditClientCapabilities
+	didChangeConfiguration : DidChangeConfigurationClientCapabilities
+	didChangeWatchedFiles : DidChangeWatchedFilesClientCapabilities
+	symbol : WorkspaceSymbolClientCapabilities
+	executeCommand : ExecuteCommandClientCapabilities
+	workspaceFolders : bool
+	configuration : bool
+
+def ClientCapabilitiesWorkspace(val : JsonValue?)
+	return <- [[ClientCapabilitiesWorkspace
+		applyEdit = job(val, "applyEdit"),
+		workspaceEdit <- WorkspaceEditClientCapabilities(joj(val, "workspaceEdit")),
+		didChangeConfiguration <- DidChangeConfigurationClientCapabilities(joj(val, "didChangeConfiguration")),
+		didChangeWatchedFiles <- DidChangeWatchedFilesClientCapabilities(joj(val, "didChangeWatchedFiles")),
+		symbol <- WorkspaceSymbolClientCapabilities(joj(val, "symbol")),
+		executeCommand <- ExecuteCommandClientCapabilities(joj(val, "executeCommand")),
+		workspaceFolders = job(val, "workspaceFolders"),
+		configuration = job(val, "configuration")
+	]]
+
+struct ClientCapabilitiesWindow
+	workDoneProgress : bool
+
+def ClientCapabilitiesWindow(val : JsonValue?)
+	return <- [[ClientCapabilitiesWindow
+		workDoneProgress = job(val, "workDoneProgress")
+	]]
+
+struct ClientCapabilities
+	workspace : ClientCapabilitiesWorkspace
+	textDocument : TextDocumentClientCapabilities
+	window : ClientCapabilitiesWindow
+	// experimental : void?
+
+def ClientCapabilities(val : JsonValue?)
+	return <- [[ClientCapabilities
+		workspace <- ClientCapabilitiesWorkspace(joj(val, "workspace")),
+		textDocument <- TextDocumentClientCapabilities(joj(val, "textDocument")),
+		window <- ClientCapabilitiesWindow(joj(val, "window"))
+	]]
+
+struct InitializeParams
+	processId : double
+	clientInfo : ClientInfo
+	// rootPath : string // deprecated
+	rootUri : string
+	// initializationOptions : any?
+	capabilities : ClientCapabilities
+	trace : string // 'off' | 'messages' | 'verbose'
+	workspaceFolders : array<WorkspaceFolder>
+
+def InitializeParams(val : JsonValue?)
+	var workspaceFolders : array<WorkspaceFolder>
+	let workspaceFoldersVal = joj(val, "workspaceFolders")
+	if workspaceFoldersVal != null
+		for it in workspaceFoldersVal.value as _array
+			workspaceFolders |> emplace(WorkspaceFolder(it))
+	return <- [[InitializeParams
+		processId = jon(val, "processId"),
+		clientInfo <- ClientInfo(joj(val, "clientInfo")),
+		capabilities <- ClientCapabilities(joj(val, "capabilities")),
+		rootUri = jos(val, "rootUri"),
+		trace = jos(val, "trace"),
+		workspaceFolders <- workspaceFolders
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerInfo
 	name : string
 	version : string // ?
@@ -73,20 +311,52 @@ struct CompletionOptions
 
 def js(val : CompletionOptions)
 	var res <- {{ "resolveProvider" => js(val.resolveProvider) }} // TODO:
+	if val.triggerCharacters |> length() > 0
+		var triggerCharacters : array<JsonValue?>
+		for it in val.triggerCharacters
+			triggerCharacters |> emplace(js(it))
+		res["triggerCharacters"] <- js(triggerCharacters)
+	if val.allCommitCharacters |> length() > 0
+		var allCommitCharacters : array<JsonValue?>
+		for it in val.allCommitCharacters
+			allCommitCharacters |> emplace(js(it))
+		res["allCommitCharacters"] <- js(allCommitCharacters)
 	return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
 	textDocumentSync : TextDocumentSyncKind // TextDocumentSyncOptions | number; number == TextDocumentSyncKind
 	completionProvider : CompletionOptions
-	hoverProvider : bool
-	// TODO:
+	hoverProvider : bool // | HoverOptions
+	// signatureHelpProvider : SignatureHelpOptions
+	// declarationProvider : DeclarationOptions
+	definitionProvider : bool // DefinitionOptions
+	// typeDefinitionProvider : TypeDefinitionOptions
+	// implementationProvider : ImplementationOptions
+	// referencesProvider : ReferenceOptions
+	// documentHighlightProvider : DocumentHighlightOptions
+	// documentSymbolProvider : DocumentSymbolOptions
+	// codeActionProvider : CodeActionOptions
+	// codeLensProvider : CodeLensOptions
+	// documentLinkProvider : DocumentLinkOptions
+	// colorProvider : DocumentColorOptions
+	// documentFormattingProvider : DocumentFormattingOptions
+	// documentRangeFormattingProvider : DocumentRangeFormattingOptions
+	// documentOnTypeFormattingProvider : DocumentOnTypeFormattingOptions
+	// renameProvider : RenameOptions
+	// foldingRangeProvider : FoldingRangeOptions
+	// executeCommandProvider : ExecuteCommandOptions
+	// selectionRangeProvider : SelectionRangeOptions
+	// workspaceSymbolProvider : bool
+	// workspace : { workspaceFolders?: WorkspaceFoldersServerCapabilities; }
+	// experimental : void?
 
 def js(val : ServerCapabilities)
 	return js({{
 		"textDocumentSync" => js(int(val.textDocumentSync));
 		"completionProvider" => js(val.completionProvider);
-		"hoverProvider" => js(val.hoverProvider)
+		"hoverProvider" => js(val.hoverProvider);
+		"definitionProvider" => js(val.definitionProvider)
 	}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -134,8 +404,8 @@ struct Range
 
 def Range(val : JsonValue?)
 	if val == null | val.value is _null
-		return [[Range start = [[Position]], end = [[Position]] ]]
-	return [[Range start = Position(joj(val, "start")), end = Position(joj(val, "end")) ]]
+		return <- [[Range start = [[Position]], end = [[Position]] ]]
+	return <- [[Range start <- Position(joj(val, "start")), end <- Position(joj(val, "end")) ]]
 
 def range_in(r : Range; pos : Position)
 	return r.start <= pos & pos <= r.end
@@ -145,6 +415,9 @@ def range_in(a, b : Range)
 
 def range_oneline(a : Range)
 	return a.start.line == a.end.line
+
+def range_valid(a : Range)
+	return a.start.line >= 0 & a.end.line >= 0
 
 def length(a : Range)
 	return a.end.character - a.start.character
@@ -181,35 +454,40 @@ struct TextDocumentItem
 // 	delete s.text
 
 def TextDocumentItem(val : JsonValue?)
-    return [[TextDocumentItem uri = jos(val, "uri"), languageId = jos(val, "languageId"), version = jon(val, "version"), text = jos(val, "text") ]]
+    return <- [[TextDocumentItem
+		uri = jos(val, "uri"),
+		languageId = jos(val, "languageId"),
+		version = jon(val, "version"),
+		text = jos(val, "text")
+	]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentIdentifier
 struct TextDocumentIdentifier
     uri : DocumentUri
 
 def TextDocumentIdentifier(val : JsonValue?)
-	return [[TextDocumentIdentifier uri = jos(val, "uri")]]
+	return <- [[TextDocumentIdentifier uri = jos(val, "uri")]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
 struct DidOpenTextDocumentParams
     textDocument : TextDocumentItem
 
 def DidOpenTextDocumentParams(val : JsonValue?)
-    return [[DidOpenTextDocumentParams textDocument = TextDocumentItem(joj(val, "textDocument")) ]]
+    return <- [[DidOpenTextDocumentParams textDocument <- TextDocumentItem(joj(val, "textDocument")) ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose
 struct DidCloseTextDocumentParams
 	textDocument : TextDocumentIdentifier
 
 def DidCloseTextDocumentParams(val : JsonValue?)
-	return [[DidCloseTextDocumentParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")) ]]
+	return <- [[DidCloseTextDocumentParams textDocument <- TextDocumentIdentifier(joj(val, "textDocument")) ]]
 
 struct VersionedTextDocumentIdentifier : TextDocumentIdentifier
 	version : double // ?
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 def VersionedTextDocumentIdentifier(val : JsonValue?)
-	return [[VersionedTextDocumentIdentifier uri = jos(val, "uri"), version = jon(val, "version", -1lf) ]]
+	return <- [[VersionedTextDocumentIdentifier uri = jos(val, "uri"), version = jon(val, "version", -1lf) ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 struct TextDocumentContentChangeEvent
@@ -218,7 +496,7 @@ struct TextDocumentContentChangeEvent
 	text : string
 
 def TextDocumentContentChangeEvent(val : JsonValue?)
-	return [[TextDocumentContentChangeEvent _range = Range(joj(val, "range")), rangeLength = jon(val, "rangeLength", -1lf), text = jos(val, "text") ]]
+	return <- [[TextDocumentContentChangeEvent _range = Range(joj(val, "range")), rangeLength = jon(val, "rangeLength", -1lf), text = jos(val, "text") ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 struct DidChangeTextDocumentParams
@@ -231,7 +509,10 @@ def DidChangeTextDocumentParams(val : JsonValue?)
 	if changesVal != null
 		for it in changesVal.value as _array
 			contentChanges |> emplace(TextDocumentContentChangeEvent(it))
-	return <- [[DidChangeTextDocumentParams textDocument = VersionedTextDocumentIdentifier(joj(val, "textDocument")), contentChanges <- contentChanges ]]
+	return <- [[DidChangeTextDocumentParams
+		textDocument <- VersionedTextDocumentIdentifier(joj(val, "textDocument")),
+		contentChanges <- contentChanges
+	]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didSave
 struct DidSaveTextDocumentParams
@@ -239,7 +520,7 @@ struct DidSaveTextDocumentParams
 	text : string // ?
 
 def DidSaveTextDocumentParams(val : JsonValue?)
-	return [[DidSaveTextDocumentParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), text = jos(val, "text") ]]
+	return <- [[DidSaveTextDocumentParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), text = jos(val, "text") ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 enum DiagnosticSeverity
@@ -358,12 +639,12 @@ struct CompletionParams : TextDocumentPositionParams {}
 	// context : void? //{ triggerKind : 1}
 
 def CompletionParams(val : JsonValue?)
-	return [[CompletionParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), position = Position(joj(val, "position"))]]
+	return <- [[CompletionParams textDocument <- TextDocumentIdentifier(joj(val, "textDocument")), position <- Position(joj(val, "position"))]]
 
 struct HoverParams : TextDocumentPositionParams {}
 
 def HoverParams(val : JsonValue?)
-	return [[HoverParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")), position = Position(joj(val, "position"))]]
+	return <- [[HoverParams textDocument <- TextDocumentIdentifier(joj(val, "textDocument")), position <- Position(joj(val, "position"))]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_hover
 struct Hover
@@ -375,3 +656,12 @@ def js(val : Hover)
 	for it in val.contents
 		contents |> emplace(js(it))
 	return js({{ "contents" => js(contents); "range" => js(val._range)  }})
+
+
+struct DefinitionParams : TextDocumentPositionParams {}
+
+def DefinitionParams(val : JsonValue?)
+	return <- [[DefinitionParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+		position <- Position(joj(val, "position"))
+	]]

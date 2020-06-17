@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.0.33",
+	"version": "0.1.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -43,38 +43,21 @@
 					"default": "dasAot",
 					"description": "Absolute path to the dascript compiler"
 				},
-				"dascript.compilerArgs": {
+				"dascript.compiler.args": {
 					"scope": "resource",
 					"type": "array",
 					"default": [
-						"${file}",
-						"dummy.cpp",
-						"-j",
-						"-q"
+						"${file}"
 					],
-					"description": "Compiler arguments for diagnostics\n- ${file} - current file"
+					"description": "Additional compiler arguments\n- ${file} - current file"
 				},
-				"dascript.cursorArgs": {
-					"scope": "resource",
-					"type": "array",
-					"default": [
-						"${file}",
-						"dummy.cpp",
-						"-j",
-						"-q",
-						"-cursor",
-						"${character}",
-						"${line}"
-					],
-					"description": "Compiler arguments to get cursor data\n- ${file} - current file\n- ${line}/${character} - cursor position"
-				},
-				"dascript.projectRoots": {
+				"dascript.project.roots": {
 					"scope": "resource",
 					"type": "array",
 					"default": [],
 					"description": "Absolute folder paths to resolve relative file paths"
 				},
-				"dascript.verboseHover": {
+				"dascript.hovers.verbose": {
 					"scope": "resource",
 					"type": "boolean",
 					"default": false,

@@ -1,15 +1,18 @@
 import * as net from 'net'
 import * as path from 'path'
+import * as cp from 'child_process'
 import {
 	workspace as Workspace, window as Window, ExtensionContext, TextDocument, OutputChannel, WorkspaceFolder, Uri
 } from 'vscode'
 
 import {
-	LanguageClient, LanguageClientOptions, TransportKind, ServerOptions, Executable, StreamInfo
+	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient'
 
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
+const sockets: Map<string, net.Socket> = new Map()
+const childProcesses: Map<string, cp.ChildProcess> = new Map()
 
 let _sortedWorkspaceFolders: string[] | undefined
 function sortedWorkspaceFolders(): string[] {
@@ -40,10 +43,81 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 	return folder
 }
 
+function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[]) {
+	port = 9010
+	const spawnServer = true
+	return new Promise<[cp.ChildProcess, net.Socket]>(resolve => {
+		console.log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}'`)
+		const child: cp.ChildProcess = spawnServer ? cp.spawn(cmd, args) : null
+
+		const socket = net.connect({ port: port }, () => {
+			socket.setNoDelay()
+			console.log(`> ${port} connected - '${folder_uri}'`)
+			childProcesses.set(folder_uri, child)
+			sockets.set(folder_uri, socket)
+			resolve([child, socket])
+		})
+
+		if (child) {
+			child.stdout.on('data', (data) => {
+				console.log(`stdout: ${data}`)
+			})
+
+			child.stderr.on('data', (data) => {
+				console.error(`stderr: ${data}`)
+			})
+			child.on('close', (code) => {
+				console.log(`child process exited with code ${code} - '${folder_uri}'`)
+				childProcesses.delete(folder_uri)
+				sockets.delete(folder_uri)
+			})
+		}
+
+		// socket.on('data', (data) => {
+		// 	const msg = data.toString()
+		// 	console.log(msg.length > 1000 ? msg.substr(0, 1000) + "..." : msg)
+		// })
+		socket.on('error', (err) => {
+			console.log(`socket error: ${err.message}`)
+			if (err.stack != null)
+				console.log(err.stack ?? "")
+		})
+		socket.on('end', () => {
+			console.log(`socked closed - '${folder_uri}'`)
+			if (child && !child.killed)
+				child.kill()
+			childProcesses.delete(folder_uri)
+			sockets.delete(folder_uri)
+		})
+	})
+}
+
 export function activate(context: ExtensionContext) {
 
-	const cmd = "d:\\dev\\cpp\\daScript\\cmake_temp\\RelWithDebInfo\\daScript.exe" //context.asAbsolutePath(path.join('server', 'out', 'server.js'))
+	const settings = Workspace.getConfiguration()
+
+	const cmd = settings.get<string>("dascript.compiler")
+	console.log(cmd)
+	const server_das = context.asAbsolutePath(path.join('server', 'das', 'server.das'))
 	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
+
+	// "commands": [
+	//     {
+	//         "command": "dascript.langserver.launch",
+	//         "title": "daScript: Launch language server"
+	//     }
+	// ]
+	// const disposable2 = commands.registerCommand("dascript.langserver.launch", async () => {
+	// 	const activeEditor = window.activeTextEditor
+	// 	if (!activeEditor || !activeEditor.document || activeEditor.document.languageId !== 'dascript') {
+	// 		return
+	// 	}
+
+	// 	console.log("> exec " + cmd + " " + server_das)
+	// 	// commands.executeCommand(cmd, server_das)
+	// })
+
+	// context.subscriptions.push(disposable2)
 
 	function didOpenTextDocument(document: TextDocument): void {
 		if (document.languageId !== 'dascript' || (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
@@ -52,14 +126,8 @@ export function activate(context: ExtensionContext) {
 
 		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
-			const debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
-			const args = ["D:\\dev\\vscode\\daScriptLangPlugin\\server\\das\\server.das"]
-			const connectionInfo = {
-				port: 9000
-			}
-			const serverOptions = () => {
-				// Connect to language server via socket
-				const socket = net.connect(connectionInfo)
+			const serverOptions = async () => {
+				const [_, socket] = await createServerWithSocket("____untitled____", 8999, cmd, [server_das])
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -80,15 +148,10 @@ export function activate(context: ExtensionContext) {
 			return
 		folder = getOuterMostWorkspaceFolder(folder)
 
-		if (!clients.has(folder.uri.toString())) {
-			const debugOptions = { execArgv: ["--nolazy", `--inspect=${6011 + clients.size}`] }
-			const args = ["D:\\dev\\vscode\\daScriptLangPlugin\\server\\das\\server.das"]
-			const connectionInfo = {
-				port: 9000
-			}
-			const serverOptions = () => {
-				// Connect to language server via socket
-				const socket = net.connect(connectionInfo)
+		const folderUri = folder.uri.toString()
+		if (!clients.has(folderUri)) {
+			const serverOptions = async () => {
+				const [_, socket] = await createServerWithSocket(folderUri, 9000 + clients.size, cmd, [server_das])
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -113,10 +176,16 @@ export function activate(context: ExtensionContext) {
 	Workspace.textDocuments.forEach(didOpenTextDocument)
 	Workspace.onDidChangeWorkspaceFolders((event) => {
 		for (const folder of event.removed) {
-			const client = clients.get(folder.uri.toString())
+			const uri = folder.uri.toString()
+			const client = clients.get(uri)
 			if (client) {
-				clients.delete(folder.uri.toString())
+				clients.delete(uri)
 				client.stop()
+			}
+			const child = childProcesses.get(uri)
+			if (child) {
+				childProcesses.delete(uri)
+				child.kill()
 			}
 		}
 	})

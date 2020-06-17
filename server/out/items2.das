@@ -1,6 +1,7 @@
 options indenting=2
 options rtti = true
 require rtti
+require daslib/strings
 
 enum ItemKind
   Text = 1
@@ -71,17 +72,17 @@ let
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
-[unsafe]
 def addItem(var item : Item; var items : Items; once = false)
   let key = "{item.desc}{int(item.kind)}"
-  var it = find_for_edit(items, key)
-  if it != null
-    if once
+  unsafe
+    var it = find_for_edit(items, key)
+    if it != null
+      if once
+        return
+      for impl in item.impls
+        (*it).impls |> push(impl)
       return
-    for impl in item.impls
-      (*it).impls |> push(impl)
-    return
-  items[key] <- item
+    items[key] <- item
 
 
 def itemToString(it : Item) : string
@@ -186,49 +187,50 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
-[unsafe]
 def parseAnnotation(ann; fullModuleName : string; var items: Items)
   if ann.isBasicStructureAnnotation
-    let sann & = reinterpret<BasicStructureAnnotation&>(ann)
-    let structName = "{sann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-    var props : array<string>
-    var fields : array< tuple<uint; string> >
-    var all : array<Item>
-    basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
-      var field = "{getTypeName(xtype, items)} [{cppName}"
-      if offset != -1u
-        field += " @ {offset}]"
-        fields |> emplace([[auto offset, "\\n\\t{name}: {field}"]])
-      else
-        field += "]"
-        props |> push("\\n\\t{name}: {field}")
-      let fullItemName = "{fullModuleName}{structName}.{name}"
-      all |> emplace([[Item name = "{name}", fullName = fullItemName,
-                  desc = "{fullItemName}: {field}", kind = ItemKind Field]])
+    unsafe
+      let sann & = reinterpret<BasicStructureAnnotation&>(ann)
+      let structName = "{sann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
+      var props : array<string>
+      var fields : array< tuple<uint; string> >
+      var all : array<Item>
+      basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
+        var field = "{getTypeName(xtype, items)} [{cppName}"
+        if offset != -1u
+          field += " @ {offset}]"
+          fields |> emplace([[auto offset, "\\n\\t{name}: {field}"]])
+        else
+          field += "]"
+          props |> push("\\n\\t{name}: {field}")
+        let fullItemName = "{fullModuleName}{structName}.{name}"
+        all |> emplace([[Item name = "{name}", fullName = fullItemName,
+                    desc = "{fullItemName}: {field}", kind = ItemKind Field]])
 
-    if length(fields) > 0
-      fields |> sort() <| $(a; b)
-        return a._0 < b._0
-      for it in fields
-        structDesc += it._1
-    if length(props) > 0
       if length(fields) > 0
-        structDesc += "\\n"
-      structDesc += props |> join("")
+        fields |> sort() <| $(a; b)
+          return a._0 < b._0
+        for it in fields
+          structDesc += it._1
+      if length(props) > 0
+        if length(fields) > 0
+          structDesc += "\\n"
+        structDesc += props |> join("")
 
-    addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}",
-      impls <- [{auto[] structDesc }], kind = ItemKind Struct]], items)
-    for it in all
-      it.impls |> push_clone(structDesc)
-      addItem(it, items)
+      addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}",
+        impls <- [{auto[] structDesc }], kind = ItemKind Struct]], items)
+      for it in all
+        it.impls |> push_clone(structDesc)
+        addItem(it, items)
 
   elif ann.isTypeAnnotation
-    let tann & = reinterpret<TypeAnnotation&>(ann)
-    let structName = "{tann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = ItemKind Struct]], items)
+    unsafe
+      let tann & = reinterpret<TypeAnnotation&>(ann)
+      let structName = "{tann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = ItemKind Struct]], items)
 
   else
     let structName = "{ann.name}"
