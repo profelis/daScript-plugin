@@ -665,3 +665,16 @@ def DefinitionParams(val : JsonValue?)
 		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
 		position <- Position(joj(val, "position"))
 	]]
+
+enum MessageType
+	Error = 1
+	Warning = 2
+	Info = 3
+	Log = 4
+
+struct LogMessageParams
+	_type : MessageType
+	message : string
+
+def js(val : LogMessageParams)
+	return js({{ "type" => js(int(val._type)); "message" => js(val.message) }})
