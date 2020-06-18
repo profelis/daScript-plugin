@@ -503,6 +503,7 @@ async function validate(doc: TextDocument): Promise<void> {
 	})
 
 	getGlobalCompletion("items2.das", settings)
+	getGlobalCompletion("items3.das", settings)
 }
 
 function getGlobalCompletion(path: string, settings: DascriptSettings) {

@@ -1,7 +1,7 @@
 options indenting=2
 options rtti = true
 require rtti
-require json
+require daslib/strings
 
 enum ItemKind
   Text = 1
@@ -72,33 +72,48 @@ let
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
-[unsafe]
 def addItem(var item : Item; var items : Items; once = false)
   let key = "{item.desc}{int(item.kind)}"
-  var it = find_for_edit(items, key)
-  if it != null
-    if once
+  unsafe
+    var it = find_for_edit(items, key)
+    if it != null
+      if once
+        return
+      for impl in item.impls
+        (*it).impls |> push(impl)
       return
-    for impl in item.impls
-      (*it).impls |> push(impl)
-    return
-  items[key] <- item
+    items[key] <- item
 
+
+def itemToString(it : Item) : string
+  let st = build_string() <| $(var writer)
+    write(writer, "\{ \"label\":\"")
+    write(writer, it.name)
+    write(writer, "\", \"detail\":\"")
+    write(writer, it.desc)
+    if it.fullName != ""
+      write(writer, "\", \"filterText\":\"")
+      write(writer, it.fullName)
+      write(writer, "\", \"sortText\":\"")
+      write(writer, it.fullName)
+    write(writer, "\", \"kind\":")
+    write(writer, int(it.kind))
+    if length(it.impls) > 0
+      write(writer, ", \"documentation\": \{ \"kind\":\"markdown\", \"value\":\"```dascript\\n")
+      write(writer, join(it.impls, "\\n"))
+      write(writer, "\\n```\"}")
+    write(writer, " \}")
+  return st
 
 def dumpItems(items : Items)
-  var list:array<JsonValue?>
+  print("\{ \"result\":\"ok\",\n\"items\":[\n")
+  var f = true
   for it in values(items)
-    var tab <- {{ "label" => new JsonValue(it.name); "detail" => new JsonValue(it.desc); "kind" => new JsonValue(double(int(it.kind))) }}
-    if it.fullName != ""
-      tab["filterName"] = new JsonValue(it.fullName)
-      tab["sortText"] = new JsonValue(it.fullName)
-    if length(it.impls) > 0
-      tab["documentation"] = new JsonValue({{ "kind" => new JsonValue("markdown"); "value" => new JsonValue("```dascript\n" + join(it.impls, "\n") + "\n```") }})
-    list |> push(new JsonValue(tab))
-  let res = new JsonValue({{ "result" => new JsonValue("ok"); "items" => new JsonValue(list)}})
-//   print("{res.value is _string}")
-//   print("{res}")
-  print(write_json(res))
+    if !f
+      print(",\n")
+    f = false
+    print(itemToString(it))
+  print("\n]\}\n")
 
 def getTypeName(info; var items : Items)
   var res: string
@@ -134,10 +149,10 @@ def getTypeName(info; var items : Items)
         f = false
         var desc = "{argname}: {getTypeName(argtype, items)}"
         res += desc
-        variantDesc += "\n\t{desc}"
+        variantDesc += "\\n\\t{desc}"
         all |> emplace([[Item name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = ItemKind TypeParameter]])
       res += ">"
-      variantDesc += "\n>"
+      variantDesc += "\\n>"
       for it in all
         it.impls |> push(variantDesc)
         addItem(it, items, true)
@@ -172,49 +187,50 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
-[unsafe]
 def parseAnnotation(ann; fullModuleName : string; var items: Items)
   if ann.isBasicStructureAnnotation
-    let sann & = reinterpret<BasicStructureAnnotation&>(ann)
-    let structName = "{sann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-    var props : array<string>
-    var fields : array< tuple<uint; string> >
-    var all : array<Item>
-    basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
-      var field = "{getTypeName(xtype, items)} [{cppName}"
-      if offset != -1u
-        field += " @ {offset}]"
-        fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
-      else
-        field += "]"
-        props |> push("\n\t{name}: {field}")
-      let fullItemName = "{fullModuleName}{structName}.{name}"
-      all |> emplace([[Item name = "{name}", fullName = fullItemName,
-                  desc = "{fullItemName}: {field}", kind = ItemKind Field]])
+    unsafe
+      let sann & = reinterpret<BasicStructureAnnotation&>(ann)
+      let structName = "{sann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
+      var props : array<string>
+      var fields : array< tuple<uint; string> >
+      var all : array<Item>
+      basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
+        var field = "{getTypeName(xtype, items)} [{cppName}"
+        if offset != -1u
+          field += " @ {offset}]"
+          fields |> emplace([[auto offset, "\\n\\t{name}: {field}"]])
+        else
+          field += "]"
+          props |> push("\\n\\t{name}: {field}")
+        let fullItemName = "{fullModuleName}{structName}.{name}"
+        all |> emplace([[Item name = "{name}", fullName = fullItemName,
+                    desc = "{fullItemName}: {field}", kind = ItemKind Field]])
 
-    if length(fields) > 0
-      fields |> sort() <| $(a; b)
-        return a._0 < b._0
-      for it in fields
-        structDesc += it._1
-    if length(props) > 0
       if length(fields) > 0
-        structDesc += "\n"
-      structDesc += props |> join("")
+        fields |> sort() <| $(a; b)
+          return a._0 < b._0
+        for it in fields
+          structDesc += it._1
+      if length(props) > 0
+        if length(fields) > 0
+          structDesc += "\\n"
+        structDesc += props |> join("")
 
-    addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}",
-      impls <- [{auto[] structDesc }], kind = ItemKind Struct]], items)
-    for it in all
-      it.impls |> push_clone(structDesc)
-      addItem(it, items)
+      addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}",
+        impls <- [{auto[] structDesc }], kind = ItemKind Struct]], items)
+      for it in all
+        it.impls |> push_clone(structDesc)
+        addItem(it, items)
 
   elif ann.isTypeAnnotation
-    let tann & = reinterpret<TypeAnnotation&>(ann)
-    let structName = "{tann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = ItemKind Struct]], items)
+    unsafe
+      let tann & = reinterpret<TypeAnnotation&>(ann)
+      let structName = "{tann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      addItem([[Item name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = ItemKind Struct]], items)
 
   else
     let structName = "{ann.name}"
@@ -251,20 +267,20 @@ def parseModule(pMod; var items : Items)
     var shortStructDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
       let argT = join([{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}],", ")
-      shortStructDesc += "[{ann.name}({argT})]\n"
+      shortStructDesc += "[{ann.name}({argT})]\\n"
     shortStructDesc += "struct {fullName}"
     var structDesc = shortStructDesc
     var all : array<Item>
     for it in info
       let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
-      structDesc += "\n\t{desc}"
+      structDesc += "\\n\\t{desc}"
       all |> emplace([[Item name = "{it.name}", fullName = "{fullModuleName}{structName}.{desc}", desc = desc, kind = ItemKind Field]])
     addItem([[Item name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = ItemKind Struct]], items)
 
     if structDesc |> length() > 500
       structDesc = shortStructDesc
       for it in all
-        it.impls |> push("{structDesc}\n\t...\n\t{it.desc}\n\t...")
+        it.impls |> push("{structDesc}\\n\\t...\\n\\t{it.desc}\\n\\t...")
         addItem(it, items)
     else
       for it in all
@@ -284,7 +300,7 @@ def parseModule(pMod; var items : Items)
     var enumDesc = "enum {fullName}"
     var all : array< tuple < int64; Item > >
     for it in info
-      enumDesc += "\n\t{it.name} = {it.value}"
+      enumDesc += "\\n\\t{it.name} = {it.value}"
       let fullItemName = "{fullModuleName}{enumName} {it.name}"
       all |> emplace([[auto it.value, [[Item name = "{it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = ItemKind EnumMember]] ]])
 
@@ -310,18 +326,6 @@ def addKeywords(var items : Items)
     addItem([[Item name = it._0, fullName = it._0, desc = "def {it._0}", kind = ItemKind Function, impls <- clone_to_move(it._1) ]], items)
   for it in langOptions
     addItem([[Item name = it, fullName = "option {it}", desc = "option {it}", kind = ItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
-
-// [export]
-// def dumpModule(name : string)
-//   compile_file(name) <| $(ok, program, err)
-//     if !ok
-//       print(string(err))
-//       return
-//     var items : Items
-//     addKeywords(items)
-//     program_for_each_module(program) <| $(var mod)
-//       parseModule(mod, items)
-//     dumpItems(items)
 
 def dumpAllModules()
   var items : Items
