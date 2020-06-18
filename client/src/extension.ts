@@ -9,6 +9,7 @@ import {
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient'
 
+const DEFAULT_PORT = 9999
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
 const sockets: Map<string, net.Socket> = new Map()
@@ -44,7 +45,6 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 }
 
 function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[]) {
-	port = 9010
 	const spawnServer = true
 	return new Promise<[cp.ChildProcess, net.Socket]>(resolve => {
 		console.log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}'`)
@@ -127,7 +127,7 @@ export function activate(context: ExtensionContext) {
 		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
 			const serverOptions = async () => {
-				const [_, socket] = await createServerWithSocket("____untitled____", 8999, cmd, [server_das])
+				const [_, socket] = await createServerWithSocket("____untitled____", DEFAULT_PORT, cmd, [server_das, "--port", DEFAULT_PORT.toPrecision()])
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -151,7 +151,8 @@ export function activate(context: ExtensionContext) {
 		const folderUri = folder.uri.toString()
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
-				const [_, socket] = await createServerWithSocket(folderUri, 9000 + clients.size, cmd, [server_das])
+				const port = DEFAULT_PORT + clients.size
+				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, [server_das, "--port", port.toString()])
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket

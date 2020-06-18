@@ -10,7 +10,6 @@ options string_heap_page=16384
 options heap = 16000000
 options heap_page = 16384
 
-require fio
 require ast
 require daslib/ast_boost
 require daslib/strings
@@ -98,6 +97,7 @@ def Dascript(var doc : HoverParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
 
 class TelnetServer : Server
+    port : int // port number, for debug
     done : bool = false // server is done
     current_string : array<uint8> // raw input
     toRead : int = 0
@@ -105,7 +105,7 @@ class TelnetServer : Server
     inited : bool = false // is LSP inited
 
     completionData <- CompletionData()
-    registry : table<DocumentUri; Dascript>
+    registry : table<string; Dascript> // path => Dascript
 
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
@@ -135,12 +135,6 @@ class TelnetServer : Server
     def updateGlobalCompletion(force : bool)
         completionData->updateGlobalList(force)
 
-    def log(msg : string; level : LogLevel)
-        if inited & !done
-            unsafe
-                var res = [[LogMessageParams message = msg, _type = reinterpret<MessageType>(level)]]
-                self->sendNotification("window/logMessage", js(res), true)
-
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendRawResponse(var data : JsonValue?; free = true)
         var in scope msg = write_json(data)
@@ -165,6 +159,12 @@ class TelnetServer : Server
     def sendNotification(method : string; var data : JsonValue?; free = true)
         self->sendRawResponse(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}), free)
 
+    def log(msg : string; level : LogLevel)
+        if inited & !done
+            unsafe
+                var res = [[LogMessageParams message = msg, _type = reinterpret<MessageType>(level)]]
+                self->sendNotification("window/logMessage", js(res), true)
+
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
         // info(write_json(params))
@@ -186,7 +186,7 @@ class TelnetServer : Server
 
     def initialized()
         inited = true
-        info("> initialized!\n")
+        info("> initialized! port: {port}\n")
         self->updateGlobalCompletion(true)
 
     def validate(path : string; withContent : bool = false)
@@ -204,7 +204,6 @@ class TelnetServer : Server
                 // info(program)
                 // info(error)
 
-                var diags : array<Diagnostic>
                 if program != null
                     for it in data.ast
                         delete it
@@ -217,6 +216,7 @@ class TelnetServer : Server
                         visitor.tokens = null
 
                 if ok
+                    var diags : array<Diagnostic>
                     if program != null
                         for it in values(data.completionData)
                             delete it
@@ -230,6 +230,7 @@ class TelnetServer : Server
                     return
 
                 if program == null
+                    var diags : array<Diagnostic>
                     diags |> emplace([[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
                     var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params), true)
@@ -261,7 +262,7 @@ class TelnetServer : Server
 
                 for k, v in keys(map), values(map)
                     let localPath = uri_to_path(k)
-                    if localPath != path | ok
+                    if ok | localPath != path
                         registry |> find_if_exists(localPath) <| $(data)
                             collect_diag(data.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
@@ -340,8 +341,8 @@ class TelnetServer : Server
                 hovers |> emplace(to_hover(it))
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
                     hovers |> emplace("```dascript\n" + join(val.impls, "\n") + "\n```")
-            // TODO: sort/filter tokens
-            // TODO: fix range
+            // TODO: sort tokens by length, smaller is better
+            // TODO: filter huge tokens?
             if hovers |> length() > 0
                 var in scope h <- [[ Hover _range = _range, contents <- hovers ]]
                 self->sendResponse(id, js(h), true)
@@ -485,6 +486,7 @@ class TelnetServer : Server
                         self->updateGlobalCompletion(false)
             // info(current_string)
 
+
 [export]
 def main(fn : string)
     isContDev = true
@@ -495,8 +497,10 @@ def init()
     mainLoop("")
 
 def mainLoop(fn : string)
+    let args <- get_command_line_arguments()
+    debug(args)
+    let port = get_int_arg(args, "--port", 9000)
     let main_time = stat(fn).mtime
-    let port = 9010
     info("server start: port: {port} file:{fn} ts:{main_time}\n")
     telnet = new TelnetServer()
 
@@ -511,7 +515,7 @@ def mainLoop(fn : string)
         info("server failed to initialize\n")
         return false
 
-
+    telnet.port = port
     logger::onLog = @ <| (msg : string; level : LogLevel)
         if telnet != null
             telnet->log(msg, level)
@@ -524,21 +528,21 @@ def mainLoop(fn : string)
         var alloc = string_heap_bytes_allocated()
         if alloc > strLimit
             // string_heap_report()
-            info("STRING HEAP FREE: {alloc} {int(alloc)}\n")
+            info("STRING HEAP FREE: {bytes_hr(alloc)}\n")
             unsafe
                 string_heap_collect()
             alloc = string_heap_bytes_allocated()
             if alloc > strLimit
                 strLimit += strLimit
-                info("UPDATE STRING HEAP LIMIT TO {strLimit} {int(strLimit)}\n")
-            info("STRING HEAP FREE after: {alloc} {int(alloc)}\n")
+                warning("UPDATE STRING HEAP LIMIT TO {bytes_hr(strLimit)}\n")
+            info("STRING HEAP FREE after: {bytes_hr(alloc)}\n")
 
         step --
         if step == 0u
             let h = heap_bytes_allocated()
             let hd = heap_depth()
             var shd = string_heap_depth()
-            info("str heap: {int(alloc)} str heap depth : {shd} heap : {int(h)} heapDepth : {hd}\n")
+            info("str heap: {bytes_hr(alloc)} str heap depth : {shd} heap : {bytes_hr(h)} heapDepth : {hd}\n")
 
             step = 500u
             // if h > 15000u
@@ -548,7 +552,6 @@ def mainLoop(fn : string)
             // string_heap_report()
             // info("------------------\n")
             // step = 100u
-
 
         sleep(0u)
         let new_time = stat(fn).mtime
@@ -769,20 +772,6 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     invoke(blk, tok)
     return true
 
-def expr_to_token(arg; blk : block<(var token:AstToken?):void>)
-    if arg == null
-        return
-    let typ = arg._type != null ? describe([decl=arg._type,extra=true]) : ""
-    let name = "{describe(arg)}"
-    var token <- new [[AstToken
-        name = name,
-        desc = "{name} : {typ}",
-        kind = AstTokenKind Field,
-        _type = "{typ}"
-    ]]
-    set_token_path(token, arg.at)
-    invoke(blk, token)
-
 class AstData : AstVisitor
     tokens : AstTokens?
     skipExprs : bool = false
@@ -985,34 +974,18 @@ class AstData : AstVisitor
     // def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // null coaelescing
     // def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
     // def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
 // at
     // def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
     // def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // // safe at
     // def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
     // def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
 // is
     // def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr.subexpr) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op2
@@ -1038,18 +1011,10 @@ class AstData : AstVisitor
     // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
 // with
     // def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr._with) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
     // def override preVisitExprWithBody(expr:smart_ptr<ExprWith>;right:ExpressionPtr) : void
 // while
     // def override preVisitExprWhile(expr:smart_ptr<ExprWhile>) : void
-    //     if skipExprs
-    //         return
-    //     expr_to_token(expr.cond) <| $(var token : AstToken?)
-    //         *tokens |> emplace(token)
     // def override visitExprWhile(expr:smart_ptr<ExprWhile>) : ExpressionPtr
     // def override preVisitExprWhileBody(expr:smart_ptr<ExprWhile>;right:ExpressionPtr) : void
 // try-catch

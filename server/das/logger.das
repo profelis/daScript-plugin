@@ -15,6 +15,7 @@ def error(data)
 		msg = sprint(data, print_flags_debugger)
 	if onLog != null
 		invoke(onLog, msg, LogLevel Error)
+	print("[error] ")
 	print(msg)
 
 def warning(data)
@@ -25,6 +26,7 @@ def warning(data)
 		msg = sprint(data, print_flags_debugger)
 	if onLog != null
 		invoke(onLog, msg, LogLevel Warning)
+	print("[warn] ")
 	print(msg)
 
 def info(data)
@@ -35,6 +37,7 @@ def info(data)
 		msg = sprint(data, print_flags_debugger)
 	if onLog != null
 		invoke(onLog, msg, LogLevel Info)
+	print("[info] ")
 	print(msg)
 
 def log(data)
@@ -45,5 +48,5 @@ def log(data)
 		msg = sprint(data, print_flags_debugger)
 	if onLog != null
 		invoke(onLog, msg, LogLevel Log)
+	print("[log] ")
 	print(msg)
-

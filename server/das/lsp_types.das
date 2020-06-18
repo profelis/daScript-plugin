@@ -672,6 +672,7 @@ enum MessageType
 	Info = 3
 	Log = 4
 
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#window_logMessage
 struct LogMessageParams
 	_type : MessageType
 	message : string

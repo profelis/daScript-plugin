@@ -8,7 +8,25 @@ def move ( var a )
 def strip_left(str : string; part : string)
 	return starts_with(str, part) ? slice(str, length(part)) : str
 
-// [generic]
-// def replace(str, from, to : string)
-// 	var in scope parts <- split(str, from)
-// 	return join(parts, to)
+def get_int_arg(args:array<string>; name : string; def_val : int) : int
+    for i in range(0, length(args))
+        if args[i] == name
+            if i == length(args) - 1
+                return def_val
+            return int(args[i+1])
+    return def_val
+
+def get_str_arg(args:array<string>; name : string; def_val : string) : string
+    for i in range(0, length(args))
+        if args[i] == name
+            if i == length(args) - 1
+                return def_val
+            return args[i+1]
+    return def_val
+
+def bytes_hr(value : uint)
+	if value > 1024u * 1024u
+		return "{float(value) / (1024f * 1024f)}mb ({int(value)})"
+	if value > 1024u
+		return "{float(value) / 1024f}kb ({int(value)})"
+	return "{int(value)} b"
