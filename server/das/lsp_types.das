@@ -407,20 +407,21 @@ def Range(val : JsonValue?)
 		return <- [[Range start = [[Position]], end = [[Position]] ]]
 	return <- [[Range start <- Position(joj(val, "start")), end <- Position(joj(val, "end")) ]]
 
-def range_in(r : Range; pos : Position)
+def in_range(pos : Position; r : Range)
 	return r.start <= pos & pos <= r.end
 
-def range_in(a, b : Range)
+def in_range(b, a : Range)
 	return a.start <= b.start & b.end <= a.end
 
 def range_oneline(a : Range)
 	return a.start.line == a.end.line
 
-def range_valid(a : Range)
-	return a.start.line >= 0 & a.end.line >= 0
-
+// works only with oneline ranges, @see range_oneline
 def length(a : Range)
 	return a.end.character - a.start.character
+
+def range_ratio(a : Range)
+	return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line) : 0) + length(a)
 
 def js(val : Range)
 	return JV({{ "start" => js(val.start); "end" => js(val.end) }})

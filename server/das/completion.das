@@ -154,7 +154,7 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
       let fullName = "{fullModuleName}{structName}"
       var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
       var in scope props : array<string>
-      var in scope fields : array< tuple<uint; string> >
+      var in scope fields : array<tuple<uint; string>>
       var in scope all : array<Completion>
       basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
         var field = "{getTypeName(xtype, items)} [{cppName}"
@@ -315,7 +315,7 @@ def js(items : Completions; doc = true) : JsonValue?
 [private]
 def first_part(str : string; del : string)
   let parts <- split(str, del)
-  return parts |> length() > 0 ? parts[0] : str // BUG: temp fix
+  return parts[0]
 
 [export] class CompletionData
   globalCompletionUpdate : clock

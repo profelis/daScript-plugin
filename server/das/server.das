@@ -331,19 +331,24 @@ class TelnetServer : Server
             info("> [WARN] {path} unknown? register again, total files {length(registry)}\n")
             self->validate(path, false)
         find_if_exists(registry, path) <| $(var data)
-            var hovers : array<string>
+            var hoversData : array<tuple<int; string>>
             var _range : Range
             var first = true
             collect_token(data.ast, path, req.position) <| $(it : AstToken?)
                 if first
                     _range = it._range
                     first = false
-                hovers |> emplace(to_hover(it))
+                elif it._range |> in_range(_range)
+                    _range = it._range
+                let ratio = range_ratio(it._range) + (it.defPath == "" ? 100 : 0)
+                hoversData |> emplace([[auto ratio, to_hover(it)]])
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
-                    hovers |> emplace("```dascript\n" + join(val.impls, "\n") + "\n```")
-            // TODO: sort tokens by length, smaller is better
-            // TODO: filter huge tokens?
-            if hovers |> length() > 0
+                    hoversData |> emplace([[auto ratio, "```dascript\n" + join(val.impls, "\n") + "\n```"]])
+                // TODO: filter huge tokens?
+            if hoversData |> length() > 0
+                hoversData |> sort() <| $(a; b)
+                    return a._0 < b._0
+                var hovers <- [{ for it in hoversData; it._1 }]
                 var in scope h <- [[ Hover _range = _range, contents <- hovers ]]
                 self->sendResponse(id, js(h), true)
                 found = true
@@ -384,18 +389,19 @@ class TelnetServer : Server
     def definition(id : double; var params : JsonValue?)
         var in scope params <- DefinitionParams(params)
         let path = uri_to_path(params.textDocument.uri)
-        var found = false
         let data = find(registry, path)
         if data != null
-            collect_token(data.ast, path, params.position) <| $(token : AstToken?)
-                if !found & token.defPath != ""
-                    found = true
-                    info(token)
-                    var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-                    info(loc)
-                    self->sendResponse(id, js(loc), true)
-        if !found
-            self->sendResponse(id, JV(null), true)
+            var token : AstToken?
+            collect_token(data.ast, path, params.position) <| $(tok : AstToken?)
+                if tok.defPath != "" & (token == null | tok._range |> in_range(token._range))
+                    token = tok
+            if token != null
+                info(token)
+                var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
+                info(loc)
+                self->sendResponse(id, js(loc), true)
+                return
+        self->sendResponse(id, JV(null), true)
 
     def override onData(msg:uint8?; size:int)
         for i in range(0,size)
@@ -503,6 +509,7 @@ def mainLoop(fn : string)
     let main_time = stat(fn).mtime
     info("server start: port: {port} file:{fn} ts:{main_time}\n")
     telnet = new TelnetServer()
+    telnet.port = port
 
     var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
     if session != null
@@ -515,7 +522,6 @@ def mainLoop(fn : string)
         info("server failed to initialize\n")
         return false
 
-    telnet.port = port
     logger::onLog = @ <| (msg : string; level : LogLevel)
         if telnet != null
             telnet->log(msg, level)
@@ -599,7 +605,7 @@ def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):
         collect_token(it, path, blk)
 
 def collect_token(val : AstToken?; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    if val.path == path & range_in(val._range, pos)
+    if val.path == path & pos |> in_range(val._range)
         invoke(blk, val)
     for it in val.children
         collect_token(it, path, pos, blk)
