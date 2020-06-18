@@ -329,13 +329,13 @@ struct ServerCapabilities
 	completionProvider : CompletionOptions
 	hoverProvider : bool // | HoverOptions
 	// signatureHelpProvider : SignatureHelpOptions
-	// declarationProvider : DeclarationOptions
+	// declarationProvider : bool // DeclarationOptions
 	definitionProvider : bool // DefinitionOptions
-	// typeDefinitionProvider : TypeDefinitionOptions
+	typeDefinitionProvider : bool // TypeDefinitionOptions
 	// implementationProvider : ImplementationOptions
 	// referencesProvider : ReferenceOptions
 	// documentHighlightProvider : DocumentHighlightOptions
-	// documentSymbolProvider : DocumentSymbolOptions
+	documentSymbolProvider : bool // DocumentSymbolOptions
 	// codeActionProvider : CodeActionOptions
 	// codeLensProvider : CodeLensOptions
 	// documentLinkProvider : DocumentLinkOptions
@@ -356,7 +356,9 @@ def js(val : ServerCapabilities)
 		"textDocumentSync" => js(int(val.textDocumentSync));
 		"completionProvider" => js(val.completionProvider);
 		"hoverProvider" => js(val.hoverProvider);
-		"definitionProvider" => js(val.definitionProvider)
+		"definitionProvider" => js(val.definitionProvider);
+		"typeDefinitionProvider" => js(val.typeDefinitionProvider);
+		"documentSymbolProvider" => js(val.documentSymbolProvider)
 	}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -381,6 +383,9 @@ struct Position
     line : int = 0
     character : int = 0
 
+def Position(line, character : int)
+	return <- [[Position line = line, character = character]]
+
 def Position(val : JsonValue?)
 	if val == null | val.value is _null
 		return [[Position]]
@@ -401,6 +406,12 @@ def to_string(val : Position)
 struct Range
     start : Position
     end : Position
+
+def Range(start, end : Position)
+	return [[Range start = start, end = end]]
+
+def Range(start_line, start_char, end_line, end_char : int)
+	return [[Range start = Position(start_line, end_line), end = Position(end_line, end_char)]]
 
 def Range(val : JsonValue?)
 	if val == null | val.value is _null
@@ -666,6 +677,21 @@ def DefinitionParams(val : JsonValue?)
 		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
 		position <- Position(joj(val, "position"))
 	]]
+
+
+struct TypeDefinitionParams : TextDocumentPositionParams {}
+
+def TypeDefinitionParams(val : JsonValue?)
+	return <- [[TypeDefinitionParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+		position <- Position(joj(val, "position"))
+	]]
+
+struct DocumentSymbolParams
+	textDocument : TextDocumentIdentifier
+
+def DocumentSymbolParams(val : JsonValue?)
+	return <- [[DocumentSymbolParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")) ]]
 
 enum MessageType
 	Error = 1

@@ -5,9 +5,9 @@
 // options string_heap_page = 0
 // options optimize = false
 // options debugger=true // required for GC
-options string_heap=16000000
-options string_heap_page=16384
-options heap = 16000000
+options string_heap = 8000000
+options string_heap_page = 16384
+options heap = 8000000
 options heap_page = 16384
 
 require ast
@@ -63,6 +63,7 @@ bitfield AstTokenWarn
     deprecated
 
 struct AstToken
+    topLevel : bool
     _range : Range
     path : string
 
@@ -75,6 +76,9 @@ struct AstToken
 
     defRange : Range
     defPath : string
+
+    typeDefRange : Range
+    typeDefPath : string
 
 struct Dascript
     uri : DocumentUri
@@ -177,7 +181,9 @@ class TelnetServer : Server
             textDocumentSync = TextDocumentSyncKind Full,
             completionProvider <- cmpl,
             hoverProvider = true,
-            definitionProvider = true
+            definitionProvider = true,
+            typeDefinitionProvider = true,
+            documentSymbolProvider = true
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
@@ -331,7 +337,7 @@ class TelnetServer : Server
             info("> [WARN] {path} unknown? register again, total files {length(registry)}\n")
             self->validate(path, false)
         find_if_exists(registry, path) <| $(var data)
-            var hoversData : array<tuple<int; string>>
+            var hoversData : array<tuple<float; string>>
             var _range : Range
             var first = true
             collect_token(data.ast, path, req.position) <| $(it : AstToken?)
@@ -340,10 +346,10 @@ class TelnetServer : Server
                     first = false
                 elif it._range |> in_range(_range)
                     _range = it._range
-                let ratio = range_ratio(it._range) + (it.defPath == "" ? 100 : 0)
+                let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
                 hoversData |> emplace([[auto ratio, to_hover(it)]])
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
-                    hoversData |> emplace([[auto ratio, "```dascript\n" + join(val.impls, "\n") + "\n```"]])
+                    hoversData |> emplace([[auto ratio + 0.5, "```dascript\n" + join(val.impls, "\n") + "\n```"]])
                 // TODO: filter huge tokens?
             if hoversData |> length() > 0
                 hoversData |> sort() <| $(a; b)
@@ -386,21 +392,76 @@ class TelnetServer : Server
     def resolveCompletion(id : double; var params : JsonValue?)
         self->sendResponse(id, params, false)
 
-    def definition(id : double; var params : JsonValue?)
-        var in scope params <- DefinitionParams(params)
-        let path = uri_to_path(params.textDocument.uri)
+    def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
         let data = find(registry, path)
         if data != null
             var token : AstToken?
-            collect_token(data.ast, path, params.position) <| $(tok : AstToken?)
-                if tok.defPath != "" & (token == null | tok._range |> in_range(token._range))
+            collect_token(data.ast, path, pos) <| $(tok : AstToken?)
+                if invoke(valid, tok) & (token == null | tok._range |> in_range(token._range))
                     token = tok
-            if token != null
-                info(token)
-                var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-                info(loc)
-                self->sendResponse(id, js(loc), true)
-                return
+            return token
+        return null
+
+    def definition(id : double; var params : JsonValue?)
+        var in scope params <- DefinitionParams(params)
+        let path = uri_to_path(params.textDocument.uri)
+        var token = self->find_token(path, params.position) <| $(tok : AstToken?)
+            return tok.defPath != ""
+        if token != null
+            info(token)
+            var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
+            info(loc)
+            self->sendResponse(id, js(loc), true)
+            return
+        self->sendResponse(id, JV(null), true)
+
+    def typeDefinition(id : double; var params : JsonValue?)
+        var in scope params <- TypeDefinitionParams(params)
+        let path = uri_to_path(params.textDocument.uri)
+        var token = self->find_token(path, params.position) <| $(tok : AstToken?)
+            return tok.typeDefPath != ""
+        if token == null
+            token = self->find_token(path, params.position) <| $(tok : AstToken?)
+                return tok.defPath != ""
+        if token != null
+            info(token)
+            let hasType = token.typeDefPath != ""
+            var in scope loc = [[Location
+                uri = path_to_uri(hasType ? token.typeDefPath : token.defPath),
+                _range = hasType ? token.typeDefRange : token.defRange
+            ]]
+            info(loc)
+            self->sendResponse(id, js(loc), true)
+            return
+        self->sendResponse(id, JV(null), true)
+
+    def buildDocSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
+        if !ast.topLevel | ast.path != path
+            return
+        var data <- {{
+            "name" => js(ast.name |> strip_left("`"));
+            "kind" => js(int(ast.kind));
+            "range" => js(ast._range);
+            "selectionRange" => js(ast._range)
+        }}
+        if ast.children |> length() > 0
+            var children : array<JsonValue?>
+            for it in ast.children
+                self->buildDocSymbol(it, path, children)
+            if children |> length() > 0
+                data["children"] <- js(children)
+        res |> emplace(js(data))
+
+    def documentSymbol(id : double; var params : JsonValue?)
+        let ini <- DocumentSymbolParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        let data = find(registry, path)
+        if data != null
+            var res : array<JsonValue?>
+            for it in data.ast
+                self->buildDocSymbol(it, path, res)
+            self->sendResponse(id, js(res), true)
+            return
         self->sendResponse(id, JV(null), true)
 
     def override onData(msg:uint8?; size:int)
@@ -470,6 +531,15 @@ class TelnetServer : Server
 
                             elif method == "textDocument/definition"
                                 self->definition(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/typeDefinition"
+                                self->typeDefinition(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "textDocument/documentSymbol"
+                                self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "exit"
+                                done = true
 
                             elif method == "shutdown"
                                 done = true
@@ -571,7 +641,7 @@ def mainLoop(fn : string)
     return true
 
 def to_hover(val : AstToken?)
-    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n```"
+    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
     return <- res
 
 typedef
@@ -624,9 +694,14 @@ def set_token_path(var token : AstToken?; at)
     token._range = line_info_to_range(at)
     token.path = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-def set_token_def_path(var token : AstToken?; at)
+def set_token_def(var token : AstToken?; at)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
+
+def set_token_type_def(var token : AstToken?; typ)
+    if typ != null
+        token.typeDefRange = line_info_to_range(typ.at)
+        token.typeDefPath = typ.at.fileInfo != null ? "{typ.at.fileInfo.name}" : ""
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     if arg == null | arg.flags.generated
@@ -645,7 +720,9 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
         warn = arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
     ]]
     set_token_path(token, arg.at)
-    set_token_def_path(token, arg.at)
+    set_token_def(token, arg.at)
+    if arg._type != null & arg._type.structType != null
+        set_token_type_def(token, arg._type.structType)
     invoke(blk, token)
     return true
 
@@ -666,7 +743,9 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(res, expr.atField)
     if expr.field != null
-        set_token_def_path(res, expr.field.at)
+        set_token_def(res, expr.field.at)
+        if expr.field._type != null & expr.field._type.structType != null
+            set_token_type_def(res, expr.field._type.structType)
     if range_oneline(res._range) & typ |> starts_with("function<")
         res.kind = AstTokenKind Method
         let selfLen = 4
@@ -754,7 +833,7 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(res, expr.at)
     if expr.func != null
-        set_token_def_path(res, expr.func.atDecl)
+        set_token_def(res, expr.func.atDecl)
     if range_oneline(res._range) & firstArg |> starts_with("self.")
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
@@ -774,7 +853,7 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(tok, typ.at)
     if typ.structType != null
-        set_token_def_path(tok, typ.structType.at)
+        set_token_def(tok, typ.structType.at)
     invoke(blk, tok)
     return true
 
@@ -801,6 +880,7 @@ class AstData : AstVisitor
             return
         var name = "{module_name(enu._module)}{enu.name}"
         var token <- new [[AstToken
+            topLevel = true,
             name = name,
             desc = "enum {name} : {get_das_type_name(enu.baseType)}",
             kind = AstTokenKind Enum,
@@ -813,6 +893,7 @@ class AstData : AstVisitor
             if it.value != null
                 desc += " = {describe(it.value)}"
             var tok <- new [[AstToken
+                topLevel = true,
                 name = "{it.name}",
                 desc = desc,
                 kind = AstTokenKind EnumMember,
@@ -834,6 +915,7 @@ class AstData : AstVisitor
         if str.parent != null
             desc += " : {module_name(str.parent._module)}{str.parent.name}"
         var token <- new [[AstToken
+            topLevel = true,
             name = name,
             desc = desc,
             kind = str.flags.isClass ? AstTokenKind Class : AstTokenKind Struct,
@@ -844,11 +926,12 @@ class AstData : AstVisitor
             if decl.flags.generated
                 continue
             let typ = decl._type != null ? "{describe([decl=decl._type,extra=true])}" : ""
-            var fieldName = "{name}.{decl.name}"
+            var fieldName = "{decl.name}"
             var fieldDesc = "{fieldName} : {typ}"
             if decl.init != null
                 fieldDesc += " = {describe(decl.init)}"
             var tok <- new [[AstToken
+                topLevel = true,
                 name = fieldName,
                 desc = fieldDesc,
                 kind = AstTokenKind Field,
@@ -882,13 +965,15 @@ class AstData : AstVisitor
         if fun.result != null
             desc += " : {describe([decl=fun.result,extra=true])}"
         var token <- new [[AstToken
+            // topLevel = fun.body != null,
             name = "{fun.name}",
             desc = desc,
-            kind = AstTokenKind Function,
+            kind = fun.flags.isClassMethod ? AstTokenKind Method : AstTokenKind Function,
             _type = desc
         ]]
         set_token_path(token, fun.at)
-        set_token_def_path(token, fun.atDecl)
+        set_token_def(token, fun.atDecl)
+        token.topLevel = !fun.flags.isClassMethod //!fun.flags.generated & token._range |> in_range(token.defRange)
         for it in fun.arguments
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)
@@ -941,6 +1026,7 @@ class AstData : AstVisitor
         if skipExprs
             return
         var_to_token(arg) <| $(var token : AstToken?)
+            token.topLevel = true
             *tokens |> emplace(token)
     // def override visitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : VariablePtr
     // def override preVisitGlobalLetVariableInit(arg:VariablePtr;expr:ExpressionPtr): void
@@ -1069,8 +1155,9 @@ class AstData : AstVisitor
             _type = typ
         ]]
         set_token_path(token, decl.at)
-        if expr._type != null & expr._type.structType != null
-            set_token_def_path(token, expr._type.structType.at)
+        if expr._type != null
+            if expr._type.structType != null
+                set_token_def(token, expr._type.structType.at)
         *tokens |> emplace(token)
     // def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // make array
