@@ -347,7 +347,7 @@ struct ServerCapabilities
 	// foldingRangeProvider : FoldingRangeOptions
 	// executeCommandProvider : ExecuteCommandOptions
 	// selectionRangeProvider : SelectionRangeOptions
-	// workspaceSymbolProvider : bool
+	workspaceSymbolProvider : bool
 	// workspace : { workspaceFolders?: WorkspaceFoldersServerCapabilities; }
 	// experimental : void?
 
@@ -358,7 +358,8 @@ def js(val : ServerCapabilities)
 		"hoverProvider" => js(val.hoverProvider);
 		"definitionProvider" => js(val.definitionProvider);
 		"typeDefinitionProvider" => js(val.typeDefinitionProvider);
-		"documentSymbolProvider" => js(val.documentSymbolProvider)
+		"documentSymbolProvider" => js(val.documentSymbolProvider);
+		"workspaceSymbolProvider" => js(val.workspaceSymbolProvider)
 	}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -411,7 +412,7 @@ def Range(start, end : Position)
 	return [[Range start = start, end = end]]
 
 def Range(start_line, start_char, end_line, end_char : int)
-	return [[Range start = Position(start_line, end_line), end = Position(end_line, end_char)]]
+	return [[Range start = Position(start_line, start_char), end = Position(end_line, end_char)]]
 
 def Range(val : JsonValue?)
 	if val == null | val.value is _null
@@ -692,6 +693,12 @@ struct DocumentSymbolParams
 
 def DocumentSymbolParams(val : JsonValue?)
 	return <- [[DocumentSymbolParams textDocument = TextDocumentIdentifier(joj(val, "textDocument")) ]]
+
+struct WorkspaceSymbolParams
+	query : string
+
+def WorkspaceSymbolParams(val : JsonValue?)
+	return [[WorkspaceSymbolParams query=jos(val, "query") ]]
 
 enum MessageType
 	Error = 1

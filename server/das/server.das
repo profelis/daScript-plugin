@@ -183,7 +183,8 @@ class TelnetServer : Server
             hoverProvider = true,
             definitionProvider = true,
             typeDefinitionProvider = true,
-            documentSymbolProvider = true
+            documentSymbolProvider = true,
+            workspaceSymbolProvider = true
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
@@ -402,6 +403,7 @@ class TelnetServer : Server
             return token
         return null
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
         var in scope params <- DefinitionParams(params)
         let path = uri_to_path(params.textDocument.uri)
@@ -415,6 +417,7 @@ class TelnetServer : Server
             return
         self->sendResponse(id, JV(null), true)
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
         var in scope params <- TypeDefinitionParams(params)
         let path = uri_to_path(params.textDocument.uri)
@@ -435,11 +438,12 @@ class TelnetServer : Server
             return
         self->sendResponse(id, JV(null), true)
 
-    def buildDocSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
+    def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
             return
         var data <- {{
             "name" => js(ast.name |> strip_left("`"));
+            "detail" => js(ast._type);
             "kind" => js(int(ast.kind));
             "range" => js(ast._range);
             "selectionRange" => js(ast._range)
@@ -447,11 +451,12 @@ class TelnetServer : Server
         if ast.children |> length() > 0
             var children : array<JsonValue?>
             for it in ast.children
-                self->buildDocSymbol(it, path, children)
+                self->buildDocumentSymbol(it, path, children)
             if children |> length() > 0
                 data["children"] <- js(children)
         res |> emplace(js(data))
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
     def documentSymbol(id : double; var params : JsonValue?)
         let ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
@@ -459,10 +464,33 @@ class TelnetServer : Server
         if data != null
             var res : array<JsonValue?>
             for it in data.ast
-                self->buildDocSymbol(it, path, res)
+                self->buildDocumentSymbol(it, path, res)
             self->sendResponse(id, js(res), true)
             return
         self->sendResponse(id, JV(null), true)
+
+    def buildSymbolInformation(ast : AstToken?; query : string; var res : array<JsonValue?>) : void
+        if !ast.topLevel
+            return
+        if ast.path != "" & (query == "" | find(ast.name, query) != -1)
+            var data <- {{
+                "name" => js(ast.name);
+                "containerName" => js(ast.desc);
+                "kind" => js(int(ast.kind));
+                "location" => js({{ "range" => js(ast._range); "uri" => js(path_to_uri(ast.path)) }})
+            }}
+            res |> emplace(js(data))
+        for it in ast.children
+            self->buildSymbolInformation(it, query, res)
+
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
+    def workspaceSymbol(id : double; var params : JsonValue?)
+        let ini <- WorkspaceSymbolParams(params)
+        var res : array<JsonValue?>
+        for data in values(registry)
+            for it in data.ast
+                self->buildSymbolInformation(it, ini.query, res)
+        self->sendResponse(id, js(res), true)
 
     def override onData(msg:uint8?; size:int)
         for i in range(0,size)
@@ -537,6 +565,9 @@ class TelnetServer : Server
 
                             elif method == "textDocument/documentSymbol"
                                 self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                            elif method == "workspace/symbol"
+                                self->workspaceSymbol(jon(msg, "id"), joj(msg, "params"))
 
                             elif method == "exit"
                                 done = true

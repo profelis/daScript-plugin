@@ -151,7 +151,7 @@ export function activate(context: ExtensionContext) {
 		const folderUri = folder.uri.toString()
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
-				const port = DEFAULT_PORT + clients.size
+				const port = DEFAULT_PORT + 1 + clients.size
 				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, [server_das, "--port", port.toString()])
 				const result: StreamInfo = {
 					writer: socket,
