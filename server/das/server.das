@@ -110,7 +110,10 @@ class TelnetServer : Server
 
     completionData <- CompletionData()
     registry : table<string; Dascript> // path => Dascript
+    workspaceFolders : array<WorkspaceFolder>
 
+    requestId : double = 1000lf
+    requestCallbacks : table<double; lambda<(data, error : JsonValue?):void>>
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
 
@@ -140,7 +143,7 @@ class TelnetServer : Server
         completionData->updateGlobalList(force)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
-    def sendRawResponse(var data : JsonValue?; free = true)
+    def sendRawData(var data : JsonValue?; free = true)
         var in scope msg = write_json(data)
         var in scope packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
@@ -152,16 +155,31 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendResponse(id : double; var data : JsonValue?; free = true)
-        self->sendRawResponse(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}), free)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}), free)
+
+    def sendRequest(method : string; var data : JsonValue?; free : bool; cb : lambda<(data, error : JsonValue?):void>)
+        requestCallbacks[requestId] = cb
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(requestId); "method" => js(method); "params" => data }}), free)
+        requestId = requestId + 1lf
 
     def sendError(id : double; var data : ResponseError; free = true)
-        self->sendRawResponse(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}), free)
+        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}), free)
         if free
             delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#notificationMessage
     def sendNotification(method : string; var data : JsonValue?; free = true)
-        self->sendRawResponse(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}), free)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}), free)
+
+    def registerCapability(methods : array<string>)
+        var registrations : array<Registration>
+        for it in methods
+            registrations |> emplace([[Registration method = it, id = it]])
+        var in scope registrationParams <- [[RegistrationParams registrations <- registrations]]
+        self->sendRequest("client/registerCapability", js(registrationParams), true) <| @(data, error : JsonValue?)
+            if error != null
+                info("error: registerCapability")
+                info(error)
 
     def log(msg : string; level : LogLevel)
         if inited & !done
@@ -173,9 +191,11 @@ class TelnetServer : Server
     def initialize(id : double; params : JsonValue?)
         // info(write_json(params))
         var in scope ini <- InitializeParams(params)
+        workspaceFolders := ini.workspaceFolders
         hasConfigurationCapability = ini.capabilities.workspace.configuration
         hasDiagnosticRelatedInformationCapability = ini.capabilities.textDocument.publishDiagnostics.relatedInformation
         // info(ini)
+        var workspace <- [[WorkspaceFoldersServerCapabilities supported = true, changeNotifications = true]]
         var cmpl <- [[CompletionOptions resolveProvider = true, triggerCharacters <- [{ auto[] "." }] ]]
         var cap <- [[ServerCapabilities
             textDocumentSync = TextDocumentSyncKind Full,
@@ -184,7 +204,8 @@ class TelnetServer : Server
             definitionProvider = true,
             typeDefinitionProvider = true,
             documentSymbolProvider = true,
-            workspaceSymbolProvider = true
+            workspaceSymbolProvider = true,
+            workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
@@ -195,6 +216,12 @@ class TelnetServer : Server
         inited = true
         info("> initialized! port: {port}\n")
         self->updateGlobalCompletion(true)
+
+        var in scope capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
+        if hasConfigurationCapability
+            capabilities |> push("workspace/didChangeConfiguration")
+        if capabilities |> length() > 0
+            self->registerCapability(capabilities)
 
     def validate(path : string; withContent : bool = false)
         info("> validate? '{path}'\n")
@@ -281,6 +308,12 @@ class TelnetServer : Server
         registry[path] <- Dascript(doc.textDocument)
         info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n")
         self->validate(path, false)
+
+        // var item <- [[ConfigurationItem section = "dascript", scopeUri=doc.textDocument.uri ]]
+        // var configParams <- [[ConfigurationParams items <- [{auto[] item }] ]]
+        // self->sendRequest("workspace/configuration", js(configParams), true) <| @(data , error: JsonValue?)
+        //     info("configuration handler")
+        //     info(data)
 
     def didSave(id : double; params : JsonValue?)
         var in scope doc = DidSaveTextDocumentParams(params)
@@ -410,9 +443,7 @@ class TelnetServer : Server
         var token = self->find_token(path, params.position) <| $(tok : AstToken?)
             return tok.defPath != ""
         if token != null
-            info(token)
             var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-            info(loc)
             self->sendResponse(id, js(loc), true)
             return
         self->sendResponse(id, JV(null), true)
@@ -458,7 +489,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
     def documentSymbol(id : double; var params : JsonValue?)
-        let ini <- DocumentSymbolParams(params)
+        var in scope ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
         if data != null
@@ -469,8 +500,8 @@ class TelnetServer : Server
             return
         self->sendResponse(id, JV(null), true)
 
-    def buildSymbolInformation(ast : AstToken?; query : string; var res : array<JsonValue?>) : void
-        if !ast.topLevel
+    def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
+        if !ast.topLevel | length(res) >= limit
             return
         if ast.path != "" & (query == "" | find(ast.name, query) != -1)
             var data <- {{
@@ -481,117 +512,146 @@ class TelnetServer : Server
             }}
             res |> emplace(js(data))
         for it in ast.children
-            self->buildSymbolInformation(it, query, res)
+            self->buildSymbolInformation(it, query, limit, res)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
     def workspaceSymbol(id : double; var params : JsonValue?)
-        let ini <- WorkspaceSymbolParams(params)
+        var in scope ini <- WorkspaceSymbolParams(params)
         var res : array<JsonValue?>
         for data in values(registry)
             for it in data.ast
-                self->buildSymbolInformation(it, ini.query, res)
+                self->buildSymbolInformation(it, ini.query, 300, res)
         self->sendResponse(id, js(res), true)
+
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
+    def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
+        var in scope ini <- DidChangeWorkspaceFoldersParams(params)
+        for it in ini.event.removed
+            for i in range(0, length(workspaceFolders))
+                if workspaceFolders[i].uri == it.uri
+                    workspaceFolders |> erase(i)
+                    break
+        for it in ini.event.added
+            workspaceFolders |> push(it)
 
     def override onData(msg:uint8?; size:int)
         for i in range(0,size)
+            var uch : uint8
             unsafe
-                let uch = msg[i]
-                let ch = int(uch)
+                uch = msg[i]
+            let ch = int(uch)
 
-                if toRead == 0
-                    push(current_string, uch)
-                    let prefix = "Content-Length: "
-                    if length(current_string) <= length(prefix)
-                        continue
-                    if ch != '\n'
-                        continue
-                    var str = string(current_string)
-                    if str |> starts_with(prefix)
-                        unsafe
-                            var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
-                            toRead = to_int(lenStr)
-                            info("> content len {lenStr} as int {toRead}\n")
-                            clear(current_string)
-                    continue
-
-                if ch == '\n' | ch == '\r'
-                    continue
-
+            if toRead == 0
                 push(current_string, uch)
-                if toRead == length(current_string)
-                    toRead = 0
-                    // info(">------\n{string(current_string)}\n------\n")
-                    var in scope error : string
-                    var in scope msg = read_json(current_string, error)
-                    // info(msg)
-                    if msg == null
-                        info("Json read error: {error}\n")
-                    else
-                        if msg.value is _object
-                            let method = jos(msg, "method")
-                            info("method {method}\n")
-                            if method == "initialize"
-                                self->initialize(jon(msg, "id"), joj(msg, "params"))
+                let prefix = "Content-Length: "
+                if length(current_string) <= length(prefix)
+                    continue
+                if ch != '\n'
+                    continue
+                var str = string(current_string)
+                if str |> starts_with(prefix)
+                    unsafe
+                        var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
+                        toRead = to_int(lenStr)
+                        info("> content len {lenStr} as int {toRead}\n")
+                        clear(current_string)
+                continue
 
-                            elif method == "initialized"
-                                self->initialized()
+            if ch == '\n' | ch == '\r'
+                continue
 
-                            elif method == "textDocument/didOpen"
-                                self->didOpen(jon(msg, "id"), joj(msg, "params"))
+            push(current_string, uch)
+            if toRead > length(current_string)
+                continue
 
-                            elif method == "textDocument/didSave"
-                                self->didSave(jon(msg, "id"), joj(msg, "params"))
+            toRead = 0
+            var in scope error : string
+            var in scope msg = read_json(current_string, error)
+            clear(current_string)
+            if inited
+                self->updateGlobalCompletion(false)
 
-                            elif method == "textDocument/didChange"
-                                self->didChange(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/didClose"
-                                self->didClose(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/hover"
-                                self->hover(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/completion"
-                                self->completion(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "completionItem/resolve"
-                                self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/definition"
-                                self->definition(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/typeDefinition"
-                                self->typeDefinition(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "textDocument/documentSymbol"
-                                self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "workspace/symbol"
-                                self->workspaceSymbol(jon(msg, "id"), joj(msg, "params"))
-
-                            elif method == "exit"
-                                done = true
-
-                            elif method == "shutdown"
-                                done = true
-
-                            elif method == "$/cancelRequest"
-                                pass // ignore???
-
-                            elif method == "$/setTraceNotification"
-                                info(write_json(msg))
-                                pass // ignore
-
+            if msg == null
+                info("Json read error: {error}\n")
+            else
+                if msg.value is _object
+                    var obj & = msg.value as _object
+                    if obj |> key_exists("result")
+                        let id = jon(msg, "id")
+                        unsafe
+                            var handler = find_for_edit(requestCallbacks, id)
+                            if handler != null
+                                invoke(*handler, joj(msg, "result"), joj(msg, "error"))
+                                delete *handler
+                                erase(requestCallbacks, id)
                             else
-                                info("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                                info("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
                                 info(write_json(msg))
-                        else
+
+                    elif obj |> key_exists("method")
+                        let method = jos(msg, "method")
+                        info("method {method}\n")
+                        if method == "initialize"
+                            self->initialize(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "initialized"
+                            self->initialized()
+
+                        elif method == "textDocument/didOpen"
+                            self->didOpen(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/didSave"
+                            self->didSave(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/didChange"
+                            self->didChange(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/didClose"
+                            self->didClose(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/hover"
+                            self->hover(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/completion"
+                            self->completion(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "completionItem/resolve"
+                            self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/definition"
+                            self->definition(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/typeDefinition"
+                            self->typeDefinition(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "textDocument/documentSymbol"
+                            self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "workspace/symbol"
+                            self->workspaceSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "workspace/didChangeWorkspaceFolders"
+                            self->didChangeWorkspaceFolders(jon(msg, "id"), joj(msg, "params"))
+
+                        elif method == "exit"
+                            done = true
+
+                        elif method == "shutdown"
+                            done = true
+
+                        elif method == "$/cancelRequest"
+                            pass // ignore???
+
+                        elif method == "$/setTraceNotification"
                             info(write_json(msg))
-                            info("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
-                    clear(current_string)
-                    if inited
-                        self->updateGlobalCompletion(false)
-            // info(current_string)
+                            pass // ignore
+
+                        else
+                            info("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                            info(write_json(msg))
+                else
+                    info(write_json(msg))
+                    info("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
 
 
 [export]

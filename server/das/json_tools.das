@@ -10,6 +10,7 @@ def joj(val : JsonValue?; id : string) : JsonValue?
 def jon(val : JsonValue?; id : string; defVal = 0lf) : double
     return jonn(val, id) ?? defVal
 
+[private] // TODO: rework, remove unsafe
 def jonn(val : JsonValue?; id : string) : double?
     var res : double?
 	if val == null
@@ -26,6 +27,7 @@ def jos(val : JsonValue?; id : string; defVal = "") : string
 def j_s(val : JsonValue?; defVal = "") : string
     return val.value ?as _string ?? defVal
 
+[private]
 def josn(val : JsonValue?; id : string) : string?
     var res : string?
 	if val == null
@@ -39,6 +41,7 @@ def josn(val : JsonValue?; id : string) : string?
 def job(val : JsonValue?; id : string; defVal = false) : bool
     return jobn(val, id) ?? defVal
 
+[private]
 def jobn(val : JsonValue?; id : string) : bool?
     var res : bool?
 	if val == null

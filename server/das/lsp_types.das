@@ -58,14 +58,14 @@ struct WorkspaceFolder
 	uri : DocumentUri
 
 def WorkspaceFolder(val : JsonValue?)
-	return [[WorkspaceFolder name = jos(val, "name"), uri = jos(val, "uri") ]]
+	return <- [[WorkspaceFolder name = jos(val, "name"), uri = jos(val, "uri") ]]
 
 struct ClientInfo
 	name : string
 	version : string
 
 def ClientInfo(val : JsonValue?)
-	return [[ClientInfo name = jos(val, "name"), version = jos(val, "version")]]
+	return <- [[ClientInfo name = jos(val, "name"), version = jos(val, "version")]]
 
 struct TextDocumentSyncClientCapabilities
 	dynamicRegistration : bool
@@ -74,7 +74,7 @@ struct TextDocumentSyncClientCapabilities
 	didSave : bool
 
 def TextDocumentSyncClientCapabilities(val : JsonValue?)
-	return [[TextDocumentSyncClientCapabilities
+	return <- [[TextDocumentSyncClientCapabilities
 		dynamicRegistration = job(val, "dynamicRegistration"),
 		willSave = job(val, "willSave"),
 		willSaveWaitUntil = job(val, "willSaveWaitUntil"),
@@ -120,7 +120,7 @@ struct HoverClientCapabilities
 	// contentFormat : array<MarkupKind>
 
 def HoverClientCapabilities(val : JsonValue?)
-	return [[HoverClientCapabilities
+	return <- [[HoverClientCapabilities
 		dynamicRegistration = job(val, "dynamicRegistration")
 	]]
 
@@ -130,7 +130,7 @@ struct PublishDiagnosticsClientCapabilities
 	versionSupport : bool
 
 def PublishDiagnosticsClientCapabilities(val : JsonValue?)
-	return [[PublishDiagnosticsClientCapabilities
+	return <- [[PublishDiagnosticsClientCapabilities
 		relatedInformation = job(val, "relatedInformation"),
 		versionSupport = job(val, "versionSupport")
 	]]
@@ -323,6 +323,23 @@ def js(val : CompletionOptions)
 		res["allCommitCharacters"] <- js(allCommitCharacters)
 	return js(res)
 
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_workspaceFolders
+struct WorkspaceFoldersServerCapabilities
+	supported : bool
+	changeNotifications : bool
+
+def js(val : WorkspaceFoldersServerCapabilities)
+	return js({{
+		"supported" => js(val.supported);
+		"changeNotifications" => js(val.changeNotifications)
+	}})
+
+struct ServerCapabilitiesWorkspace
+	workspaceFolders : WorkspaceFoldersServerCapabilities
+
+def js(val : ServerCapabilitiesWorkspace)
+	return js({{ "workspaceFolders" => js(val.workspaceFolders) }})
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
 	textDocumentSync : TextDocumentSyncKind // TextDocumentSyncOptions | number; number == TextDocumentSyncKind
@@ -338,7 +355,7 @@ struct ServerCapabilities
 	documentSymbolProvider : bool // DocumentSymbolOptions
 	// codeActionProvider : CodeActionOptions
 	// codeLensProvider : CodeLensOptions
-	// documentLinkProvider : DocumentLinkOptions
+	documentLinkProvider : bool //DocumentLinkOptions
 	// colorProvider : DocumentColorOptions
 	// documentFormattingProvider : DocumentFormattingOptions
 	// documentRangeFormattingProvider : DocumentRangeFormattingOptions
@@ -348,7 +365,7 @@ struct ServerCapabilities
 	// executeCommandProvider : ExecuteCommandOptions
 	// selectionRangeProvider : SelectionRangeOptions
 	workspaceSymbolProvider : bool
-	// workspace : { workspaceFolders?: WorkspaceFoldersServerCapabilities; }
+	workspace : ServerCapabilitiesWorkspace
 	// experimental : void?
 
 def js(val : ServerCapabilities)
@@ -359,7 +376,9 @@ def js(val : ServerCapabilities)
 		"definitionProvider" => js(val.definitionProvider);
 		"typeDefinitionProvider" => js(val.typeDefinitionProvider);
 		"documentSymbolProvider" => js(val.documentSymbolProvider);
-		"workspaceSymbolProvider" => js(val.workspaceSymbolProvider)
+		"documentLinkProvider" => js(val.documentLinkProvider);
+		"workspaceSymbolProvider" => js(val.workspaceSymbolProvider);
+		"workspace" => js(val.workspace)
 	}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -389,8 +408,8 @@ def Position(line, character : int)
 
 def Position(val : JsonValue?)
 	if val == null | val.value is _null
-		return [[Position]]
-	return [[Position line = int(jon(val, "line")), character = int(jon(val, "character")) ]]
+		return <- [[Position]]
+	return <- [[Position line = int(jon(val, "line")), character = int(jon(val, "character")) ]]
 
 def js(val : Position)
 	return js({{ "line" => js(double(val.line)); "character" => js(double(val.character)) }})
@@ -409,10 +428,10 @@ struct Range
     end : Position
 
 def Range(start, end : Position)
-	return [[Range start = start, end = end]]
+	return <- [[Range start = start, end = end]]
 
 def Range(start_line, start_char, end_line, end_char : int)
-	return [[Range start = Position(start_line, start_char), end = Position(end_line, end_char)]]
+	return <- [[Range start = Position(start_line, start_char), end = Position(end_line, end_char)]]
 
 def Range(val : JsonValue?)
 	if val == null | val.value is _null
@@ -713,3 +732,67 @@ struct LogMessageParams
 
 def js(val : LogMessageParams)
 	return js({{ "type" => js(int(val._type)); "message" => js(val.message) }})
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
+struct WorkspaceFoldersChangeEvent
+	added : array<WorkspaceFolder>
+	removed : array<WorkspaceFolder>
+
+def WorkspaceFoldersChangeEvent(val : JsonValue?)
+	var res : WorkspaceFoldersChangeEvent
+	var added = joj(val, "added")
+	if added != null
+		for it in added.value as _array
+			res.added |> emplace(WorkspaceFolder(it))
+	var removed = joj(val, "removed")
+	if removed != null
+		for it in removed.value as _array
+			res.removed |> emplace(WorkspaceFolder(it))
+	return <- res
+
+struct DidChangeWorkspaceFoldersParams
+	event : WorkspaceFoldersChangeEvent
+
+def DidChangeWorkspaceFoldersParams(val : JsonValue?)
+	return <- [[DidChangeWorkspaceFoldersParams event <- WorkspaceFoldersChangeEvent(joj(val, "event"))]]
+
+
+struct Registration
+	id : string
+	method : string
+	// registerOptions : any
+
+def js(val : Registration)
+	return js({{ "id" => js(val.id); "method" => js(val.method) }})
+
+struct RegistrationParams
+	registrations : array<Registration>
+
+def js(val : RegistrationParams)
+	// var registrations : array<JsonValue?> <- [{ for it in val.registrations; js(it) }]
+	var registrations : array<JsonValue?>
+	for it in val.registrations
+		registrations |> push(js(it))
+	return js({{ "registrations" => js(registrations) }})
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_configuration
+struct ConfigurationItem
+	scopeUri : string // ?
+	section : string // ?
+
+def js(val : ConfigurationItem)
+	var res : table<string; json::JsonValue?>
+	if val.scopeUri != ""
+		res["scopeUri"] <- js(val.scopeUri)
+	if val.section != ""
+		res["section"] <- js(val.section)
+	return js(res)
+
+struct ConfigurationParams
+	items : array<ConfigurationItem>
+
+def js(val : ConfigurationParams)
+	var items : array<JsonValue?>
+	for it in val.items
+		items |> emplace(js(it))
+	return js({{ "items" => js(items) }})
