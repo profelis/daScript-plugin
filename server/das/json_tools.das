@@ -4,50 +4,37 @@
 require daslib/json
 
 def joj(val : JsonValue?; id : string) : JsonValue?
-    unsafe
-		return val != null ? (find(val.value as _object, id) ?? null) : null
+	var res : JsonValue?
+	find_if_exists(val.value as _object, id) <| $(val)
+		res = *val
+    return res
 
 def jon(val : JsonValue?; id : string; defVal = 0lf) : double
-    return jonn(val, id) ?? defVal
-
-[private] // TODO: rework, remove unsafe
-def jonn(val : JsonValue?; id : string) : double?
-    var res : double?
+    var res = defVal
 	if val == null
-		return res
-	find(val.value as _object, id) <| $(val)
-		if val != null
-			unsafe
-				res = (*val)?.value?._number
+		return defVal
+	find_if_exists(val.value as _object, id) <| $(val)
+		unsafe
+			res = (*val)?.value?._number ?? defVal
 	return res
-
-def jos(val : JsonValue?; id : string; defVal = "") : string
-    return josn(val, id) ?? defVal
 
 def j_s(val : JsonValue?; defVal = "") : string
     return val.value ?as _string ?? defVal
 
-[private]
-def josn(val : JsonValue?; id : string) : string?
-    var res : string?
+def jos(val : JsonValue?; id : string; defVal = "") : string
+    var res = defVal
 	if val == null
 		return res
-	find(val.value as _object, id) <| $(val)
-		if val != null
-			unsafe
-				res = (*val)?.value?._string
+	find_if_exists(val.value as _object, id) <| $(val)
+		unsafe
+			res = (*val)?.value?._string ?? defVal
 	return res
 
 def job(val : JsonValue?; id : string; defVal = false) : bool
-    return jobn(val, id) ?? defVal
-
-[private]
-def jobn(val : JsonValue?; id : string) : bool?
-    var res : bool?
+    var res = defVal
 	if val == null
 		return res
-	find(val.value as _object, id) <| $(val)
-		if val != null
-			unsafe
-				res = (*val)?.value?._bool
+	find_if_exists(val.value as _object, id) <| $(val)
+		unsafe
+			res = (*val)?.value?._bool ?? defVal
 	return res

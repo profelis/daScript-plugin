@@ -16,7 +16,6 @@ typedef
 // def urlEncode(str : string) : string
 // 	return join(split(str, ":"), "%3A")
 
-// [unsafe]
 // def uri_to_path(str : string)
 // 	let path = urlDecode(str)
 // 	return path |> character_at(9) == ':' ? chop(path, 8, length(path) - 8) : chop(path, 7, length(path) - 7)
@@ -482,7 +481,7 @@ struct TextDocumentItem
     version : double
     text : string
 
-// [unsafe] def finalize ( var s : TextDocumentItem& )
+// def finalize ( var s : TextDocumentItem& )
 // 	delete s.text
 
 def TextDocumentItem(val : JsonValue?)
