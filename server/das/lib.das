@@ -24,9 +24,9 @@ def get_str_arg(args:array<string>; name : string; def_val : string) : string
             return args[i+1]
     return def_val
 
-def bytes_hr(value : uint)
-	if value > 1024u * 1024u
+def bytes_hr(value : uint64)
+	if value > uint64(1024 * 1024)
 		return "{float(value) / (1024f * 1024f)}mb ({int(value)})"
-	if value > 1024u
+	if value > uint64(1024)
 		return "{float(value) / 1024f}kb ({int(value)})"
 	return "{int(value)} b"

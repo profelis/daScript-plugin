@@ -101,24 +101,6 @@ export function activate(context: ExtensionContext) {
 	const server_das = context.asAbsolutePath(path.join('server', 'das', 'server.das'))
 	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
 
-	// "commands": [
-	//     {
-	//         "command": "dascript.langserver.launch",
-	//         "title": "daScript: Launch language server"
-	//     }
-	// ]
-	// const disposable2 = commands.registerCommand("dascript.langserver.launch", async () => {
-	// 	const activeEditor = window.activeTextEditor
-	// 	if (!activeEditor || !activeEditor.document || activeEditor.document.languageId !== 'dascript') {
-	// 		return
-	// 	}
-
-	// 	console.log("> exec " + cmd + " " + server_das)
-	// 	// commands.executeCommand(cmd, server_das)
-	// })
-
-	// context.subscriptions.push(disposable2)
-
 	function didOpenTextDocument(document: TextDocument): void {
 		if (document.languageId !== 'dascript' || (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled')) {
 			return

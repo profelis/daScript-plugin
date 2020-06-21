@@ -5,10 +5,11 @@
 // options string_heap_page = 0
 // options optimize = false
 // options debugger=true // required for GC
-options string_heap = 8000000
-options string_heap_page = 16384
-options heap = 8000000
-options heap_page = 16384
+// options string_heap = 8000000
+// options string_heap_page = 16384
+// options heap = 8000000
+// options heap_page = 16384
+options persistent_heap = true
 
 require ast
 require daslib/ast_boost
@@ -633,7 +634,7 @@ def mainLoop(fn : string)
         if telnet != null
             telnet->log(msg, level)
 
-    var strLimit = 2u * 1024u * 1024u
+    var strLimit = uint64(2 * 1024 * 1024)
     var step = 1u
     while !telnet.done
         telnet->tick()

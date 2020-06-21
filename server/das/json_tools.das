@@ -1,6 +1,3 @@
-// options heap_page = 0
-// options string_heap_page = 0
-
 require daslib/json
 
 def joj(val : JsonValue?; id : string) : JsonValue?
