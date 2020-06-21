@@ -133,10 +133,12 @@ class TelnetServer : Server
                 info(error)
 
     def log(msg : string; level : LogLevel)
-        if inited & !done
-            unsafe
-                var res = [[LogMessageParams message = msg, _type = reinterpret<MessageType>(level)]]
-                self->sendNotification("window/logMessage", js(res), true)
+        if !inited | done
+            return
+        var res = [[LogMessageParams message = msg]]
+        unsafe
+            res._type = reinterpret<MessageType>(level)
+        self->sendNotification("window/logMessage", js(res), true)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
@@ -196,9 +198,9 @@ class TelnetServer : Server
                     var in scope visitor = AstData()
                     unsafe
                         visitor.tokens = addr(data.ast)
-                        var in scope adapter <- make_visitor(visitor)
-                        visit(program, adapter)
-                        visitor.tokens = null
+                    var in scope adapter <- make_visitor(visitor)
+                    visit(program, adapter)
+                    visitor.tokens = null
 
                 if ok
                     var diags : array<Diagnostic>
@@ -326,11 +328,9 @@ class TelnetServer : Server
             var _range : Range
             var first = true
             collect_token(data.ast, path, req.position) <| $(it : AstToken?)
-                if first
+                if first | it._range |> in_range(_range)
                     _range = it._range
-                    first = false
-                elif it._range |> in_range(_range)
-                    _range = it._range
+                first = false
                 let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
                 hoversData |> emplace([[auto ratio, to_hover(it)]])
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
@@ -348,9 +348,8 @@ class TelnetServer : Server
             self->sendResponse(id, js(), true)
 
     def completion(id : double; params : JsonValue?)
-        var in scope params <- CompletionParams(params)
-        info(params)
-        let path = uri_to_path(params.textDocument.uri)
+        var in scope ini <- CompletionParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
         if data != null
             var list <- [{ for it in values(data.completionData); js(it) }]
@@ -378,47 +377,43 @@ class TelnetServer : Server
         self->sendResponse(id, params, false)
 
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
-        let data = find(registry, path)
-        if data != null
-            var token : AstToken?
+        var token : AstToken?
+        find_if_exists(registry, path) <| $(data)
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-                if invoke(valid, tok) & (token == null | tok._range |> in_range(token._range))
+                if (token == null | tok._range |> in_range(token._range)) & invoke(valid, tok)
                     token = tok
-            return token
-        return null
+        return token
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
-        var in scope params <- DefinitionParams(params)
-        let path = uri_to_path(params.textDocument.uri)
-        var token = self->find_token(path, params.position) <| $(tok : AstToken?)
+        var in scope ini <- DefinitionParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != ""
         if token != null
             var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
             self->sendResponse(id, js(loc), true)
             return
-        self->sendResponse(id, JV(null), true)
+        self->sendResponse(id, js(), true)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
-        var in scope params <- TypeDefinitionParams(params)
-        let path = uri_to_path(params.textDocument.uri)
-        var token = self->find_token(path, params.position) <| $(tok : AstToken?)
+        var in scope ini <- TypeDefinitionParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.typeDefPath != ""
         if token == null
-            token = self->find_token(path, params.position) <| $(tok : AstToken?)
+            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
                 return tok.defPath != ""
         if token != null
-            info(token)
             let hasType = token.typeDefPath != ""
             var in scope loc = [[Location
                 uri = path_to_uri(hasType ? token.typeDefPath : token.defPath),
                 _range = hasType ? token.typeDefRange : token.defRange
             ]]
-            info(loc)
             self->sendResponse(id, js(loc), true)
             return
-        self->sendResponse(id, JV(null), true)
+        self->sendResponse(id, js(), true)
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
@@ -452,7 +447,7 @@ class TelnetServer : Server
         self->sendResponse(id, JV(null), true)
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
-        if !ast.topLevel | length(res) >= limit
+        if !ast.topLevel | length(res) >= limit | ast.name |> starts_with("builtin`")
             return
         if ast.path != "" & (query == "" | find(ast.name, query) != -1)
             var data <- {{
