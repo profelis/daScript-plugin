@@ -6,7 +6,8 @@ options rtti = true
 require rtti
 require rtti_tools
 require daslib/json
-require daslib/strings
+require strings
+require daslib/strings_boost
 require lsp_types
 require lib
 require logger

@@ -1,4 +1,4 @@
-require daslib/strings
+require strings
 
 [export]
 def move ( var a )

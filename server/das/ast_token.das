@@ -1,7 +1,7 @@
 
 require ast
 require rtti_tools
-require daslib/strings
+require strings
 require lsp_types
 
 bitfield AstTokenWarn

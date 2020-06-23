@@ -13,7 +13,8 @@ options persistent_heap = true
 
 require ast
 require daslib/ast_boost
-require daslib/strings
+require strings
+require daslib/strings_boost
 require rtti
 require network
 require fio
@@ -95,40 +96,38 @@ class TelnetServer : Server
         completionData->updateGlobalList(force)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
-    def sendRawData(var data : JsonValue?; free = true)
+    def sendRawData(var data : JsonValue?)
         var in scope msg = write_json(data)
         var in scope packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
         print("<---- send data {length(packStr)}\n") // only print!
         unsafe
             self->send(reinterpret<uint8?> packStr, length(packStr))
-        if free
-            delete data
+        delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
-    def sendResponse(id : double; var data : JsonValue?; free = true)
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}), free)
+    def sendResponse(id : double; var data : JsonValue?)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}))
 
-    def sendRequest(method : string; var data : JsonValue?; free : bool; cb : lambda<(data, error : JsonValue?):void>)
+    def sendRequest(method : string; var data : JsonValue?; cb : lambda<(data, error : JsonValue?):void>)
         requestCallbacks[requestId] = cb
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(requestId); "method" => js(method); "params" => data }}), free)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(requestId); "method" => js(method); "params" => data }}))
         requestId = requestId + 1lf
 
-    def sendError(id : double; var data : ResponseError; free = true)
-        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}), free)
-        if free
-            delete data
+    def sendError(id : double; var data : ResponseError)
+        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}))
+        delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#notificationMessage
-    def sendNotification(method : string; var data : JsonValue?; free = true)
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}), free)
+    def sendNotification(method : string; var data : JsonValue?)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}))
 
     def registerCapability(methods : array<string>)
         var registrations : array<Registration>
         for it in methods
             registrations |> emplace([[Registration method = it, id = it]])
         var in scope registrationParams <- [[RegistrationParams registrations <- registrations]]
-        self->sendRequest("client/registerCapability", js(registrationParams), true) <| @(data, error : JsonValue?)
+        self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
                 info("error: registerCapability")
                 info(error)
@@ -139,7 +138,7 @@ class TelnetServer : Server
         var res = [[LogMessageParams message = msg]]
         unsafe
             res._type = reinterpret<MessageType>(level)
-        self->sendNotification("window/logMessage", js(res), true)
+        self->sendNotification("window/logMessage", js(res))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
@@ -163,7 +162,7 @@ class TelnetServer : Server
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
-        self->sendResponse(id, js(res), true)
+        self->sendResponse(id, js(res))
         delete res
 
     def initialized()
@@ -214,14 +213,14 @@ class TelnetServer : Server
                         collect_diag(data.ast, path, diags)
 
                     var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
-                    self->sendNotification("textDocument/publishDiagnostics", js(params), true)
+                    self->sendNotification("textDocument/publishDiagnostics", js(params))
                     return
 
                 if program == null
                     var diags : array<Diagnostic>
                     diags |> emplace([[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
                     var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
-                    self->sendNotification("textDocument/publishDiagnostics", js(params), true)
+                    self->sendNotification("textDocument/publishDiagnostics", js(params))
                     return
                 // info("{error}\n")
                 // info(program.errors)
@@ -254,7 +253,7 @@ class TelnetServer : Server
                         registry |> find_if_exists(localPath) <| $(data)
                             collect_diag(data.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
-                    self->sendNotification("textDocument/publishDiagnostics", js(params), true)
+                    self->sendNotification("textDocument/publishDiagnostics", js(params))
 
     def didOpen(id : double; params : JsonValue?)
         var in scope doc = DidOpenTextDocumentParams(params)
@@ -314,7 +313,7 @@ class TelnetServer : Server
         info("> close file {path}, total files {length(registry)}\n")
 
         var params <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
-        self->sendNotification("textDocument/publishDiagnostics", js(params), true)
+        self->sendNotification("textDocument/publishDiagnostics", js(params))
 
     def hover(id : double; params : JsonValue?)
         var in scope req = HoverParams(params)
@@ -342,11 +341,11 @@ class TelnetServer : Server
                     return a._0 < b._0
                 var hovers <- [{ for it in hoversData; it._1 }]
                 var in scope h <- [[ Hover _range = _range, contents <- hovers ]]
-                self->sendResponse(id, js(h), true)
+                self->sendResponse(id, js(h))
                 found = true
         if !found
             info("< [WARN] hover info not found @ {to_string(req.position)}\n")
-            self->sendResponse(id, js(), true)
+            self->sendResponse(id, js())
 
     def completion(id : double; params : JsonValue?)
         var in scope ini <- CompletionParams(params)
@@ -369,13 +368,14 @@ class TelnetServer : Server
                 list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
 
             var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
-            self->sendResponse(id, res, true)
+            self->sendResponse(id, res)
         else
             info("< [WARN] send global completion {length(completionData.globalCompletion)}\n")
-            self->sendResponse(id, js(completionData.globalCompletion), true)
+            self->sendResponse(id, js(completionData.globalCompletion))
 
     def resolveCompletion(id : double; var params : JsonValue?)
-        self->sendResponse(id, params, false)
+        var copyData := params
+        self->sendResponse(id, copyData)
 
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
         var token : AstToken?
@@ -393,9 +393,9 @@ class TelnetServer : Server
             return tok.defPath != ""
         if token != null
             var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-            self->sendResponse(id, js(loc), true)
+            self->sendResponse(id, js(loc))
             return
-        self->sendResponse(id, js(), true)
+        self->sendResponse(id, js())
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
@@ -412,9 +412,9 @@ class TelnetServer : Server
                 uri = path_to_uri(hasType ? token.typeDefPath : token.defPath),
                 _range = hasType ? token.typeDefRange : token.defRange
             ]]
-            self->sendResponse(id, js(loc), true)
+            self->sendResponse(id, js(loc))
             return
-        self->sendResponse(id, js(), true)
+        self->sendResponse(id, js())
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
@@ -443,9 +443,9 @@ class TelnetServer : Server
             var res : array<JsonValue?>
             for it in data.ast
                 self->buildDocumentSymbol(it, path, res)
-            self->sendResponse(id, js(res), true)
+            self->sendResponse(id, js(res))
             return
-        self->sendResponse(id, JV(null), true)
+        self->sendResponse(id, js())
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
         if !ast.topLevel | length(res) >= limit | ast.name |> starts_with("builtin`")
@@ -468,7 +468,7 @@ class TelnetServer : Server
         for data in values(registry)
             for it in data.ast
                 self->buildSymbolInformation(it, ini.query, 300, res)
-        self->sendResponse(id, js(res), true)
+        self->sendResponse(id, js(res))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
     def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
@@ -500,7 +500,7 @@ class TelnetServer : Server
                     unsafe
                         var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
                         toRead = to_int(lenStr)
-                        info("> content len {lenStr} as int {toRead}\n")
+                        // info("> content len {lenStr} as int {toRead}\n")
                         clear(current_string)
                 continue
 
@@ -508,7 +508,7 @@ class TelnetServer : Server
                 continue
 
             push(current_string, uch)
-            if toRead > length(current_string)
+            if length(current_string) < toRead
                 continue
 
             toRead = 0
@@ -519,12 +519,13 @@ class TelnetServer : Server
                 self->updateGlobalCompletion(false)
 
             if msg == null
-                info("Json read error: {error}\n")
+                error("Json read error: {error}\n")
             else
                 if msg.value is _object
                     var obj & = msg.value as _object
                     if obj |> key_exists("result")
                         let id = jon(msg, "id")
+                        info("> result {id}\n")
                         unsafe
                             var handler = find_for_edit(requestCallbacks, id)
                             if handler != null
@@ -532,12 +533,12 @@ class TelnetServer : Server
                                 delete *handler
                                 erase(requestCallbacks, id)
                             else
-                                info("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
-                                info(write_json(msg))
+                                warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
+                                warning(write_json(msg))
 
                     elif obj |> key_exists("method")
                         let method = jos(msg, "method")
-                        info("method {method}\n")
+                        info("> method {method}\n")
                         if method == "initialize"
                             self->initialize(jon(msg, "id"), joj(msg, "params"))
 
@@ -594,11 +595,11 @@ class TelnetServer : Server
                             pass // ignore
 
                         else
-                            info("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
-                            info(write_json(msg))
+                            warning("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                            warning(write_json(msg))
                 else
-                    info(write_json(msg))
-                    info("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
+                    error(write_json(msg))
+                    error("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
 
 
 [export]
@@ -634,7 +635,8 @@ def mainLoop(fn : string)
         if telnet != null
             telnet->log(msg, level)
 
-    var strLimit = uint64(2 * 1024 * 1024)
+    let initialstrLimit = uint64(2 * 1024 * 1024)
+    var strLimit = initialstrLimit
     var step = 1u
     while !telnet.done
         telnet->tick()
@@ -642,21 +644,23 @@ def mainLoop(fn : string)
         var alloc = string_heap_bytes_allocated()
         if alloc > strLimit
             // string_heap_report()
-            info("STRING HEAP FREE: {bytes_hr(alloc)}\n")
+            var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
             unsafe
                 string_heap_collect()
             alloc = string_heap_bytes_allocated()
+            info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n")
             if alloc > strLimit
-                strLimit += strLimit
-                warning("UPDATE STRING HEAP LIMIT TO {bytes_hr(strLimit)}\n")
-            info("STRING HEAP FREE after: {bytes_hr(alloc)}\n")
+                strLimit *= uint64(2)
+                warning("UP string heap limit: {bytes_hr(strLimit)}\n")
+            elif strLimit > initialstrLimit & alloc < strLimit / uint64(2)
+                strLimit = strLimit / uint64(2)
+                warning("DOWN string heap limit: {bytes_hr(strLimit)}\n")
 
         step --
         if step == 0u
             let h = heap_bytes_allocated()
             let hd = heap_depth()
             var shd = string_heap_depth()
-            info("str heap: {bytes_hr(alloc)} str heap depth : {shd} heap : {bytes_hr(h)} heapDepth : {hd}\n")
 
             step = 500u
             // if h > 15000u
@@ -666,6 +670,8 @@ def mainLoop(fn : string)
             // string_heap_report()
             // info("------------------\n")
             // step = 100u
+
+            info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n")
 
         sleep(0u)
         let new_time = stat(fn).mtime
