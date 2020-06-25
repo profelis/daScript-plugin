@@ -27,6 +27,7 @@ require lsp_types
 require rtti_tools
 require completion
 require ast_token
+require config
 
 var
     isContDev = false
@@ -70,6 +71,9 @@ class TelnetServer : Server
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
 
+    configs : table<string; PluginConfig>
+    configReqs : table<string; double>
+
     def TelnetServer
         Server`Server(cast<Server> self)
 
@@ -109,8 +113,8 @@ class TelnetServer : Server
     def sendResponse(id : double; var data : JsonValue?)
         self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}))
 
-    def sendRequest(method : string; var data : JsonValue?; cb : lambda<(data, error : JsonValue?):void>)
-        requestCallbacks[requestId] = cb
+    def sendRequest(method : string; var data : JsonValue?; var cb : lambda<(data, error : JsonValue?):void>)
+        requestCallbacks[requestId] <- cb
         self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(requestId); "method" => js(method); "params" => data }}))
         requestId = requestId + 1lf
 
@@ -129,8 +133,11 @@ class TelnetServer : Server
         var in scope registrationParams <- [[RegistrationParams registrations <- registrations]]
         self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
-                info("error: registerCapability")
+                info("error: registerCapability\n")
                 info(error)
+            else
+                info("reg capabilities\n")
+                info(data)
 
     def log(msg : string; level : LogLevel)
         if !inited | done
@@ -195,12 +202,12 @@ class TelnetServer : Server
                     for it in data.ast
                         delete it
                     clear(data.ast)
-                    var in scope visitor = AstData()
                     unsafe
+                        var visitor = AstData()
                         visitor.tokens = addr(data.ast)
-                    var in scope adapter <- make_visitor(visitor)
-                    visit(program, adapter)
-                    visitor.tokens = null
+                        var in scope adapter <- make_visitor(visitor)
+                        visit(program, adapter)
+                        visitor.tokens = null
 
                 if ok
                     var diags : array<Diagnostic>
@@ -631,7 +638,7 @@ def mainLoop(fn : string)
         info("server failed to initialize\n")
         return false
 
-    logger::onLog = @ <| (msg : string; level : LogLevel)
+    logger::onLog <- @ <| (msg : string; level : LogLevel)
         if telnet != null
             telnet->log(msg, level)
 
