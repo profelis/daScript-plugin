@@ -520,94 +520,95 @@ class TelnetServer : Server
 
             toRead = 0
             var in scope error : string
-            var in scope msg = read_json(current_string, error)
+            var msg = read_json(current_string, error)
             clear(current_string)
             if inited
                 self->updateGlobalCompletion(false)
 
             if msg == null
                 error("Json read error: {error}\n")
-            else
-                if msg.value is _object
-                    var obj & = msg.value as _object
-                    if obj |> key_exists("result")
-                        let id = jon(msg, "id")
-                        info("> result {id}\n")
-                        unsafe
-                            var handler = find_for_edit(requestCallbacks, id)
-                            if handler != null
-                                invoke(*handler, joj(msg, "result"), joj(msg, "error"))
-                                delete *handler
-                                erase(requestCallbacks, id)
-                            else
-                                warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
-                                warning(write_json(msg))
-
-                    elif obj |> key_exists("method")
-                        let method = jos(msg, "method")
-                        info("> method {method}\n")
-                        if method == "initialize"
-                            self->initialize(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "initialized"
-                            self->initialized()
-
-                        elif method == "textDocument/didOpen"
-                            self->didOpen(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didSave"
-                            self->didSave(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didChange"
-                            self->didChange(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/didClose"
-                            self->didClose(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/hover"
-                            self->hover(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/completion"
-                            self->completion(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "completionItem/resolve"
-                            self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/definition"
-                            self->definition(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/typeDefinition"
-                            self->typeDefinition(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "textDocument/documentSymbol"
-                            self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "workspace/symbol"
-                            self->workspaceSymbol(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "workspace/didChangeWorkspaceFolders"
-                            self->didChangeWorkspaceFolders(jon(msg, "id"), joj(msg, "params"))
-
-                        elif method == "exit"
-                            done = true
-
-                        elif method == "shutdown"
-                            done = true
-
-                        elif method == "$/cancelRequest"
-                            pass // ignore???
-
-                        elif method == "$/setTraceNotification"
-                            info(write_json(msg))
-                            pass // ignore
-
+                return
+            if msg.value is _object
+                var obj & = msg.value as _object
+                if obj |> key_exists("result")
+                    let id = jon(msg, "id")
+                    info("> result {id}\n")
+                    unsafe
+                        var handler = find_for_edit(requestCallbacks, id)
+                        if handler != null
+                            invoke(*handler, joj(msg, "result"), joj(msg, "error"))
+                            delete *handler
+                            erase(requestCallbacks, id)
                         else
-                            warning("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                            warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
                             warning(write_json(msg))
-                else
-                    error(write_json(msg))
-                    error("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
 
+                elif obj |> key_exists("method")
+                    let method = jos(msg, "method")
+                    info("> method {method}\n")
+                    if method == "initialize"
+                        self->initialize(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "initialized"
+                        self->initialized()
+
+                    elif method == "textDocument/didOpen"
+                        self->didOpen(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/didSave"
+                        self->didSave(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/didChange"
+                        self->didChange(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/didClose"
+                        self->didClose(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/hover"
+                        self->hover(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/completion"
+                        self->completion(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "completionItem/resolve"
+                        self->resolveCompletion(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/definition"
+                        self->definition(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/typeDefinition"
+                        self->typeDefinition(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/documentSymbol"
+                        self->documentSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "workspace/symbol"
+                        self->workspaceSymbol(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "workspace/didChangeWorkspaceFolders"
+                        self->didChangeWorkspaceFolders(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "exit"
+                        done = true
+
+                    elif method == "shutdown"
+                        done = true
+
+                    elif method == "$/cancelRequest"
+                        pass // ignore???
+
+                    elif method == "$/setTraceNotification"
+                        info(write_json(msg))
+                        pass // ignore
+
+                    else
+                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
+                        warning(write_json(msg))
+            else
+                error(write_json(msg))
+                error("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
+            unsafe
+                delete msg
 
 [export]
 def main(fn : string)
