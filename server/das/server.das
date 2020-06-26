@@ -109,12 +109,13 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendRawData(var data : JsonValue?)
-        var in scope msg = write_json(data)
-        var in scope packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
+        var msg = write_json(data)
+        var packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
         print("<---- send data {length(packStr)}\n") // only print!
         unsafe
             self->send(reinterpret<uint8?> packStr, length(packStr))
+    finally
         delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
@@ -143,7 +144,7 @@ class TelnetServer : Server
         var registrations : array<Registration>
         for it in methods
             registrations |> emplace([[Registration method = it, id = it]])
-        var in scope registrationParams <- [[RegistrationParams registrations <- registrations]]
+        var registrationParams <- [[RegistrationParams registrations <- registrations]]
         self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
                 info("error: registerCapability\n", get_line_info())
@@ -151,6 +152,8 @@ class TelnetServer : Server
             else
                 info("reg capabilities\n", get_line_info())
                 info(data, get_line_info())
+    finally
+        delete registrationParams
 
     def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
         var found = false
@@ -197,11 +200,13 @@ class TelnetServer : Server
         unsafe
             res._type = reinterpret<MessageType>(level)
         self->sendNotification("window/logMessage", js(res))
+    finally
+        delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
         // info(write_json(params))
-        var in scope ini <- InitializeParams(params)
+        var ini <- InitializeParams(params)
         workspaceFolders := ini.workspaceFolders
         hasConfigurationCapability = ini.capabilities.workspace.configuration
         hasDiagnosticRelatedInformationCapability = ini.capabilities.textDocument.publishDiagnostics.relatedInformation
@@ -221,6 +226,8 @@ class TelnetServer : Server
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
         self->sendResponse(id, js(res))
+    finally
+        delete ini
         delete res
 
     def initialized()
@@ -228,11 +235,13 @@ class TelnetServer : Server
         info("> initialized! port: {port}\n", get_line_info())
         self->updateGlobalCompletion(true)
 
-        var in scope capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
+        var capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
         if hasConfigurationCapability
             capabilities |> push("workspace/didChangeConfiguration")
         if capabilities |> length() > 0
             self->registerCapability(capabilities)
+    finally
+        delete capabilities
 
     def validate(path : string; withContent : bool = false)
         info("> validate? '{path}'\n", get_line_info())
@@ -256,9 +265,10 @@ class TelnetServer : Server
                     unsafe
                         var visitor = AstData()
                         visitor.tokens = addr(data.ast)
-                        var in scope adapter <- make_visitor(visitor)
+                        var adapter <- make_visitor(visitor)
                         visit(program, adapter)
                         visitor.tokens = null
+                        delete adapter
 
                 if ok
                     var diags : array<Diagnostic>
@@ -270,15 +280,17 @@ class TelnetServer : Server
 
                         collect_diag(data.ast, path, diags)
 
-                    var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
+                    var params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
+                    delete params
                     return
 
                 if program == null
                     var diags : array<Diagnostic>
                     diags |> emplace([[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
-                    var in scope params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
+                    var params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
+                    delete params
                     return
                 // info("{error}\n")
                 // info(program.errors)
@@ -314,11 +326,13 @@ class TelnetServer : Server
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
 
     def didOpen(id : double; params : JsonValue?)
-        var in scope doc = DidOpenTextDocumentParams(params)
+        var doc = DidOpenTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         registry[path] <- Dascript(doc.textDocument)
         info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
+    finally
+        delete doc
 
         // self->getConfig(path) <| @(config : PluginConfig?)
         //     info("didOpen: got config!!!!\n")
@@ -331,7 +345,7 @@ class TelnetServer : Server
         //     info(data)
 
     def didSave(id : double; params : JsonValue?)
-        var in scope doc = DidSaveTextDocumentParams(params)
+        var doc = DidSaveTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
         var version = -1lf
@@ -346,9 +360,11 @@ class TelnetServer : Server
                 registry[path] <- Dascript(doc)
                 info("> unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
+    finally
+        delete doc
 
     def didChange(id : double; params : JsonValue?)
-        var in scope doc <- DidChangeTextDocumentParams(params)
+        var doc <- DidChangeTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
         if length(doc.contentChanges) > 0
@@ -364,6 +380,8 @@ class TelnetServer : Server
                     info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
                 // self->validate(path, true) // TODO: validate every N sec
+    finally
+        delete doc
 
     def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
@@ -376,10 +394,11 @@ class TelnetServer : Server
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(res))
+    finally
         delete doc
 
     def hover(id : double; params : JsonValue?)
-        var in scope req = HoverParams(params)
+        var req = HoverParams(params)
         var found = false
         let path = uri_to_path(req.textDocument.uri)
         if !registry |> key_exists(path)
@@ -403,15 +422,18 @@ class TelnetServer : Server
                 hoversData |> sort() <| $(a; b)
                     return a._0 < b._0
                 var hovers <- [{ for it in hoversData; it._1 }]
-                var in scope h <- [[ Hover _range = _range, contents <- hovers ]]
+                var h <- [[ Hover _range = _range, contents <- hovers ]]
                 self->sendResponse(id, js(h))
+                delete h
                 found = true
         if !found
             info("< [WARN] hover info not found @ {to_string(req.position)}\n", get_line_info())
             self->sendResponse(id, js())
+    finally
+        delete req
 
     def completion(id : double; params : JsonValue?)
-        var in scope ini <- CompletionParams(params)
+        var ini <- CompletionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
         if data != null
@@ -419,7 +441,7 @@ class TelnetServer : Server
             for val in values(completionData.globalCompletion)
                 list |> emplace(js(val))
             info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
-            var in scope tokensList : table<string; void?>
+            var tokensList : table<string; void?>
             collect_token(data.ast, path) <| $(token : AstToken?)
                 if (token.kind == AstTokenKind Constant
                   | data.completionData |> key_exists(token.name)
@@ -432,9 +454,11 @@ class TelnetServer : Server
 
             var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
+            delete tokensList
         else
             info("< [WARN] send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
+        delete ini
 
     def resolveCompletion(id : double; var params : JsonValue?)
         var copyData := params
@@ -522,7 +546,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
     def documentSymbol(id : double; var params : JsonValue?)
-        var in scope ini <- DocumentSymbolParams(params)
+        var ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
         if data != null
@@ -532,6 +556,7 @@ class TelnetServer : Server
             self->sendResponse(id, js(res))
             return
         self->sendResponse(id, js())
+        delete ini
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
         if !ast.topLevel | length(res) >= limit | ast.name |> starts_with("builtin`")
@@ -549,16 +574,17 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
     def workspaceSymbol(id : double; var params : JsonValue?)
-        var in scope ini <- WorkspaceSymbolParams(params)
+        var ini <- WorkspaceSymbolParams(params)
         var res : array<JsonValue?>
         for data in values(registry)
             for it in data.ast
                 self->buildSymbolInformation(it, ini.query, 300, res)
         self->sendResponse(id, js(res))
+        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
     def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
-        var in scope ini <- DidChangeWorkspaceFoldersParams(params)
+        var ini <- DidChangeWorkspaceFoldersParams(params)
         for it in ini.event.removed
             for i in range(0, length(workspaceFolders))
                 if workspaceFolders[i].uri == it.uri
@@ -566,6 +592,7 @@ class TelnetServer : Server
                     break
         for it in ini.event.added
             workspaceFolders |> push(it)
+        delete ini
 
     def override onData(message:uint8?; size:int)
         for i in range(0,size)
@@ -598,7 +625,7 @@ class TelnetServer : Server
                 continue
 
             toRead = 0
-            var in scope error : string
+            var error : string
             var msg = read_json(current_string, error)
             clear(current_string)
             if inited

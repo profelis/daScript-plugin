@@ -333,13 +333,14 @@ def first_part(str : string; del : string)
     info("completion: got {length(globalCompletion)} global items\n", get_line_info())
 
   def programCompletion(program : smart_ptr<Program>; var items : Completions)
-    var in scope temp : Completions
+    var temp : Completions
     program_for_each_module(program) <| $(var mod)
       parseModule(mod, temp)
     let was = length(items)
     for key, value in keys(temp), values(temp)
       if !globalCompletion |> key_exists(key)
         items[key] <- value
+    delete temp
     info("completion: got {length(items)} items for {program}\n", get_line_info())
 
   def getCompletion(items : Completions)
