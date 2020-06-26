@@ -53,44 +53,52 @@ def Dascript(var doc : DidSaveTextDocumentParams)
 def Dascript(var doc : HoverParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
 
+typedef
+    ReqCb = lambda<(data, error : JsonValue?):void>
+
+struct Req
+    id : double
+    cb : ReqCb
 
 class TelnetServer : Server
     port : int // port number, for debug
     done : bool = false // server is done
     current_string : array<uint8> // raw input
-    toRead : int = 0
-
+    toRead : int = 0 // message length
     inited : bool = false // is LSP inited
 
-    completionData <- CompletionData()
-    registry : table<string; Dascript> // path => Dascript
-    workspaceFolders : array<WorkspaceFolder>
-
-    requestId : double = 1000lf
-    requestCallbacks : table<double; lambda<(data, error : JsonValue?):void>>
+    // client capabilities
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
 
-    configs : table<string; PluginConfig>
-    configReqs : table<string; double>
+    completionData <- CompletionData() // global completion data
 
-    def TelnetServer
+    workspaceFolders : array<WorkspaceFolder> // workspace data
+    registry : table<string; Dascript> // path => Dascript
+    // configurations
+    configs : table<string; PluginConfig?> // path => configuration
+    configReqs : table<string; double> // path => configuration request
+
+    requestId : double = 1000lf // current request id
+    requestCallbacks : array<Req> // active requests
+
+    def TelnetServer()
         Server`Server(cast<Server> self)
 
     def override onError(msg:string; code:int)
         info("server error:{code} - {msg}\n")
         done = true
 
-    def override onConnect
+    def override onConnect()
         info("connected port : {port}\n")
 
-    def override onDisconnect
+    def override onDisconnect()
         if length(current_string) > 0
             info(string(current_string))
             clear(current_string)
         info("disconnected port : {port}\n")
 
-    def restart
+    def restart()
         if _server != null
             var session : smart_ptr<NetworkServer>
             self->save(session)
@@ -113,10 +121,15 @@ class TelnetServer : Server
     def sendResponse(id : double; var data : JsonValue?)
         self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}))
 
-    def sendRequest(method : string; var data : JsonValue?; var cb : lambda<(data, error : JsonValue?):void>)
-        requestCallbacks[requestId] <- cb
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(requestId); "method" => js(method); "params" => data }}))
+    def sendRequest(method : string; var data : JsonValue?; var cb : ReqCb) : double
+        let reqId = requestId
+        self->onRequest(reqId, cb)
+        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(reqId); "method" => js(method); "params" => data }}))
         requestId = requestId + 1lf
+        return reqId
+
+    def onRequest(id : double; var cb : ReqCb)
+        requestCallbacks |> emplace([[Req id = id, cb <- cb]])
 
     def sendError(id : double; var data : ResponseError)
         self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}))
@@ -138,6 +151,44 @@ class TelnetServer : Server
             else
                 info("reg capabilities\n")
                 info(data)
+
+    def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
+        var found = false
+        configs |> find_if_exists(path) <| $(config)
+            found = true
+            invoke(cb, *config)
+            delete cb
+        if found
+            return
+
+        var localCb <- @ <| (data, error : JsonValue?)
+            configReqs |> erase(path)
+            debug("< got config {path}")
+            if error == null & data != null & data.value is _array
+                let arr & = data.value as _array
+                if length(arr) > 0
+                    var res <- new PluginConfig(arr[0])
+                    info(res)
+                    invoke(cb, res)
+                    delete cb
+                    configs[path] <- res
+                    return
+
+            error("error: config for {path}\n")
+            error(error)
+            configs[path] = null
+            invoke(cb, null)
+            delete cb
+
+        configReqs |> find_if_exists(path) <| $(reqId)
+            found = true
+            self->onRequest(*reqId, localCb)
+        if found
+            return
+        var item <- [[ConfigurationItem section = "dascript", scopeUri = path_to_uri(path) ]]
+        var configParams <- [[ConfigurationParams items <- [{auto[] item }] ]]
+        var reqId = self->sendRequest("workspace/configuration", js(configParams), localCb)
+        configReqs[path] = reqId
 
     def log(msg : string; level : LogLevel)
         if !inited | done
@@ -268,6 +319,10 @@ class TelnetServer : Server
         registry[path] <- Dascript(doc.textDocument)
         info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n")
         self->validate(path, false)
+
+        // self->getConfig(path) <| @(config : PluginConfig?)
+        //     info("got config!!!!\n")
+        //     info(config)
 
         // var item <- [[ConfigurationItem section = "dascript", scopeUri=doc.textDocument.uri ]]
         // var configParams <- [[ConfigurationParams items <- [{auto[] item }] ]]
@@ -533,15 +588,23 @@ class TelnetServer : Server
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
                     info("> result {id}\n")
-                    unsafe
-                        var handler = find_for_edit(requestCallbacks, id)
-                        if handler != null
-                            invoke(*handler, joj(msg, "result"), joj(msg, "error"))
-                            delete *handler
-                            erase(requestCallbacks, id)
-                        else
-                            warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
-                            warning(write_json(msg))
+                    var found = false
+                    for it in requestCallbacks
+                        if it.id == id
+                            found = true
+                            invoke(it.cb, joj(msg, "result"), joj(msg, "error"))
+                            // delete it.cb // BUG: uncomment in future
+                    var idx : int = length(requestCallbacks) - 1
+                    while idx >= 0
+                        if requestCallbacks[idx].id == id
+                            // var cb <- requestCallbacks[idx].cb
+                            requestCallbacks |> erase(idx)
+                            // delete cb
+                        idx--
+
+                    if !found
+                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
+                        warning(write_json(msg))
 
                 elif obj |> key_exists("method")
                     let method = jos(msg, "method")
