@@ -163,12 +163,12 @@ class TelnetServer : Server
 
         var localCb <- @ <| (data, error : JsonValue?)
             configReqs |> erase(path)
-            debug("< got config {path}")
             if error == null & data != null & data.value is _array
                 let arr & = data.value as _array
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
-                    info(res)
+                    // info("> got config {path}")
+                    // info(res)
                     invoke(cb, res)
                     delete cb
                     configs[path] <- res
@@ -308,8 +308,8 @@ class TelnetServer : Server
                 for k, v in keys(map), values(map)
                     let localPath = uri_to_path(k)
                     if ok | localPath != path
-                        registry |> find_if_exists(localPath) <| $(data)
-                            collect_diag(data.ast, localPath, v)
+                        registry |> find_if_exists(localPath) <| $(fileData)
+                            collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
 
@@ -321,7 +321,7 @@ class TelnetServer : Server
         self->validate(path, false)
 
         // self->getConfig(path) <| @(config : PluginConfig?)
-        //     info("got config!!!!\n")
+        //     info("didOpen: got config!!!!\n")
         //     info(config)
 
         // var item <- [[ConfigurationItem section = "dascript", scopeUri=doc.textDocument.uri ]]
@@ -366,7 +366,7 @@ class TelnetServer : Server
                 // self->validate(path, true) // TODO: validate every N sec
 
     def didClose(id : double; params : JsonValue?)
-        var in scope doc = DidCloseTextDocumentParams(params)
+        var doc = DidCloseTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         find_for_edit_if_exists(registry, path) <| $(var data)
             // delete_string(data.text) // TODO:
@@ -374,8 +374,9 @@ class TelnetServer : Server
         erase(registry, path)
         info("> close file {path}, total files {length(registry)}\n")
 
-        var params <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
-        self->sendNotification("textDocument/publishDiagnostics", js(params))
+        var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
+        self->sendNotification("textDocument/publishDiagnostics", js(res))
+        delete doc
 
     def hover(id : double; params : JsonValue?)
         var in scope req = HoverParams(params)
@@ -447,17 +448,41 @@ class TelnetServer : Server
                     token = tok
         return token
 
+    def resolvePath(path : string; config : PluginConfig) : string
+        let st = stat(path)
+        if st.is_valid
+            return path
+        for it in config.project.roots
+            let newPath = join_path(it, path)
+            let newSt = stat(newPath)
+            if newSt.is_valid
+                return newPath
+        return path
+
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
-        var in scope ini <- DefinitionParams(params)
+        var ini <- DefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != ""
-        if token != null
-            var in scope loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-            self->sendResponse(id, js(loc))
+        if token == null
+            self->sendResponse(id, js())
+            delete ini
             return
-        self->sendResponse(id, js())
+        self->getConfig(path) <| @(config : PluginConfig?)
+            info("definition: got config for def!!!!\n")
+            info(config)
+            if config == null
+                self->sendResponse(id, js())
+                return
+            var fixedPath = self->resolvePath(token.defPath, *config)
+            info("goto {path_to_uri(fixedPath)}\n")
+            var loc = [[Location uri = path_to_uri(fixedPath), _range = token.defRange]]
+            self->sendResponse(id, js(loc))
+            delete loc
+        finally
+            token = null
+            delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
@@ -543,11 +568,11 @@ class TelnetServer : Server
         for it in ini.event.added
             workspaceFolders |> push(it)
 
-    def override onData(msg:uint8?; size:int)
+    def override onData(message:uint8?; size:int)
         for i in range(0,size)
             var uch : uint8
             unsafe
-                uch = msg[i]
+                uch = message[i]
             let ch = int(uch)
 
             if toRead == 0
@@ -587,21 +612,18 @@ class TelnetServer : Server
                 var obj & = msg.value as _object
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
-                    info("> result {id}\n")
+                    info("> result {id} callbacks num: {length(requestCallbacks)}\n")
                     var found = false
-                    for it in requestCallbacks
-                        if it.id == id
-                            found = true
-                            invoke(it.cb, joj(msg, "result"), joj(msg, "error"))
-                            // delete it.cb // BUG: uncomment in future
-                    var idx : int = length(requestCallbacks) - 1
-                    while idx >= 0
+                    var idx = 0
+                    while idx < length(requestCallbacks)
                         if requestCallbacks[idx].id == id
-                            // var cb <- requestCallbacks[idx].cb
+                            found = true
+                            invoke(requestCallbacks[idx].cb, joj(msg, "result"), joj(msg, "error"))
+                            delete requestCallbacks[idx]
                             requestCallbacks |> erase(idx)
-                            // delete cb
-                        idx--
-
+                        else
+                            idx++
+                    info("> result after: cb num: {length(requestCallbacks)}\n")
                     if !found
                         warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
                         warning(write_json(msg))

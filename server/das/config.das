@@ -15,7 +15,7 @@ def PluginConfigProject(val : JsonValue?)
     if roots == null
         return <- [[PluginConfigProject]]
     return <- [[PluginConfigProject
-        roots <- [{for it in roots.value as _array; j_s(it)}]
+        roots <- [{ for it in roots.value as _array; j_s(it) }]
     ]]
 
 struct PluginConfig

@@ -30,3 +30,10 @@ def bytes_hr(value : uint64)
 	if value > uint64(1024)
 		return "{float(value) / 1024f}kb ({int(value)})"
 	return "{int(value)} b"
+
+def join_path(a, b : string; sep : string = "/")
+    return build_string() <| $(builder)
+        builder |> write(a)
+        if ! ends_with(a, "/") // ! ends_with(a, "\\")
+            builder |> write(sep)
+        builder |> write(b)
