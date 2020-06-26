@@ -1,5 +1,7 @@
 require daslib/json
 require json_tools
+require fio
+require lib
 
 struct PluginConfigHovers
     verbose : bool
@@ -29,3 +31,14 @@ def PluginConfig(val : JsonValue?)
         // compiler = jos(val, "compiler"),
         project <- PluginConfigProject(joj(val, "project"))
     ]]
+
+def resolve_path(path : string; config : PluginConfig) : string
+    let st = stat(path)
+    if st.is_valid
+        return path
+    for it in config.project.roots
+        let newPath = join_path(it, path)
+        let newSt = stat(newPath)
+        if newSt.is_valid
+            return newPath
+    return path

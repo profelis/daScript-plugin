@@ -448,17 +448,6 @@ class TelnetServer : Server
                     token = tok
         return token
 
-    def resolvePath(path : string; config : PluginConfig) : string
-        let st = stat(path)
-        if st.is_valid
-            return path
-        for it in config.project.roots
-            let newPath = join_path(it, path)
-            let newSt = stat(newPath)
-            if newSt.is_valid
-                return newPath
-        return path
-
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
@@ -475,7 +464,7 @@ class TelnetServer : Server
             if config == null
                 self->sendResponse(id, js())
                 return
-            var fixedPath = self->resolvePath(token.defPath, *config)
+            var fixedPath = resolve_path(token.defPath, *config)
             info("goto {path_to_uri(fixedPath)}\n")
             var loc = [[Location uri = path_to_uri(fixedPath), _range = token.defRange]]
             self->sendResponse(id, js(loc))
@@ -486,22 +475,32 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
-        var in scope ini <- TypeDefinitionParams(params)
+        var ini <- TypeDefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.typeDefPath != ""
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
                 return tok.defPath != ""
-        if token != null
-            let hasType = token.typeDefPath != ""
-            var in scope loc = [[Location
-                uri = path_to_uri(hasType ? token.typeDefPath : token.defPath),
-                _range = hasType ? token.typeDefRange : token.defRange
-            ]]
-            self->sendResponse(id, js(loc))
+        if token == null
+            self->sendResponse(id, js())
+            delete ini
             return
-        self->sendResponse(id, js())
+        self->getConfig(path) <| @(config : PluginConfig?)
+            info("typeDefinition: got config for def!!!!\n")
+            info(config)
+            if config == null
+                self->sendResponse(id, js())
+                return
+            let hasType = token.typeDefPath != ""
+            var fixedPath = resolve_path(hasType ? token.typeDefPath : token.defPath, *config)
+            let _range & = hasType ? token.typeDefRange : token.defRange
+            var loc = [[Location uri = path_to_uri(fixedPath), _range = _range ]]
+            self->sendResponse(id, js(loc))
+            delete loc
+        finally
+            token = null
+            delete ini
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
