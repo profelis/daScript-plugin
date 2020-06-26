@@ -86,17 +86,17 @@ class TelnetServer : Server
         Server`Server(cast<Server> self)
 
     def override onError(msg:string; code:int)
-        info("server error:{code} - {msg}\n")
+        info("server error:{code} - {msg}\n", get_line_info())
         done = true
 
     def override onConnect()
-        info("connected port : {port}\n")
+        info("connected port : {port}\n", get_line_info())
 
     def override onDisconnect()
         if length(current_string) > 0
-            info(string(current_string))
+            info(string(current_string), get_line_info())
             clear(current_string)
-        info("disconnected port : {port}\n")
+        info("disconnected port : {port}\n", get_line_info())
 
     def restart()
         if _server != null
@@ -146,11 +146,11 @@ class TelnetServer : Server
         var in scope registrationParams <- [[RegistrationParams registrations <- registrations]]
         self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
-                info("error: registerCapability\n")
-                info(error)
+                info("error: registerCapability\n", get_line_info())
+                info(error, get_line_info())
             else
-                info("reg capabilities\n")
-                info(data)
+                info("reg capabilities\n", get_line_info())
+                info(data, get_line_info())
 
     def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
         var found = false
@@ -174,8 +174,8 @@ class TelnetServer : Server
                     configs[path] <- res
                     return
 
-            error("error: config for {path}\n")
-            error(error)
+            error("error: config for {path}\n", get_line_info())
+            error(error, get_line_info())
             configs[path] = null
             invoke(cb, null)
             delete cb
@@ -225,7 +225,7 @@ class TelnetServer : Server
 
     def initialized()
         inited = true
-        info("> initialized! port: {port}\n")
+        info("> initialized! port: {port}\n", get_line_info())
         self->updateGlobalCompletion(true)
 
         var in scope capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
@@ -235,10 +235,10 @@ class TelnetServer : Server
             self->registerCapability(capabilities)
 
     def validate(path : string; withContent : bool = false)
-        info("> validate? '{path}'\n")
+        info("> validate? '{path}'\n", get_line_info())
 
         registry |> find_for_edit_if_exists(path) <| $(var data)
-            info("> validate '{path}'\n")
+            info("> validate '{path}'\n", get_line_info())
             let uri = path_to_uri(path)
             var in scope access <- make_file_access("")
             if withContent
@@ -317,7 +317,7 @@ class TelnetServer : Server
         var in scope doc = DidOpenTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         registry[path] <- Dascript(doc.textDocument)
-        info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n")
+        info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
 
         // self->getConfig(path) <| @(config : PluginConfig?)
@@ -333,7 +333,7 @@ class TelnetServer : Server
     def didSave(id : double; params : JsonValue?)
         var in scope doc = DidSaveTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
-        info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n")
+        info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
         var version = -1lf
         unsafe
             var data = find_for_edit(registry, path)
@@ -344,13 +344,13 @@ class TelnetServer : Server
                     data.text = doc.text
             else
                 registry[path] <- Dascript(doc)
-                info("> unknown? register again, total files {length(registry)}\n")
+                info("> unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
 
     def didChange(id : double; params : JsonValue?)
         var in scope doc <- DidChangeTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
-        info("> file changed? {path} changes {length(doc.contentChanges)}\n")
+        info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
         if length(doc.contentChanges) > 0
             unsafe
                 var data = find_for_edit(registry, path)
@@ -359,9 +359,9 @@ class TelnetServer : Server
                     data.text <- doc.contentChanges[0].text
                     if doc.textDocument.version >= 0lf
                         data.version = doc.textDocument.version
-                    info("> file changed {path} len {length(data.text)}, total files {length(registry)}\n")
+                    info("> file changed {path} len {length(data.text)}, total files {length(registry)}\n", get_line_info())
                 else
-                    info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n")
+                    info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
                 // self->validate(path, true) // TODO: validate every N sec
 
@@ -372,7 +372,7 @@ class TelnetServer : Server
             // delete_string(data.text) // TODO:
             delete *data
         erase(registry, path)
-        info("> close file {path}, total files {length(registry)}\n")
+        info("> close file {path}, total files {length(registry)}\n", get_line_info())
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(res))
@@ -384,7 +384,7 @@ class TelnetServer : Server
         let path = uri_to_path(req.textDocument.uri)
         if !registry |> key_exists(path)
             registry[path] <- Dascript(req)
-            info("> [WARN] {path} unknown? register again, total files {length(registry)}\n")
+            info("> [WARN] {path} unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
         find_if_exists(registry, path) <| $(var data)
             var hoversData : array<tuple<float; string>>
@@ -407,7 +407,7 @@ class TelnetServer : Server
                 self->sendResponse(id, js(h))
                 found = true
         if !found
-            info("< [WARN] hover info not found @ {to_string(req.position)}\n")
+            info("< [WARN] hover info not found @ {to_string(req.position)}\n", get_line_info())
             self->sendResponse(id, js())
 
     def completion(id : double; params : JsonValue?)
@@ -418,7 +418,7 @@ class TelnetServer : Server
             var list <- [{ for it in values(data.completionData); js(it) }]
             for val in values(completionData.globalCompletion)
                 list |> emplace(js(val))
-            info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n")
+            info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
             var in scope tokensList : table<string; void?>
             collect_token(data.ast, path) <| $(token : AstToken?)
                 if (token.kind == AstTokenKind Constant
@@ -433,7 +433,7 @@ class TelnetServer : Server
             var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
         else
-            info("< [WARN] send global completion {length(completionData.globalCompletion)}\n")
+            info("< [WARN] send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
 
     def resolveCompletion(id : double; var params : JsonValue?)
@@ -459,13 +459,13 @@ class TelnetServer : Server
             delete ini
             return
         self->getConfig(path) <| @(config : PluginConfig?)
-            info("definition: got config for def!!!!\n")
-            info(config)
+            info("definition: got config for def!!!!\n", get_line_info())
+            info(config, get_line_info())
             if config == null
                 self->sendResponse(id, js())
                 return
             var fixedPath = resolve_path(token.defPath, *config)
-            info("goto {path_to_uri(fixedPath)}\n")
+            info("goto {path_to_uri(fixedPath)}\n", get_line_info())
             var loc = [[Location uri = path_to_uri(fixedPath), _range = token.defRange]]
             self->sendResponse(id, js(loc))
             delete loc
@@ -487,8 +487,8 @@ class TelnetServer : Server
             delete ini
             return
         self->getConfig(path) <| @(config : PluginConfig?)
-            info("typeDefinition: got config for def!!!!\n")
-            info(config)
+            info("typeDefinition: got config for def!!!!\n", get_line_info())
+            info(config, get_line_info())
             if config == null
                 self->sendResponse(id, js())
                 return
@@ -605,13 +605,13 @@ class TelnetServer : Server
                 self->updateGlobalCompletion(false)
 
             if msg == null
-                error("Json read error: {error}\n")
+                error("Json read error: {error}\n", get_line_info())
                 return
             if msg.value is _object
                 var obj & = msg.value as _object
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
-                    info("> result {id} callbacks num: {length(requestCallbacks)}\n")
+                    info("> result {id} callbacks num: {length(requestCallbacks)}\n", get_line_info())
                     var found = false
                     var idx = 0
                     while idx < length(requestCallbacks)
@@ -622,14 +622,14 @@ class TelnetServer : Server
                             requestCallbacks |> erase(idx)
                         else
                             idx++
-                    info("> result after: cb num: {length(requestCallbacks)}\n")
+                    info("> result after: cb num: {length(requestCallbacks)}\n", get_line_info())
                     if !found
-                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n")
-                        warning(write_json(msg))
+                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n", get_line_info())
+                        warning(write_json(msg), get_line_info())
 
                 elif obj |> key_exists("method")
                     let method = jos(msg, "method")
-                    info("> method {method}\n")
+                    info("> method {method}\n", get_line_info())
                     if method == "initialize"
                         self->initialize(jon(msg, "id"), joj(msg, "params"))
 
@@ -682,15 +682,15 @@ class TelnetServer : Server
                         pass // ignore???
 
                     elif method == "$/setTraceNotification"
-                        info(write_json(msg))
+                        info(write_json(msg), get_line_info())
                         pass // ignore
 
                     else
-                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n")
-                        warning(write_json(msg))
+                        warning("\n@@@@@@@@@@@@@@@@@@\nTODO: support: {method}\n@@@@@@@@@@@@@@@@@@\n", get_line_info())
+                        warning(write_json(msg), get_line_info())
             else
-                error(write_json(msg))
-                error("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n")
+                error(write_json(msg), get_line_info())
+                error("\n@@@@@@@@@@@@@@@@@@\nError: unknown content\n@@@@@@@@@@@@@@@@@@\n", get_line_info())
             unsafe
                 delete msg
 
@@ -708,19 +708,19 @@ def mainLoop(fn : string)
     debug(args)
     let port = get_int_arg(args, "--port", 9000)
     let main_time = stat(fn).mtime
-    info("server start: port: {port} file:{fn} ts:{main_time}\n")
+    info("server start: port: {port} file:{fn} ts:{main_time}\n", get_line_info())
     telnet = new TelnetServer()
     telnet.port = port
 
     var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
     if session != null
-        info("restoring server after restart\n")
+        info("restoring server after restart\n", get_line_info())
         telnet->restore(session)
         telnet->initialized()
     elif telnet->init(port)
-        info("server at port {port}\n")
+        info("server at port {port}\n", get_line_info())
     else
-        info("server failed to initialize\n")
+        info("server failed to initialize\n", get_line_info())
         return false
 
     logger::onLog <- @ <| (msg : string; level : LogLevel)
@@ -740,13 +740,13 @@ def mainLoop(fn : string)
             unsafe
                 string_heap_collect()
             alloc = string_heap_bytes_allocated()
-            info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n")
+            info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
             if alloc > strLimit
                 strLimit *= uint64(2)
-                warning("UP string heap limit: {bytes_hr(strLimit)}\n")
+                warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
             elif strLimit > initialstrLimit & alloc < strLimit / uint64(2)
                 strLimit = strLimit / uint64(2)
-                warning("DOWN string heap limit: {bytes_hr(strLimit)}\n")
+                warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
 
         step --
         if step == 0u
@@ -763,12 +763,12 @@ def mainLoop(fn : string)
             // info("------------------\n")
             // step = 100u
 
-            info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n")
+            info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
 
         sleep(0u)
         let new_time = stat(fn).mtime
         if new_time != main_time
-            info("restarting via source change {new_time}\n")
+            info("restarting via source change {new_time}\n", get_line_info())
             telnet->restart()
             break
     unsafe

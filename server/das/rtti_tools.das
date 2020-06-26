@@ -10,3 +10,6 @@ def line_info_to_range(val : rtti::LineInfo)
     if res.start.line > 0 | res.start.character > 0 | res.end.line > 0 | res.end.character > 0
         res.end.character ++
     return <- res
+
+def to_string(val : rtti::LineInfo)
+    return "{val.fileInfo.name}:{int(val.line)}"

@@ -330,7 +330,7 @@ def first_part(str : string; del : string)
     addKeywords(globalCompletion)
     program_for_each_registered_module() <| $(var mod)
       parseModule(mod, globalCompletion)
-    info("completion: got {length(globalCompletion)} global items\n")
+    info("completion: got {length(globalCompletion)} global items\n", get_line_info())
 
   def programCompletion(program : smart_ptr<Program>; var items : Completions)
     var in scope temp : Completions
@@ -340,20 +340,19 @@ def first_part(str : string; del : string)
     for key, value in keys(temp), values(temp)
       if !globalCompletion |> key_exists(key)
         items[key] <- value
-    info("completion: got {length(items)} items for {program}\n")
+    info("completion: got {length(items)} items for {program}\n", get_line_info())
 
   def getCompletion(items : Completions)
     var list <- [{ for it in values(items); js(it) }]
     for val in values(globalCompletion)
       list |> emplace(js(val))
-    info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n")
+    info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n", get_line_info())
     return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
 
   def findCompletion(completions : Completions; name : string; field : bool; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
-    info("---- {name} / {n} ------\n")
     var found = false
     for it in values(completions)
       if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
