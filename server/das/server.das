@@ -149,9 +149,6 @@ class TelnetServer : Server
             if error != null
                 info("error: registerCapability\n", get_line_info())
                 info(error, get_line_info())
-            else
-                info("reg capabilities\n", get_line_info())
-                info(data, get_line_info())
     finally
         delete registrationParams
 
@@ -337,16 +334,6 @@ class TelnetServer : Server
         self->validate(path, false)
     finally
         delete doc
-
-        // self->getConfig(path) <| @(config : PluginConfig?)
-        //     info("didOpen: got config!!!!\n")
-        //     info(config)
-
-        // var item <- [[ConfigurationItem section = "dascript", scopeUri=doc.textDocument.uri ]]
-        // var configParams <- [[ConfigurationParams items <- [{auto[] item }] ]]
-        // self->sendRequest("workspace/configuration", js(configParams), true) <| @(data , error: JsonValue?)
-        //     info("configuration handler")
-        //     info(data)
 
     def didSave(id : double; params : JsonValue?)
         var doc = DidSaveTextDocumentParams(params)
@@ -596,6 +583,11 @@ class TelnetServer : Server
             workspaceFolders |> push(it)
         delete ini
 
+    def didChangeConfiguration(id : double; var params : JsonValue?)
+        for it in values(configs)
+            delete it
+        clear(configs)
+
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
@@ -752,6 +744,9 @@ class TelnetServer : Server
 
                     elif method == "textDocument/references"
                         self->references(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "workspace/didChangeConfiguration"
+                        self->didChangeConfiguration(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true

@@ -334,7 +334,7 @@ class AstData : AstVisitor
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
-        if str.flags.generated | str.flags.isLambda
+        if str.flags.generated // | str.flags.isLambda
             return
         var name = "{module_name(str._module)}{str.name}"
         var desc = "struct {name}"
@@ -401,7 +401,7 @@ class AstData : AstVisitor
         ]]
         set_token_path(token, fun.at)
         set_token_def(token, fun.atDecl)
-        token.topLevel = !fun.flags.isClassMethod //!fun.flags.generated & token._range |> in_range(token.defRange)
+        token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated & token._range |> in_range(token.defRange)
         for it in fun.arguments
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)

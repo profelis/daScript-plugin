@@ -442,7 +442,9 @@ def in_range(pos : Position; r : Range)
 	return r.start <= pos & pos <= r.end
 
 def in_range(b, a : Range)
-	return a.start <= b.start & b.end <= a.end
+	if a.start <= b.start & b.end <= a.end
+		return true
+	return range_ratio(b) < range_ratio(a) & (b.start |> in_range(a) | b.end |> in_range(a))
 
 def range_oneline(a : Range)
 	return a.start.line == a.end.line
