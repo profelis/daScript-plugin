@@ -164,7 +164,7 @@ class TelnetServer : Server
         if found
             return
 
-        var localCb <- @ <| (data, error : JsonValue?)
+        var localCb <- @ <| [[<-cb]](data, error : JsonValue?)
             configReqs |> erase(path)
             if error == null & data != null & data.value is _array
                 let arr & = data.value as _array
@@ -481,11 +481,11 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != ""
+        delete ini
         if token == null
             self->sendResponse(id, js())
-            delete ini
             return
-        self->getConfig(path) <| @(config : PluginConfig?)
+        self->getConfig(path) <| @[[<-token]](config : PluginConfig?)
             info("definition: got config for def!!!!\n", get_line_info())
             info(config, get_line_info())
             if config == null
@@ -498,7 +498,6 @@ class TelnetServer : Server
             delete loc
         finally
             token = null
-            delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
@@ -509,11 +508,11 @@ class TelnetServer : Server
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
                 return tok.defPath != ""
+        delete ini
         if token == null
             self->sendResponse(id, js())
-            delete ini
             return
-        self->getConfig(path) <| @(config : PluginConfig?)
+        self->getConfig(path) <| @[[<-token]](config : PluginConfig?)
             info("typeDefinition: got config for def!!!!\n", get_line_info())
             info(config, get_line_info())
             if config == null
@@ -527,7 +526,6 @@ class TelnetServer : Server
             delete loc
         finally
             token = null
-            delete ini
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
