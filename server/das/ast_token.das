@@ -100,6 +100,16 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
     for it in val
         collect_token(it, path, pos, blk)
 
+def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
+    if val.defPath == path & val.defRange |> in_range(_range) & ! val._range |> in_range(_range)
+        invoke(blk, val)
+    for it in val.children
+        collect_ref_token(it, path, _range, blk)
+
+def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : block<(token:AstToken?):void>)
+    for it in val
+        collect_ref_token(it, path, _range, blk)
+
 def module_name(mod)
     if mod == null
         return ""
@@ -324,7 +334,7 @@ class AstData : AstVisitor
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
-        if str.flags.generated
+        if str.flags.generated | str.flags.isLambda
             return
         var name = "{module_name(str._module)}{str.name}"
         var desc = "struct {name}"
@@ -361,8 +371,10 @@ class AstData : AstVisitor
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
     def override preVisitFunction(fun:FunctionPtr) : void
-        if fun.flags.generated & !fun.flags._generator
+        if fun.flags.generated & !fun.flags._generator & !fun.flags._lambda
             skipExprs = true
+            return
+        if fun.flags._lambda
             return
         var desc = "def {module_name(fun._module)}{fun.name}"
         if fun.arguments.length >= 0

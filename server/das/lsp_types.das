@@ -349,7 +349,7 @@ struct ServerCapabilities
 	definitionProvider : bool // DefinitionOptions
 	typeDefinitionProvider : bool // TypeDefinitionOptions
 	// implementationProvider : ImplementationOptions
-	// referencesProvider : ReferenceOptions
+	referencesProvider : bool // ReferenceOptions
 	// documentHighlightProvider : DocumentHighlightOptions
 	documentSymbolProvider : bool // DocumentSymbolOptions
 	// codeActionProvider : CodeActionOptions
@@ -374,6 +374,7 @@ def js(val : ServerCapabilities)
 		"hoverProvider" => js(val.hoverProvider);
 		"definitionProvider" => js(val.definitionProvider);
 		"typeDefinitionProvider" => js(val.typeDefinitionProvider);
+		"referencesProvider" => js(val.referencesProvider);
 		"documentSymbolProvider" => js(val.documentSymbolProvider);
 		"documentLinkProvider" => js(val.documentLinkProvider);
 		"workspaceSymbolProvider" => js(val.workspaceSymbolProvider);
@@ -795,3 +796,22 @@ def js(val : ConfigurationParams)
 	for it in val.items
 		items |> emplace(js(it))
 	return js({{ "items" => js(items) }})
+
+struct ReferenceContext
+	includeDeclaration : bool
+
+def ReferenceContext(val : JsonValue?)
+	return [[ReferenceContext includeDeclaration=job(val, "includeDeclaration")]]
+
+// https://microsoft.github.io/language-server-protocol/specification#textDocument_references
+struct ReferenceParams : TextDocumentPositionParams
+	context : ReferenceContext
+// textDocument : TextDocumentIdentifier
+// 	position : Position
+
+def ReferenceParams(val : JsonValue?)
+	return <- [[ReferenceParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+		position <- Position(joj(val, "position")),
+		context <- ReferenceContext(joj(val, "contenxt"))
+	]]

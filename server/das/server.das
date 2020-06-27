@@ -112,7 +112,7 @@ class TelnetServer : Server
         var msg = write_json(data)
         var packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
-        print("<---- send data {length(packStr)}\n") // only print!
+        // print("<---- send data {length(packStr)}\n") // only print!
         unsafe
             self->send(reinterpret<uint8?> packStr, length(packStr))
     finally
@@ -219,6 +219,7 @@ class TelnetServer : Server
             hoverProvider = true,
             definitionProvider = true,
             typeDefinitionProvider = true,
+            referencesProvider = true,
             documentSymbolProvider = true,
             workspaceSymbolProvider = true,
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
@@ -479,16 +480,15 @@ class TelnetServer : Server
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.defPath != ""
-        delete ini
-        if token == null
-            self->sendResponse(id, js())
-            return
-        self->getConfig(path) <| @[[<-token]](config : PluginConfig?)
+        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
             info("definition: got config for def!!!!\n", get_line_info())
             info(config, get_line_info())
             if config == null
+                self->sendResponse(id, js())
+                return
+            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                return tok.defPath != ""
+            if token == null
                 self->sendResponse(id, js())
                 return
             var fixedPath = resolve_path(token.defPath, *config)
@@ -496,26 +496,26 @@ class TelnetServer : Server
             var loc = [[Location uri = path_to_uri(fixedPath), _range = token.defRange]]
             self->sendResponse(id, js(loc))
             delete loc
-        finally
-            token = null
+            delete ini
+    finally
+        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
         var ini <- TypeDefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.typeDefPath != ""
-        if token == null
-            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok.defPath != ""
-        delete ini
-        if token == null
-            self->sendResponse(id, js())
-            return
-        self->getConfig(path) <| @[[<-token]](config : PluginConfig?)
+        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
             info("typeDefinition: got config for def!!!!\n", get_line_info())
             info(config, get_line_info())
             if config == null
+                self->sendResponse(id, js())
+                return
+            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                return tok.typeDefPath != ""
+            if token == null
+                token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                    return tok.defPath != ""
+            if token == null
                 self->sendResponse(id, js())
                 return
             let hasType = token.typeDefPath != ""
@@ -524,8 +524,9 @@ class TelnetServer : Server
             var loc = [[Location uri = path_to_uri(fixedPath), _range = _range ]]
             self->sendResponse(id, js(loc))
             delete loc
-        finally
-            token = null
+            delete ini
+    finally
+        delete ini
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
         if !ast.topLevel | ast.path != path
@@ -593,6 +594,55 @@ class TelnetServer : Server
                     break
         for it in ini.event.added
             workspaceFolders |> push(it)
+        delete ini
+
+    def references(id : double; var params : JsonValue?)
+        var ini <- ReferenceParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
+            if config == null
+                self->sendResponse(id, js())
+                return
+            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                return tok.defPath != ""
+            if token == null
+                token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                    return true
+            if token == null
+                self->sendResponse(id, js())
+                return
+            var res : array<Location>
+            find_if_exists(registry, path) <| $(data)
+                if token.defPath != ""
+                    // same references
+                    var addDef = false
+                    collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
+                        addDef = true
+                        let fixedPath = resolve_path(tok.path, *config)
+                        res |> emplace([[Location _range = tok._range, uri = path_to_uri(fixedPath) ]])
+                    if addDef
+                        let tokenDefPath = resolve_path(token.defPath, *config)
+                        res |> emplace([[Location _range = token.defRange, uri = path_to_uri(tokenDefPath) ]])
+
+                // refs to this token
+                var addToken = false
+                collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
+                    addToken = true
+                    let fixedPath = resolve_path(tok.path, *config)
+                    res |> emplace([[Location _range = tok._range, uri = path_to_uri(fixedPath) ]])
+                if addToken
+                    let tokenPath = resolve_path(token.path, *config)
+                    res |> emplace([[Location _range = token._range, uri = path_to_uri(tokenPath) ]])
+            var jsRes : array<json::JsonValue?>
+            for it in res
+                jsRes |> emplace(js(it))
+            self->sendResponse(id, js(jsRes))
+            delete res
+            delete jsRes
+        // finally
+        //     delete res
+        //     delete jsRes
+    finally
         delete ini
 
     def override onData(message:uint8?; size:int)
@@ -699,6 +749,9 @@ class TelnetServer : Server
 
                     elif method == "workspace/didChangeWorkspaceFolders"
                         self->didChangeWorkspaceFolders(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/references"
+                        self->references(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true
