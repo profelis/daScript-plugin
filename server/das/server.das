@@ -612,7 +612,7 @@ class TelnetServer : Server
                 self->sendResponse(id, js())
                 return
             var res : array<Location>
-            find_if_exists(registry, path) <| $(data)
+            for data in values(registry)
                 if token.defPath != ""
                     // same references
                     var addDef = false
