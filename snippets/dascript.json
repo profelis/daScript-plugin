@@ -41,11 +41,11 @@
 	},
 	"block": {
 		"prefix": "blk",
-		"body": "($1)\n\t${0:pass}"
+		"body": "$(${1:args})\n\t${0:pass}"
 	},
 	"lambda": {
 		"prefix": "lambda",
-		"body": "@ <| ($1)\n\t${0:pass}"
+		"body": "@ <| (${1:args})\n\t${0:pass}"
 	},
 	"lt": {
 		"prefix": "lt",
