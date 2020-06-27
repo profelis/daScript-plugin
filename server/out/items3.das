@@ -1,7 +1,8 @@
 options indenting=2
 options rtti = true
 require rtti
-require daslib/strings
+require strings
+require daslib/strings_boost
 
 enum ItemKind
   Text = 1
