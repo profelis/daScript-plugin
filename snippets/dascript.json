@@ -41,7 +41,7 @@
 	},
 	"block": {
 		"prefix": "blk",
-		"body": "$(1)\n\t${0:pass}"
+		"body": "($1)\n\t${0:pass}"
 	},
 	"lambda": {
 		"prefix": "lambda",
@@ -70,10 +70,6 @@
 	"vart": {
 		"prefix": "vart",
 		"body": "var ${1:name} : ${2:type} = ${0:value}"
-	},
-	"vars": {
-		"prefix": "vrs",
-		"body": "var in scope ${0:name}"
 	},
 	"delete": {
 		"prefix": "del",

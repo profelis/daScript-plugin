@@ -89,15 +89,16 @@ def getTypeName(info; var items : Completions)
       res = "table"
   elif info.basicType == Type tTuple
     if info.argTypes != null
-      var in scope args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
+      var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
       res = "tuple<" + join(args,";") + ">"
+      delete args
     else
       res = "tuple"
   elif info.basicType == Type tVariant
     if info.argTypes != null & info.argNames != null
       res = "variant<"
       var variantDesc = "variant<"
-      var in scope all : array<Completion>
+      var all : array<Completion>
       var f = true
       for argname,argtype in arg_names(info),arg_types(info)
         if !f
@@ -112,13 +113,15 @@ def getTypeName(info; var items : Completions)
       for it in all
         it.impls |> emplace(variantDesc)
         addItem(move(it), items, true)
+      delete all
     else
       res = "variant"
   elif info.basicType == Type tFunction | info.basicType == Type tLambda | info.basicType == Type tBlock
     res = "{get_das_type_name(info.basicType)}<"
     if info.argTypes != null
-      var in scope args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
+      var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
       res += "(" + join(args,"; ") + ")"
+      delete args
     if info.firstType != null
       res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
     res += ">"
@@ -126,8 +129,9 @@ def getTypeName(info; var items : Completions)
     res = "__context__"
   else
     res = get_das_type_name(info.basicType)
-  var in scope dim <- [{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}]
+  var dim <- [{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}]
   res += join(dim,"")
+  delete dim
   if info.isConst
     res += " const"
   if info.isRef
@@ -154,9 +158,9 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
       let structName = "{sann.name}"
       let fullName = "{fullModuleName}{structName}"
       var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-      var in scope props : array<string>
-      var in scope fields : array<tuple<uint; string>>
-      var in scope all : array<Completion>
+      var props : array<string>
+      var fields : array<tuple<uint; string>>
+      var all : array<Completion>
       basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
         var field = "{getTypeName(xtype, items)} [{cppName}"
         if offset != -1u
@@ -184,6 +188,10 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
       for it in all
         it.impls |> emplace(structDesc)
         addItem(move(it), items)
+
+      delete props
+      delete fields
+      delete all
 
   elif ann.isTypeAnnotation
     unsafe
@@ -228,8 +236,9 @@ def parseModule(pMod; var items : Completions)
     let fullName = "{fullModuleName}{structName}"
     var shortStructDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
-      // var in scope args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}] // BUG: workaround
+      // var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}] // BUG: workaround
       // let argT = join(args,", ")
+      // delete args
       var argT = ""
       var first = true
       for arg in annArgs
@@ -240,7 +249,7 @@ def parseModule(pMod; var items : Completions)
       shortStructDesc += "[{ann.name}({argT})]\n"
     shortStructDesc += "struct {fullName}"
     var structDesc = shortStructDesc
-    var in scope all : array<Completion>
+    var all : array<Completion>
     for it in info
       let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
       structDesc += "\n\t{desc}"
@@ -256,6 +265,7 @@ def parseModule(pMod; var items : Completions)
       for it in all
         it.impls |> emplace(structDesc)
         addItem(move(it), items)
+    delete all
 
   rtti::module_for_each_function(pMod) <| $(info)
     if find(info.name, "`") == -1 // generic
@@ -268,7 +278,7 @@ def parseModule(pMod; var items : Completions)
     let enumName = "{info.name}"
     let fullName = "{fullModuleName}{enumName}"
     var enumDesc = "enum {fullName}"
-    var in scope all : array< tuple < int64; Completion > >
+    var all : array< tuple < int64; Completion > >
     for it in info
       enumDesc += "\n\t{it.name} = {it.value}"
       let fullItemName = "{fullModuleName}{enumName} {it.name}"
@@ -278,6 +288,7 @@ def parseModule(pMod; var items : Completions)
     for it in all
       it._1.impls |> emplace(enumDesc)
       addItem(move(it._1), items)
+    delete all
 
   rtti::module_for_each_global(pMod) <| $ (glob)
     let globName = "{glob.name}"

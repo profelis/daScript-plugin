@@ -249,7 +249,7 @@ class TelnetServer : Server
         registry |> find_for_edit_if_exists(path) <| $(var data)
             info("> validate '{path}'\n", get_line_info())
             let uri = path_to_uri(path)
-            var in scope access <- make_file_access("")
+            var access <- make_file_access("")
             if withContent
                 set_file_source(access, path, data.text)
 
@@ -324,6 +324,9 @@ class TelnetServer : Server
                             collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
+        finally
+            unsafe
+                delete access
 
     def didOpen(id : double; params : JsonValue?)
         var doc = DidOpenTextDocumentParams(params)
