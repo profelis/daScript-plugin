@@ -92,13 +92,22 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 	})
 }
 
+function setArg(args: string[], pattern: string, value: string) : string[] {
+	const res = new Array<string>()
+	for (const it of args) {
+		res.push(it.replace(pattern, value))
+	}
+	return res
+}
+
 export function activate(context: ExtensionContext) {
 
 	const settings = Workspace.getConfiguration()
 
 	const cmd = settings.get<string>("dascript.compiler")
-	console.log(cmd)
-	const server_das = context.asAbsolutePath(path.join('server', 'das', 'server.das'))
+	let args = settings.get<string[]>("dascript.server.args")
+	const serverFilePath = context.asAbsolutePath(path.join('server', 'das', 'server.das'))
+	args = setArg(args, "${file}", serverFilePath)
 	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
 
 	function didOpenTextDocument(document: TextDocument): void {
@@ -109,7 +118,8 @@ export function activate(context: ExtensionContext) {
 		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
 			const serverOptions = async () => {
-				const [_, socket] = await createServerWithSocket("____untitled____", DEFAULT_PORT, cmd, [server_das, "--port", DEFAULT_PORT.toPrecision()])
+				const port = DEFAULT_PORT
+				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()))
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -134,7 +144,7 @@ export function activate(context: ExtensionContext) {
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT + 1 + clients.size
-				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, [server_das, "--port", port.toString()])
+				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, setArg(args, "${port}", port.toPrecision()))
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket

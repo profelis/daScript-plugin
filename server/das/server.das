@@ -596,7 +596,7 @@ class TelnetServer : Server
             return tok.defPath != ""
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return true
+                return tok != null
         if token == null
             self->sendResponse(id, js())
             return
