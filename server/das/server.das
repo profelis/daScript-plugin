@@ -537,15 +537,16 @@ class TelnetServer : Server
     def documentSymbol(id : double; var params : JsonValue?)
         var ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        let data = find(registry, path)
-        if data == null
-            self->sendResponse(id, js())
-        else
-            var res : array<JsonValue?>
-            for it in data.ast
-                self->buildDocumentSymbol(it, path, res)
-            self->sendResponse(id, js(res))
-        delete ini
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?) // wait first validation
+            let data = find(registry, path)
+            if data == null
+                self->sendResponse(id, js())
+            else
+                var res : array<JsonValue?>
+                for it in data.ast
+                    self->buildDocumentSymbol(it, path, res)
+                self->sendResponse(id, js(res))
+            delete ini
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
         if !ast.topLevel | length(res) >= limit | ast.name |> starts_with("builtin`")
@@ -602,9 +603,9 @@ class TelnetServer : Server
             return
         var res : array<Location>
         for data in values(registry)
+            var addDef = false
             if token.defPath != ""
                 // same references
-                var addDef = false
                 collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
                     addDef = true
                     res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
@@ -612,11 +613,9 @@ class TelnetServer : Server
                     res |> emplace([[Location _range = token.defRange, uri = path_to_uri(token.defPath) ]])
 
             // refs to this token
-            var addToken = false
             collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
-                addToken = true
                 res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
-            if addToken
+            if !addDef
                 res |> emplace([[Location _range = token._range, uri = path_to_uri(token.path) ]])
         var jsRes : array<json::JsonValue?>
         for it in res
