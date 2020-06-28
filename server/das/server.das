@@ -41,16 +41,16 @@ struct Dascript
     completionData : Completions
     ast : AstTokens
 
-def Dascript(var txt : TextDocumentItem)
+def Dascript(txt : TextDocumentItem)
     return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = move(txt.text)]]
 
-def Dascript(var doc : DidChangeTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text <- doc.contentChanges[0].text]]
+def Dascript(doc : DidChangeTextDocumentParams)
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text = doc.contentChanges[0].text]]
 
-def Dascript(var doc : DidSaveTextDocumentParams)
+def Dascript(doc : DidSaveTextDocumentParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = move(doc.text)]]
 
-def Dascript(var doc : HoverParams)
+def Dascript(doc : HoverParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
 
 typedef
@@ -153,9 +153,7 @@ class TelnetServer : Server
         delete registrationParams
 
     def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
-        var found = false
-        configs |> find_if_exists(path) <| $(config)
-            found = true
+        var found = configs |> find_if_exists(path) <| $(config)
             invoke(cb, *config)
             delete cb
         if found
@@ -167,8 +165,8 @@ class TelnetServer : Server
                 let arr & = data.value as _array
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
-                    // info("> got config {path}")
-                    // info(res)
+                    // info("> got config {path}", get_line_info())
+                    // info(res, get_line_info())
                     invoke(cb, res)
                     delete cb
                     configs[path] <- res
@@ -180,8 +178,7 @@ class TelnetServer : Server
             invoke(cb, null)
             delete cb
 
-        configReqs |> find_if_exists(path) <| $(reqId)
-            found = true
+        found = configReqs |> find_if_exists(path) <| $(reqId)
             self->onRequest(*reqId, localCb)
         if found
             return
@@ -243,11 +240,17 @@ class TelnetServer : Server
 
     def validate(path : string; withContent : bool = false)
         info("> validate? '{path}'\n", get_line_info())
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            if config == null
+                info("> validate? '{path}' config is null", get_line_info())
+            else
+                self->validate_with_config(path, withContent, *config)
 
+    def validate_with_config(path : string; withContent : bool; config : PluginConfig)
         registry |> find_for_edit_if_exists(path) <| $(var data)
-            info("> validate '{path}'\n", get_line_info())
+            info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
             let uri = path_to_uri(path)
-            var access <- make_file_access("")
+            var access <- make_file_access(config.project.file)
             if withContent
                 set_file_source(access, path, data.text)
 
@@ -267,6 +270,13 @@ class TelnetServer : Server
                         visit(program, adapter)
                         visitor.tokens = null
                         delete adapter
+
+                    collect_token(data.ast) <| $(var tok : AstToken?)
+                        tok.path = resolve_path(tok.path, config)
+                        if tok.defPath != ""
+                            tok.defPath = resolve_path(tok.defPath, config)
+                        if tok.typeDefPath != ""
+                            tok.typeDefPath = resolve_path(tok.typeDefPath, config)
 
                 if ok
                     var diags : array<Diagnostic>
@@ -322,6 +332,7 @@ class TelnetServer : Server
                             collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
+                delete map
         finally
             unsafe
                 delete access
@@ -389,23 +400,29 @@ class TelnetServer : Server
         delete doc
 
     def hover(id : double; params : JsonValue?)
-        var req = HoverParams(params)
-        var found = false
-        let path = uri_to_path(req.textDocument.uri)
+        var ini = HoverParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            let verbose = config?.hovers?.verbose ?? false
+            self->hover_with_config(id, move(ini), verbose)
+
+    def hover_with_config(id : double; var ini : HoverParams; verbose : bool)
+        let path = uri_to_path(ini.textDocument.uri)
         if !registry |> key_exists(path)
-            registry[path] <- Dascript(req)
+            registry[path] <- Dascript(ini)
             info("> [WARN] {path} unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
+        var found = false
         find_if_exists(registry, path) <| $(var data)
             var hoversData : array<tuple<float; string>>
             var _range : Range
             var first = true
-            collect_token(data.ast, path, req.position) <| $(it : AstToken?)
+            collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
                 if first | it._range |> in_range(_range)
                     _range = it._range
                 first = false
                 let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
-                hoversData |> emplace([[auto ratio, to_hover(it)]])
+                hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
                     hoversData |> emplace([[auto ratio + 0.5, "```dascript\n" + join(val.impls, "\n") + "\n```"]])
                 // TODO: filter huge tokens?
@@ -415,13 +432,12 @@ class TelnetServer : Server
                 var hovers <- [{ for it in hoversData; it._1 }]
                 var h <- [[ Hover _range = _range, contents <- hovers ]]
                 self->sendResponse(id, js(h))
-                delete h
                 found = true
+                delete h
         if !found
-            info("< [WARN] hover info not found @ {to_string(req.position)}\n", get_line_info())
+            info("< [WARN] hover info not found @ {to_string(ini.position)}\n", get_line_info())
             self->sendResponse(id, js())
-    finally
-        delete req
+        delete ini
 
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
@@ -467,23 +483,14 @@ class TelnetServer : Server
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
-            info("definition: got config for def!!!!\n", get_line_info())
-            info(config, get_line_info())
-            if config == null
-                self->sendResponse(id, js())
-                return
-            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok.defPath != ""
-            if token == null
-                self->sendResponse(id, js())
-                return
-            var fixedPath = resolve_path(token.defPath, *config)
-            info("goto {path_to_uri(fixedPath)}\n", get_line_info())
-            var loc = [[Location uri = path_to_uri(fixedPath), _range = token.defRange]]
-            self->sendResponse(id, js(loc))
-            delete loc
-            delete ini
+        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+            return tok.defPath != ""
+        if token == null
+            self->sendResponse(id, js())
+            return
+        var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
+        self->sendResponse(id, js(loc))
+        delete loc
     finally
         delete ini
 
@@ -491,27 +498,20 @@ class TelnetServer : Server
     def typeDefinition(id : double; var params : JsonValue?)
         var ini <- TypeDefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
-            info("typeDefinition: got config for def!!!!\n", get_line_info())
-            info(config, get_line_info())
-            if config == null
-                self->sendResponse(id, js())
-                return
-            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok.typeDefPath != ""
-            if token == null
-                token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                    return tok.defPath != ""
-            if token == null
-                self->sendResponse(id, js())
-                return
-            let hasType = token.typeDefPath != ""
-            var fixedPath = resolve_path(hasType ? token.typeDefPath : token.defPath, *config)
-            let _range & = hasType ? token.typeDefRange : token.defRange
-            var loc = [[Location uri = path_to_uri(fixedPath), _range = _range ]]
-            self->sendResponse(id, js(loc))
-            delete loc
-            delete ini
+        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+            return tok.typeDefPath != ""
+        if token == null
+            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                return tok.defPath != ""
+        if token == null
+            self->sendResponse(id, js())
+            return
+        let hasType = token.typeDefPath != ""
+        var defPath = hasType ? token.typeDefPath : token.defPath
+        let _range & = hasType ? token.typeDefRange : token.defRange
+        var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
+        self->sendResponse(id, js(loc))
+        delete loc
     finally
         delete ini
 
@@ -538,13 +538,13 @@ class TelnetServer : Server
         var ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
-        if data != null
+        if data == null
+            self->sendResponse(id, js())
+        else
             var res : array<JsonValue?>
             for it in data.ast
                 self->buildDocumentSymbol(it, path, res)
             self->sendResponse(id, js(res))
-            return
-        self->sendResponse(id, js())
         delete ini
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
@@ -591,49 +591,38 @@ class TelnetServer : Server
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[:=ini]](config : PluginConfig?)
-            if config == null
-                self->sendResponse(id, js())
-                return
-            var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok.defPath != ""
-            if token == null
-                token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                    return true
-            if token == null
-                self->sendResponse(id, js())
-                return
-            var res : array<Location>
-            for data in values(registry)
-                if token.defPath != ""
-                    // same references
-                    var addDef = false
-                    collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
-                        addDef = true
-                        let fixedPath = resolve_path(tok.path, *config)
-                        res |> emplace([[Location _range = tok._range, uri = path_to_uri(fixedPath) ]])
-                    if addDef
-                        let tokenDefPath = resolve_path(token.defPath, *config)
-                        res |> emplace([[Location _range = token.defRange, uri = path_to_uri(tokenDefPath) ]])
+        // info(ini, get_line_info())
+        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+            return tok.defPath != ""
+        if token == null
+            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
+                return true
+        if token == null
+            self->sendResponse(id, js())
+            return
+        var res : array<Location>
+        for data in values(registry)
+            if token.defPath != ""
+                // same references
+                var addDef = false
+                collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
+                    addDef = true
+                    res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
+                if addDef
+                    res |> emplace([[Location _range = token.defRange, uri = path_to_uri(token.defPath) ]])
 
-                // refs to this token
-                var addToken = false
-                collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
-                    addToken = true
-                    let fixedPath = resolve_path(tok.path, *config)
-                    res |> emplace([[Location _range = tok._range, uri = path_to_uri(fixedPath) ]])
-                if addToken
-                    let tokenPath = resolve_path(token.path, *config)
-                    res |> emplace([[Location _range = token._range, uri = path_to_uri(tokenPath) ]])
-            var jsRes : array<json::JsonValue?>
-            for it in res
-                jsRes |> emplace(js(it))
-            self->sendResponse(id, js(jsRes))
-            delete res
-            delete jsRes
-        // finally
-        //     delete res
-        //     delete jsRes
+            // refs to this token
+            var addToken = false
+            collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
+                addToken = true
+                res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
+            if addToken
+                res |> emplace([[Location _range = token._range, uri = path_to_uri(token.path) ]])
+        var jsRes : array<json::JsonValue?>
+        for it in res
+            jsRes |> emplace(js(it))
+        self->sendResponse(id, js(jsRes))
+        delete res
     finally
         delete ini
 

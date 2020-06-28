@@ -58,7 +58,9 @@ typedef
     AstTokens = array<AstToken?>
 
 
-def to_hover(val : AstToken?)
+def to_hover(val : AstToken?; verbose : bool)
+    if !verbose
+        return "```dascript\n{val.desc}\n```"
     var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
     return <- res
 
@@ -79,6 +81,15 @@ def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
 def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
     for it in val
         collect_diag(it, path, diag)
+
+def collect_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
+    invoke(blk, val)
+    for it in val.children
+        collect_token(it, blk)
+
+def collect_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
+    for it in val
+        collect_token(it, blk)
 
 def collect_token(val : AstToken?; path : string; blk : block<(token:AstToken?):void>)
     if val.path == path

@@ -43,13 +43,21 @@
 					"default": "dasAot",
 					"description": "Absolute path to the dascript compiler"
 				},
-				"dascript.compiler.args": {
+				"dascript.server.args": {
 					"scope": "resource",
 					"type": "array",
 					"default": [
-						"${file}"
+						"${file}",
+						"--port",
+						"${port}"
 					],
-					"description": "Additional compiler arguments\n- ${file} - current file"
+					"description": "LSP server run arguments\n- ${file} - current file\n${port} - port"
+				},
+				"dascript.project.file": {
+					"scope": "resource",
+					"type": "string",
+					"default": "",
+					"description": "Dascript project file - *.das_project"
 				},
 				"dascript.project.roots": {
 					"scope": "resource",
