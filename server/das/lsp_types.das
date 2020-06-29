@@ -5,6 +5,8 @@
 require daslib/json
 require json_tools
 require uriparser
+require strings
+require daslib/strings_boost
 
 typedef
 	JSTab = table<string; JsonValue?>
@@ -419,6 +421,21 @@ def operator <(a, b : Position)
 
 def operator <=(a, b : Position)
 	return a.line < b.line | (a.line == b.line & a.character <= b.character)
+
+def pos_to_index(pos : Position; text : string)
+	var line = 0
+	var charPos = 0
+	for i in range(0, length(text))
+		let ch = character_at(text, i)
+		if ch == '\n'
+			if line == pos.line
+				return i // something wrong with char pos, return last char in line
+			line++
+		if line == pos.line
+			if charPos == pos.character
+				return i
+			charPos++
+	return -1
 
 def to_string(val : Position)
 	return "{int(val.line)}:{int(val.character)}"

@@ -3,6 +3,8 @@ require ast
 require rtti_tools
 require strings
 require lsp_types
+require logger
+require completion
 
 bitfield AstTokenWarn
     unused
@@ -294,6 +296,83 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     invoke(blk, tok)
     return true
 
+def parse(t; var res : AstCompletionData)
+    if t == null
+        return
+    // info("@@@@@@@@@@@@@", get_line_info())
+    // info(t, get_line_info())
+    // info("@@@@@@@@@@@@@", get_line_info())
+    if t.annotation != null
+        res.found = true
+        let ann & = t.annotation
+        res.resAnnotation = "{module_name(ann._module)}{ann.name}"
+        return
+
+    if t.structType != null
+        res.found = true
+        let structType = t.structType
+        for decl in structType.fields
+            let typ = decl._type != null ? "{describe([decl=decl._type,extra=true])}" : ""
+            var fieldName = "{decl.name}"
+            var fieldDesc = "{fieldName} : {typ}"
+            if decl.init != null
+                fieldDesc += " = {describe(decl.init)}"
+            var comp <- [[Completion
+                name = fieldName,
+                fullName = "{describe([decl=t,extra=false,contracts=false])}.{fieldName}",
+                desc = fieldDesc,
+                kind = CompletionItemKind Field
+            ]]
+            // info(comp, get_line_info())
+            res.res |> emplace(comp)
+
+    if t.firstType != null
+        parse(t.firstType, res)
+
+class AstCompletionData : AstVisitor
+    path : string
+    pos : Position
+    found : bool = false
+    res : array<Completion>
+    resAnnotation : string
+
+// var
+    def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
+        if found
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.at)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        parse(expr._type, self)
+
+// field
+    def override preVisitExprField(expr:smart_ptr<ExprField>) : void
+        if found
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.atField)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        // info(expr, get_line_info())
+        parse(expr._type, self)
+
+// safe field
+    def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
+        if found
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.atField)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        parse(expr._type, self)
+
 class AstData : AstVisitor
     tokens : AstTokens?
     skipExprs : bool = false
@@ -345,7 +424,7 @@ class AstData : AstVisitor
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
-        if str.flags.generated // | str.flags.isLambda
+        if str.flags.generated | str.flags.isLambda
             return
         var name = "{module_name(str._module)}{str.name}"
         var desc = "struct {name}"

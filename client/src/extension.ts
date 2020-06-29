@@ -9,7 +9,7 @@ import {
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient'
 
-const DEFAULT_PORT = 9999
+const DEFAULT_PORT = 7999 + Math.round(Math.random() * 3000)
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
 const sockets: Map<string, net.Socket> = new Map()

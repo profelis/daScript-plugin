@@ -11,6 +11,7 @@
 // options heap_page = 16384
 options persistent_heap = true
 
+require math
 require ast
 require daslib/ast_boost
 require strings
@@ -264,7 +265,7 @@ class TelnetServer : Server
                         delete it
                     clear(data.ast)
                     unsafe
-                        var visitor = AstData()
+                        var visitor <- AstData()
                         visitor.tokens = addr(data.ast)
                         var adapter <- make_visitor(visitor)
                         visit(program, adapter)
@@ -442,29 +443,107 @@ class TelnetServer : Server
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            if config == null
+                warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
+                self->sendResponse(id, js(completionData.globalCompletion))
+                delete ini
+                return
+            self->completion_with_config(id, move(ini), config)
+
+    def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig?)
+        let path = uri_to_path(ini.textDocument.uri)
         let data = find(registry, path)
         if data != null
-            var list <- [{ for it in values(data.completionData); js(it) }]
-            for val in values(completionData.globalCompletion)
-                list |> emplace(js(val))
-            info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
-            var tokensList : table<string; void?>
-            collect_token(data.ast, path) <| $(token : AstToken?)
-                if (token.kind == AstTokenKind Constant
-                  | data.completionData |> key_exists(token.name)
-                  | completionData.globalCompletion |> key_exists(token.name)
-                  | tokensList |> key_exists(token.name)
-                )
-                    return
-                tokensList[token.name] = null
-                list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
+            var list : array<JsonValue?>
+            let idx = pos_to_index(ini.position, data.text)
+            info("@@@@@ pos index {idx}", get_line_info())
+            if idx > 0
+                var word : array<uint8>
+                var searchToken = false
+                var tokenOffset = 1
+                for i in range(0, min(idx, ini.position.character))
+                    let ch = character_at(data.text, idx - i)
+                    if ch == '.' | ch == ':' | ch == '>'
+                        searchToken = true
+                        tokenOffset = ch == '.' ? 1 : 2
+                        break
+                    if ch == ' '
+                        break
+                    word |> push(uint8(ch))
+                if searchToken
+                    let search = reverse(string(word))
+                    tokenOffset += length(word)
+                    info("@@@@ search '{search}' {Position(ini.position.line, ini.position.character - tokenOffset)}", get_line_info())
+                    info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
+                    let uri = path_to_uri(path)
+                    var access <- make_file_access(config.project.file)
+                    set_file_source(access, path, data.text)
+
+                    compile_file(path, access) <| $(ok, program, error)
+                        // info(ok, get_line_info())
+                        // info(program, get_line_info())
+                        // info(error, get_line_info())
+
+                        if program != null
+                            unsafe
+                                var visitor <- AstCompletionData()
+                                visitor.path = path
+                                visitor.pos = Position(ini.position.line, ini.position.character - tokenOffset)
+                                var adapter <- make_visitor(visitor)
+                                visit(program, adapter)
+
+                                for it in visitor.res
+                                    info(it, get_line_info())
+                                    list |> emplace(js(it))
+
+                                if visitor.resAnnotation != ""
+                                    info("res annotation {visitor.resAnnotation}", get_line_info())
+                                    for it in values(completionData.globalCompletion)
+                                        if it.fullName |> starts_with(visitor.resAnnotation) & it.fullName != visitor.resAnnotation
+                                            list |> emplace(js(it))
+
+                                delete adapter
+                    unsafe
+                        delete access
+
+                    // let token = self->find_token(path, Position(ini.position.line, ini.position.character - tokenOffset)) <| $(tok : AstToken?)
+                    //     return tok != null
+                    // info(token, get_line_info())
+                    // if token != null & token.typeDefPath != ""
+                        // find_if_exists(registry, token.typeDefPath) <| $(file : Dascript?)
+                        //     let typeToken = self->find_token(token.typeDefPath, token.typeDefRange.start) <| $(tok : AstToken?)
+                        //         return tok != null
+                        //     info("--------------------------", get_line_info())
+                        //     info(typeToken, get_line_info())
+                        // completionData->findCompletion(data.completionData, token._type, false) <| $(val : Completion)
+                        //     list |> emplace(js(val))
+
+            if list |> length() == 0
+                for it in values(data.completionData)
+                    list |> emplace(js(it))
+                for val in values(completionData.globalCompletion)
+                    list |> emplace(js(val))
+                info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
+                var tokensList : table<string; void?>
+                collect_token(data.ast, path) <| $(token : AstToken?)
+                    if (token.kind == AstTokenKind Constant
+                    | data.completionData |> key_exists(token.name)
+                    | completionData.globalCompletion |> key_exists(token.name)
+                    | tokensList |> key_exists(token.name)
+                    )
+                        return
+                    tokensList[token.name] = null
+                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
+                delete tokensList
 
             var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
-            delete tokensList
+
         else
             info("< [WARN] send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
+    finally
         delete ini
 
     def resolveCompletion(id : double; var params : JsonValue?)
