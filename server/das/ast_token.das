@@ -304,22 +304,37 @@ def parse(t; var res : AstCompletionData)
     // info("@@@@@@@@@@@@@", get_line_info())
     if t.annotation != null
         res.found = true
-        let ann & = t.annotation
-        res.resAnnotation = "{module_name(ann._module)}{ann.name}"
-        return
+        unsafe
+            let baseAnnotation & = reinterpret<rtti::Annotation?> t.annotation
+            if baseAnnotation.isBasicStructureAnnotation
+                var ann : BasicStructureAnnotation?
+                unsafe
+                    ann = reinterpret<BasicStructureAnnotation?> baseAnnotation
+                for_each_field(*ann) <| $ ( name,cppName,xtype,offset)
+                    let fullName = "{describe([decl=t,extra=false,contracts=false])}.{name}"
+                    var comp <- [[Completion
+                        name = name,
+                        fullName = fullName,
+                        desc = "{fullName} : {describe(xtype)} [{cppName}]",
+                        kind = CompletionItemKind Field
+                    ]]
+                    // info(comp, get_line_info())
+                    res.res |> emplace(comp)
+            return
 
     if t.structType != null
         res.found = true
         let structType = t.structType
         for decl in structType.fields
             let typ = decl._type != null ? "{describe([decl=decl._type,extra=true])}" : ""
-            var fieldName = "{decl.name}"
-            var fieldDesc = "{fieldName} : {typ}"
+            let fieldName = "{decl.name}"
+            let fullName = "{describe([decl=t,extra=false,contracts=false])}.{fieldName}"
+            var fieldDesc = "{fullName} : {typ}"
             if decl.init != null
                 fieldDesc += " = {describe(decl.init)}"
             var comp <- [[Completion
                 name = fieldName,
-                fullName = "{describe([decl=t,extra=false,contracts=false])}.{fieldName}",
+                fullName = fullName,
                 desc = fieldDesc,
                 kind = CompletionItemKind Field
             ]]
@@ -334,11 +349,10 @@ class AstCompletionData : AstVisitor
     pos : Position
     found : bool = false
     res : array<Completion>
-    resAnnotation : string
 
 // var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
-        if found
+        if found | expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -350,7 +364,7 @@ class AstCompletionData : AstVisitor
 
 // field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
-        if found
+        if found | expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -363,11 +377,33 @@ class AstCompletionData : AstVisitor
 
 // safe field
     def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
-        if found
+        if found | expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.atField)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        parse(expr._type, self)
+// looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
+    def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
+        if found | expr == null
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.at)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        parse(expr._type, self)
+// call
+    def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
+        if found | expr == null
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range)
             return
         // info(_range, get_line_info())

@@ -457,25 +457,42 @@ class TelnetServer : Server
         if data != null
             var list : array<JsonValue?>
             let idx = pos_to_index(ini.position, data.text)
-            info("@@@@@ pos index {idx}", get_line_info())
+            // info("@@@@@ pos index {idx}", get_line_info())
             if idx > 0
                 var word : array<uint8>
                 var searchToken = false
-                var tokenOffset = 1
+                var tokenOffset = 0
                 for i in range(0, min(idx, ini.position.character))
                     let ch = character_at(data.text, idx - i)
                     if ch == '.' | ch == ':' | ch == '>'
                         searchToken = true
-                        tokenOffset = ch == '.' ? 1 : 2
+                        tokenOffset += ch == '.' ? 1 : 2
                         break
                     if ch == ' '
                         break
                     word |> push(uint8(ch))
+                    tokenOffset ++
                 if searchToken
+                    var inside = 0
+                    for i in range(0, ini.position.character - tokenOffset)
+                        let ch = character_at(data.text, idx - tokenOffset - i)
+                        if inside > 0
+                            if ch == ')'
+                                inside ++
+                            elif ch == '('
+                                inside --
+                            if inside == 0
+                                tokenOffset += i + 1
+                                break
+                            continue
+                        if ch == ')'
+                            inside ++
+                            continue
+                        break
+                    var pos = Position(ini.position.line, ini.position.character - tokenOffset)
                     let search = reverse(string(word))
-                    tokenOffset += length(word)
-                    info("@@@@ search '{search}' {Position(ini.position.line, ini.position.character - tokenOffset)}", get_line_info())
-                    info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
+                    // info("@@@@ search '{search}' {pos}", get_line_info())
+                    // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
                     let uri = path_to_uri(path)
                     var access <- make_file_access(config.project.file)
                     set_file_source(access, path, data.text)
@@ -489,35 +506,18 @@ class TelnetServer : Server
                             unsafe
                                 var visitor <- AstCompletionData()
                                 visitor.path = path
-                                visitor.pos = Position(ini.position.line, ini.position.character - tokenOffset)
+                                visitor.pos = pos
                                 var adapter <- make_visitor(visitor)
                                 visit(program, adapter)
 
                                 for it in visitor.res
-                                    info(it, get_line_info())
+                                    // info(it, get_line_info())
                                     list |> emplace(js(it))
 
-                                if visitor.resAnnotation != ""
-                                    info("res annotation {visitor.resAnnotation}", get_line_info())
-                                    for it in values(completionData.globalCompletion)
-                                        if it.fullName |> starts_with(visitor.resAnnotation) & it.fullName != visitor.resAnnotation
-                                            list |> emplace(js(it))
-
                                 delete adapter
+                    delete pos
                     unsafe
                         delete access
-
-                    // let token = self->find_token(path, Position(ini.position.line, ini.position.character - tokenOffset)) <| $(tok : AstToken?)
-                    //     return tok != null
-                    // info(token, get_line_info())
-                    // if token != null & token.typeDefPath != ""
-                        // find_if_exists(registry, token.typeDefPath) <| $(file : Dascript?)
-                        //     let typeToken = self->find_token(token.typeDefPath, token.typeDefRange.start) <| $(tok : AstToken?)
-                        //         return tok != null
-                        //     info("--------------------------", get_line_info())
-                        //     info(typeToken, get_line_info())
-                        // completionData->findCompletion(data.completionData, token._type, false) <| $(val : Completion)
-                        //     list |> emplace(js(val))
 
             if list |> length() == 0
                 for it in values(data.completionData)
