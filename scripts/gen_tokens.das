@@ -1,15 +1,13 @@
 require fio
-require daslib/strings
-
-let
-	dasRoot = ""
+require strings
+require daslib/strings_boost
 
 variant Tokens
 	status : bool
 	tokens : array<string>
 
 [init]
-def init
+def main
 	// let data <- getKeywords()
 	let data <- getBasicTypes()
 	if data is status
@@ -45,7 +43,7 @@ def getBasicTypes()
 	return <- getTokens("/* basic types */", "/* operators */")
 
 def getTokens(from, to : string) : Tokens
-	let path = dasRoot + "src/parser/ds_parser.ypp"
+	let path = get_das_root() + "/src/parser/ds_parser.ypp"
 	var res <- [[Tokens status = false]]
 	fio::fopen(path, "rb") <| $(f)
 		if f == null
