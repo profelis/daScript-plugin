@@ -306,32 +306,25 @@ def parse(t; var res : AstCompletionData)
         res.found = true
         unsafe
             let baseAnnotation & = reinterpret<rtti::Annotation?> t.annotation
-            if baseAnnotation.isBasicStructureAnnotation
-                var ann : BasicStructureAnnotation?
-                unsafe
-                    ann = reinterpret<BasicStructureAnnotation?> baseAnnotation
-                for_each_field(*ann) <| $ ( name,cppName,xtype,offset)
-                    let fullName = "{describe([decl=t,extra=false,contracts=false])}.{name}"
-                    var comp <- [[Completion
-                        name = name,
-                        fullName = fullName,
-                        desc = "{fullName} : {describe(xtype)} [{cppName}]",
-                        kind = CompletionItemKind Field
-                    ]]
-                    // info(comp, get_line_info())
-                    res.res |> emplace(comp)
-            return
+            var items: Completions
+            parseAnnotation(*baseAnnotation, module_name(t._module), items, false /*include struct name*/)
+            for it in values(items)
+                res.res |> emplace(it)
+            delete items
 
-    if t.structType != null
+    elif t.structType != null
         res.found = true
         let structType = t.structType
+        let structTyp = describe([decl=t,extra=false,contracts=false])
         for decl in structType.fields
             let typ = decl._type != null ? "{describe([decl=decl._type,extra=true])}" : ""
             let fieldName = "{decl.name}"
-            let fullName = "{describe([decl=t,extra=false,contracts=false])}.{fieldName}"
+            let fullName = "{structTyp}.{fieldName}"
             var fieldDesc = "{fullName} : {typ}"
             if decl.init != null
                 fieldDesc += " = {describe(decl.init)}"
+            if decl.offset != -1
+                fieldDesc += "[@ {decl.offset}]"
             var comp <- [[Completion
                 name = fieldName,
                 fullName = fullName,

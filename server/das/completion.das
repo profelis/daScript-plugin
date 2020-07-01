@@ -150,8 +150,7 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
-[private]
-def parseAnnotation(ann; fullModuleName : string; var items: Completions)
+def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: Completions; verbose = true)
   if ann.isBasicStructureAnnotation
     unsafe
       let sann & = reinterpret<BasicStructureAnnotation&>(ann)
@@ -176,17 +175,20 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
       if length(fields) > 0
         fields |> sort() <| $(a; b)
           return a._0 < b._0
-        for it in fields
-          structDesc += it._1
-      if length(props) > 0
+        if verbose
+          for it in fields
+            structDesc += it._1
+      if verbose & length(props) > 0
         if length(fields) > 0
           structDesc += "\n"
         structDesc += join(props, "")
 
-      addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
-        impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
+      if verbose
+        addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
+          impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
       for it in all
-        it.impls |> emplace(structDesc)
+        if verbose
+          it.impls |> emplace(structDesc)
         addItem(move(it), items)
 
       delete props
@@ -194,16 +196,18 @@ def parseAnnotation(ann; fullModuleName : string; var items: Completions)
       delete all
 
   elif ann.isTypeAnnotation
-    unsafe
-      let tann & = reinterpret<TypeAnnotation&>(ann)
-      let structName = "{tann.name}"
-      let fullName = "{fullModuleName}{structName}"
-      addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
+    if verbose
+      unsafe
+        let tann & = reinterpret<TypeAnnotation&>(ann)
+        let structName = "{tann.name}"
+        let fullName = "{fullModuleName}{structName}"
+        addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
 
   else
-    let structName = "{ann.name}"
-    let fullName = "{fullModuleName}{structName}"
-    addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
+    if verbose
+      let structName = "{ann.name}"
+      let fullName = "{fullModuleName}{structName}"
+      addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
 
 [private]
 def parseFunction(info; fullModuleName : string; var items : Completions)
