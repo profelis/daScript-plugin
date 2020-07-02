@@ -286,7 +286,7 @@ def parseModule(pMod; var items : Completions)
     for it in info
       enumDesc += "\n\t{it.name} = {it.value}"
       let fullItemName = "{fullModuleName}{enumName} {it.name}"
-      all |> emplace([[auto it.value, [[Completion name = "{it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
+      all |> emplace([[auto it.value, [[Completion name = "{enumName} {it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
 
     addItem([[Completion name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
     for it in all

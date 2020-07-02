@@ -297,6 +297,19 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     invoke(blk, tok)
     return true
 
+[private]
+def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : array<Completion>)
+    let arr = [[auto "x"; "y"; "z"; "w"]]
+    for i in range(0, num)
+        let desc = "{main_type}.{arr[i]} : {typ}"
+        var comp <- [[Completion
+            name = arr[i],
+            fullName = "{main_type}.{desc}",
+            desc = desc,
+            kind = CompletionItemKind Field
+        ]]
+        res |> emplace(comp)
+
 def parse(t; var res : AstCompletionData)
     if t == null
         return
@@ -351,7 +364,26 @@ def parse(t; var res : AstCompletionData)
                 kind = CompletionItemKind Field
             ]]
             res.res |> emplace(comp)
-    // TODO: tFloat2
+
+    if t.baseType == Type tFloat2
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "float", res.res)
+    elif t.baseType == Type tFloat3
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "float", res.res)
+    elif t.baseType == Type tFloat4
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "float", res.res)
+    elif t.baseType == Type tInt2
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "int", res.res)
+    elif t.baseType == Type tInt3
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "int", res.res)
+    elif t.baseType == Type tInt4
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "int", res.res)
+    elif t.baseType == Type tUInt2
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "uint", res.res)
+    elif t.baseType == Type tUInt3
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "uint", res.res)
+    elif t.baseType == Type tUInt4
+        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "uint", res.res)
+
     if t.firstType != null
         parse(t.firstType, res)
 
