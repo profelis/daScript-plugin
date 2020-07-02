@@ -1,5 +1,6 @@
 
 require ast
+require math
 require rtti_tools
 require strings
 require lsp_types
@@ -324,7 +325,7 @@ def parse(t; var res : AstCompletionData)
             if decl.init != null
                 fieldDesc += " = {describe(decl.init)}"
             if decl.offset != -1
-                fieldDesc += "[@ {decl.offset}]"
+                fieldDesc += " [@ {decl.offset}]"
             var comp <- [[Completion
                 name = fieldName,
                 fullName = fullName,
@@ -334,6 +335,23 @@ def parse(t; var res : AstCompletionData)
             // info(comp, get_line_info())
             res.res |> emplace(comp)
 
+    if t.argTypes.length > 0 | t.argNames.length > 0
+        res.found = true
+        for i in range(0, max(t.argTypes.length, t.argNames.length))
+            let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
+            var desc = name
+            if t.argTypes.length > i & t.argTypes[i] != null
+                desc += " : {describe(t.argTypes[i])}"
+            if t.baseType == Type tBitfield
+                desc += " // bitfield"
+            var comp <- [[Completion
+                name = name,
+                fullName = "{describe([decl=t,extra=false,contracts=false])}.{name}",
+                desc = desc,
+                kind = CompletionItemKind Field
+            ]]
+            res.res |> emplace(comp)
+    // TODO: tFloat2
     if t.firstType != null
         parse(t.firstType, res)
 

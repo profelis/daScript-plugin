@@ -31,7 +31,6 @@ require ast_token
 require config
 
 var
-    isContDev = false
     telnet : TelnetServer?
 
 struct Dascript
@@ -236,7 +235,6 @@ class TelnetServer : Server
             capabilities |> push("workspace/didChangeConfiguration")
         if capabilities |> length() > 0
             self->registerCapability(capabilities)
-    finally
         delete capabilities
 
     def validate(path : string; withContent : bool = false)
@@ -256,10 +254,6 @@ class TelnetServer : Server
                 set_file_source(access, path, data.text)
 
             compile_file(path, access) <| $(ok, program, error)
-                // info(ok)
-                // info(program)
-                // info(error)
-
                 if program != null
                     for it in data.ast
                         delete it
@@ -271,6 +265,7 @@ class TelnetServer : Server
                         visit(program, adapter)
                         visitor.tokens = null
                         delete adapter
+                        delete visitor
 
                     collect_token(data.ast) <| $(var tok : AstToken?)
                         tok.path = resolve_path(tok.path, config)
@@ -308,7 +303,7 @@ class TelnetServer : Server
                     // if err.at.fileInfo == null
                         // info(err)
                         // info("< error without file info\n")
-                    let localUri = err.at.fileInfo != null ? path_to_uri(string(err.at.fileInfo.name)) : uri
+                    let localUri = resolve_path(err.at.fileInfo != null ? path_to_uri(string(err.at.fileInfo.name)) : uri, config)
                     let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
                     if hasDiagnosticRelatedInformationCapability
@@ -339,13 +334,13 @@ class TelnetServer : Server
                 delete access
 
     def didOpen(id : double; params : JsonValue?)
-        var doc = DidOpenTextDocumentParams(params)
-        let path = uri_to_path(doc.textDocument.uri)
-        registry[path] <- Dascript(doc.textDocument)
-        info("> open file {path} len {length(doc.textDocument.text)}, total files {length(registry)}\n", get_line_info())
+        var ini = DidOpenTextDocumentParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        registry[path] <- Dascript(ini.textDocument)
+        info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
     finally
-        delete doc
+        delete ini
 
     def didSave(id : double; params : JsonValue?)
         var doc = DidSaveTextDocumentParams(params)
@@ -453,8 +448,7 @@ class TelnetServer : Server
 
     def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig?)
         let path = uri_to_path(ini.textDocument.uri)
-        let data = find(registry, path)
-        if data != null
+        var found = find_if_exists(registry, path) <| $(data)
             var list : array<JsonValue?>
             let idx = pos_to_index(ini.position, data.text)
             // info("@@@@@ pos index {idx}", get_line_info())
@@ -474,21 +468,30 @@ class TelnetServer : Server
                     tokenOffset ++
                 if searchToken
                     var inside = 0
+                    var fixedOffset = 0
+                    var first = true
                     for i in range(0, ini.position.character - tokenOffset)
                         let ch = character_at(data.text, idx - tokenOffset - i)
+                        if first
+                            first = false
+                            if ch == '?'
+                                fixedOffset ++
+                                continue
                         if inside > 0
+                            fixedOffset ++
                             if ch == ')'
                                 inside ++
                             elif ch == '('
                                 inside --
                             if inside == 0
-                                tokenOffset += i + 1
                                 break
                             continue
                         if ch == ')'
                             inside ++
+                            fixedOffset ++
                             continue
                         break
+                    tokenOffset += fixedOffset
                     var pos = Position(ini.position.line, ini.position.character - tokenOffset)
                     let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
@@ -498,10 +501,6 @@ class TelnetServer : Server
                     set_file_source(access, path, data.text)
 
                     compile_file(path, access) <| $(ok, program, error)
-                        // info(ok, get_line_info())
-                        // info(program, get_line_info())
-                        // info(error, get_line_info())
-
                         if program != null
                             unsafe
                                 var visitor <- AstCompletionData()
@@ -511,10 +510,10 @@ class TelnetServer : Server
                                 visit(program, adapter)
 
                                 for it in visitor.res
-                                    // info(it, get_line_info())
                                     list |> emplace(js(it))
 
                                 delete adapter
+                                delete visitor
                     delete pos
                     unsafe
                         delete access
@@ -527,20 +526,19 @@ class TelnetServer : Server
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
-                    if (token.kind == AstTokenKind Constant
-                    | data.completionData |> key_exists(token.name)
-                    | completionData.globalCompletion |> key_exists(token.name)
-                    | tokensList |> key_exists(token.name)
+                    if (data.completionData |> key_exists(token.name)
+                        | completionData.globalCompletion |> key_exists(token.name)
+                        | tokensList |> key_exists(token.name)
                     )
                         return
                     tokensList[token.name] = null
-                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(double(int(CompletionItemKind Text))) }}))
+                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(int(CompletionItemKind Text)) }}))
                 delete tokensList
 
-            var res = js({{ "isIncomplete" => js(false); "items" => js(list)}})
+            var res <- js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
 
-        else
+        if !found
             info("< [WARN] send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
     finally
@@ -663,15 +661,16 @@ class TelnetServer : Server
             workspaceFolders |> push(it)
         delete ini
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     def didChangeConfiguration(id : double; var params : JsonValue?)
         for it in values(configs)
             delete it
         clear(configs)
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        // info(ini, get_line_info())
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != ""
         if token == null
@@ -723,7 +722,6 @@ class TelnetServer : Server
                     unsafe
                         var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
                         toRead = to_int(lenStr)
-                        // info("> content len {lenStr} as int {toRead}\n")
                         clear(current_string)
                 continue
 
@@ -839,7 +837,6 @@ class TelnetServer : Server
 
 [export]
 def main(fn : string)
-    isContDev = true
     return mainLoop(fn)
 
 [export]
