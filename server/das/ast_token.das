@@ -451,6 +451,17 @@ class AstCompletionData : AstVisitor
             return
         // info(_range, get_line_info())
         parse(expr._type, self)
+// ptr to ref
+    def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+        if found | expr == null
+            return
+        if string(expr.at.fileInfo.name) != path
+            return
+        let _range = line_info_to_range(expr.at)
+        if !pos |> in_range(_range)
+            return
+        // info(_range, get_line_info())
+        parse(expr._type, self)
 
 class AstData : AstVisitor
     tokens : AstTokens?
@@ -747,7 +758,7 @@ class AstData : AstVisitor
             name = "{describe(expr._type)}.{name}"
         var token <- new [[AstToken
             name = name,
-            desc = "{name} : {typ}",
+            desc = typ != "" ? "{name} : {typ}" : name,
             kind = AstTokenKind Field,
             _type = typ
         ]]
@@ -776,7 +787,28 @@ class AstData : AstVisitor
     // def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
     // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
 // ptr to ref
-    // def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+    def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+        if skipExprs
+            return
+        var name = "deref"
+        var desc = "{name}("
+        var typ = expr._type != null ? describe(expr._type) : ""
+        if expr.subexpr != null & expr.subexpr._type != null
+            desc += "arg1 : {describe(expr.subexpr._type)}"
+        desc += ")"
+        if typ != ""
+            desc += " : {typ}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = typ
+        ]]
+        set_token_path(token, expr.at)
+        if expr._type != null
+            if expr._type.structType != null
+                set_token_def(token, expr._type.structType.at)
+        *tokens |> emplace(token)
     // def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
 // label
     // def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void

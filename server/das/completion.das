@@ -150,6 +150,7 @@ def getValue(value)
     return " = \"{value}\""
   return " = {value}"
 
+[export]
 def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: Completions; verbose = true)
   if ann.isBasicStructureAnnotation
     unsafe
