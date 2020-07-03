@@ -453,21 +453,37 @@ class TelnetServer : Server
             let idx = pos_to_index(ini.position, data.text)
             // info("@@@@@ pos index {idx}", get_line_info())
             if idx > 0
-                var word : array<uint8>
+                // var word : array<uint8>
                 var searchToken = false
                 var tokenOffset = 0
-                for i in range(0, min(idx, ini.position.character))
+                var i = 0
+                let maxI = min(idx, ini.position.character)
+                while i < maxI
                     let ch = character_at(data.text, idx - i)
-                    if ch == '.' | ch == ':' | ch == '>'
+                    if ch == '.' | ch == ':' | (ch == '>' & idx - i >= 1 & character_at(data.text, idx - i - 1) == '-')
                         searchToken = true
                         tokenOffset += ch == '.' ? 1 : 2
                         break
                     if ch == ' '
+                        i++
+                        while i < maxI & character_at(data.text, idx - i) == ' '
+                            i++
+                        if (idx - i >= 2
+                            & character_at(data.text, idx - i) == 's'
+                            & (character_at(data.text, idx - i - 1) == 'a' | character_at(data.text, idx - i - 1) == 'i')
+                            & character_at(data.text, idx - i - 2) == ' ' | (character_at(data.text, idx - i - 2) == '?' & idx - i >= 3 & character_at(data.text, idx - i - 3) == ' ')
+                        )
+                            searchToken = true
+                            tokenOffset = i + (character_at(data.text, idx - i - 2) == ' ' ? 3 : 4)
                         break
-                    word |> push(uint8(ch))
+                    if ch == '[' | ch == '-'
+                        break
+                    // word |> push(uint8(ch))
                     tokenOffset ++
+                    i++
                 if searchToken
-                    var inside = 0
+                    var insideO = 0
+                    var insideD = 0
                     var fixedOffset = 0
                     var first = true
                     for i in range(0, ini.position.character - tokenOffset)
@@ -477,23 +493,31 @@ class TelnetServer : Server
                             if ch == '?'
                                 fixedOffset ++
                                 continue
-                        if inside > 0
-                            fixedOffset ++
-                            if ch == ')'
-                                inside ++
-                            elif ch == '('
-                                inside --
-                            if inside == 0
-                                break
-                            continue
                         if ch == ')'
-                            inside ++
+                            insideO ++
+                        elif ch == ']'
+                            insideD ++
+                        elif ch == '('
+                            if insideO > 0
+                                insideO --
+                            else
+                                fixedOffset ++
+                                break
+                        elif ch == '['
+                            if insideD > 0
+                                insideD --
+                            else
+                                fixedOffset ++
+                                break
+
+                        if insideO > 0 | insideD > 0
                             fixedOffset ++
                             continue
+                        fixedOffset ++
                         break
                     tokenOffset += fixedOffset
                     var pos = Position(ini.position.line, ini.position.character - tokenOffset)
-                    let search = reverse(string(word))
+                    // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
                     let uri = path_to_uri(path)
@@ -526,7 +550,8 @@ class TelnetServer : Server
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
-                    if (data.completionData |> key_exists(token.name)
+                    if (token.kind == AstTokenKind Constant
+                        | data.completionData |> key_exists(token.name)
                         | completionData.globalCompletion |> key_exists(token.name)
                         | tokensList |> key_exists(token.name)
                     )
