@@ -689,7 +689,23 @@ class AstData : AstVisitor
     // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op2
-    // def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
+    def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
+        if skipExprs
+            return
+        unsafe
+            var name = "{expr.op}"
+            var desc = name
+            var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
+            desc = describe(reinterpret<smart_ptr<Function>> call.func)
+            var token <- new [[AstToken
+                name = name,
+                desc = desc,
+                kind = AstTokenKind Operator,
+                _type = desc
+            ]]
+            set_token_path(token, expr.at)
+            set_token_def(token, call.func.atDecl)
+            *tokens |> emplace(token)
     // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
     // def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
 // op3
