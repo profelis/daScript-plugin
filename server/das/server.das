@@ -161,7 +161,7 @@ class TelnetServer : Server
 
         var localCb <- @ <| [[<-cb]](data, error : JsonValue?)
             configReqs |> erase(path)
-            if error == null & data != null & data.value is _array
+            if error == null && data != null && data.value is _array
                 let arr & = data.value as _array
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
@@ -188,7 +188,7 @@ class TelnetServer : Server
         configReqs[path] = reqId
 
     def log(msg : string; level : LogLevel)
-        if !inited | done
+        if !inited || done
             return
         var res = [[LogMessageParams message = msg]]
         unsafe
@@ -309,7 +309,7 @@ class TelnetServer : Server
                     if hasDiagnosticRelatedInformationCapability
                         var extra = "{err.extra}"
                         let fixme = "{err.fixme}"
-                        if extra != "" | fixme != ""
+                        if extra != "" || fixme != ""
                             if fixme != ""
                                 extra += "\n{fixme}"
                             var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
@@ -323,7 +323,7 @@ class TelnetServer : Server
 
                 for k, v in keys(map), values(map)
                     let localPath = uri_to_path(k)
-                    if ok | localPath != path
+                    if ok || localPath != path
                         registry |> find_if_exists(localPath) <| $(fileData)
                             collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
@@ -406,7 +406,7 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         if !registry |> key_exists(path)
             registry[path] <- Dascript(ini)
-            info("> [WARN] {path} unknown? register again, total files {length(registry)}\n", get_line_info())
+            warning("> {path} unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
         var found = false
         find_if_exists(registry, path) <| $(var data)
@@ -414,7 +414,7 @@ class TelnetServer : Server
             var _range : Range
             var first = true
             collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
-                if first | it._range |> in_range(_range)
+                if first || it._range |> in_range(_range)
                     _range = it._range
                 first = false
                 let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
@@ -431,7 +431,7 @@ class TelnetServer : Server
                 found = true
                 delete h
         if !found
-            info("< [WARN] hover info not found @ {to_string(ini.position)}\n", get_line_info())
+            warning("< hover info not found @ {to_string(ini.position)}\n", get_line_info())
             self->sendResponse(id, js())
         delete ini
 
@@ -449,6 +449,7 @@ class TelnetServer : Server
     def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig?)
         let path = uri_to_path(ini.textDocument.uri)
         var found = find_if_exists(registry, path) <| $(data)
+            let startTime = get_clock()
             var list : array<JsonValue?>
             let idx = pos_to_index(ini.position, data.text)
             // info("@@@@@ pos index {idx}", get_line_info())
@@ -460,23 +461,23 @@ class TelnetServer : Server
                 let maxI = min(idx, ini.position.character)
                 while i < maxI
                     let ch = character_at(data.text, idx - i)
-                    if ch == '.' | ch == ':' | (ch == '>' & idx - i >= 1 & character_at(data.text, idx - i - 1) == '-')
+                    if ch == '.' || ch == ':' || (ch == '>' && idx - i >= 1 && character_at(data.text, idx - i - 1) == '-')
                         searchToken = true
                         tokenOffset += ch == '.' ? 1 : 2
                         break
                     if ch == ' '
                         i++
-                        while i < maxI & character_at(data.text, idx - i) == ' '
+                        while i < maxI && character_at(data.text, idx - i) == ' '
                             i++
                         if (idx - i >= 2
-                            & character_at(data.text, idx - i) == 's'
-                            & (character_at(data.text, idx - i - 1) == 'a' | character_at(data.text, idx - i - 1) == 'i')
-                            & character_at(data.text, idx - i - 2) == ' ' | (character_at(data.text, idx - i - 2) == '?' & idx - i >= 3 & character_at(data.text, idx - i - 3) == ' ')
+                            && character_at(data.text, idx - i) == 's'
+                            && (character_at(data.text, idx - i - 1) == 'a' || character_at(data.text, idx - i - 1) == 'i')
+                            && character_at(data.text, idx - i - 2) == ' ' || (character_at(data.text, idx - i - 2) == '?' && idx - i >= 3 && character_at(data.text, idx - i - 3) == ' ')
                         )
                             searchToken = true
                             tokenOffset = i + (character_at(data.text, idx - i - 2) == ' ' ? 3 : 4)
                         break
-                    if ch == '[' | ch == '-'
+                    if ch == '[' || ch == '-'
                         break
                     // word |> push(uint8(ch))
                     tokenOffset ++
@@ -510,7 +511,7 @@ class TelnetServer : Server
                                 fixedOffset ++
                                 break
 
-                        if insideO > 0 | insideD > 0
+                        if insideO > 0 || insideD > 0
                             fixedOffset ++
                             continue
                         fixedOffset ++
@@ -551,9 +552,9 @@ class TelnetServer : Server
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
                     if (token.kind == AstTokenKind Constant
-                        | data.completionData |> key_exists(token.name)
-                        | completionData.globalCompletion |> key_exists(token.name)
-                        | tokensList |> key_exists(token.name)
+                        || data.completionData |> key_exists(token.name)
+                        || completionData.globalCompletion |> key_exists(token.name)
+                        || tokensList |> key_exists(token.name)
                     )
                         return
                     tokensList[token.name] = null
@@ -562,9 +563,10 @@ class TelnetServer : Server
 
             var res <- js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
+            info("< completion time { get_clock() - startTime }", get_line_info())
 
         if !found
-            info("< [WARN] send global completion {length(completionData.globalCompletion)}\n", get_line_info())
+            warning("< send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
     finally
         delete ini
@@ -577,7 +579,7 @@ class TelnetServer : Server
         var token : AstToken?
         find_if_exists(registry, path) <| $(data)
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-                if (token == null | tok._range |> in_range(token._range)) & invoke(valid, tok)
+                if (token == null || tok._range |> in_range(token._range)) && invoke(valid, tok)
                     token = tok
         return token
 
@@ -618,7 +620,7 @@ class TelnetServer : Server
         delete ini
 
     def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
-        if !ast.topLevel | ast.path != path
+        if !ast.topLevel || ast.path != path
             return
         var data <- {{
             "name" => js(ast.name |> strip_left("`"));
@@ -651,9 +653,9 @@ class TelnetServer : Server
             delete ini
 
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
-        if !ast.topLevel | length(res) >= limit | ast.name |> starts_with("builtin`")
+        if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`")
             return
-        if ast.path != "" & (query == "" | find(ast.name, query) != -1)
+        if ast.path != "" && (query == "" || find(ast.name, query) != -1)
             var data <- {{
                 "name" => js(ast.name);
                 "containerName" => js(ast.desc);
@@ -750,7 +752,7 @@ class TelnetServer : Server
                         clear(current_string)
                 continue
 
-            if ch == '\n' | ch == '\r'
+            if ch == '\n' || ch == '\r'
                 continue
 
             push(current_string, uch)
@@ -864,7 +866,7 @@ class TelnetServer : Server
 def main(fn : string)
     return mainLoop(fn)
 
-[export]
+[export,init]
 def init()
     mainLoop("")
 
@@ -909,7 +911,7 @@ def mainLoop(fn : string)
             if alloc > strLimit
                 strLimit *= uint64(2)
                 warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
-            elif strLimit > initialstrLimit & alloc < strLimit / uint64(2)
+            elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
                 strLimit = strLimit / uint64(2)
                 warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
 

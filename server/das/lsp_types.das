@@ -409,7 +409,7 @@ def Position(line, character : int)
 	return <- [[Position line = line, character = character]]
 
 def Position(val : JsonValue?)
-	if val == null | val.value is _null
+	if val == null || val.value is _null
 		return <- [[Position]]
 	return <- [[Position line = int(jon(val, "line")), character = int(jon(val, "character")) ]]
 
@@ -417,10 +417,10 @@ def js(val : Position)
 	return js({{ "line" => js(double(val.line)); "character" => js(double(val.character)) }})
 
 def operator <(a, b : Position)
-	return a.line < b.line | (a.line == b.line & a.character < b.character)
+	return a.line < b.line || (a.line == b.line && a.character < b.character)
 
 def operator <=(a, b : Position)
-	return a.line < b.line | (a.line == b.line & a.character <= b.character)
+	return a.line < b.line || (a.line == b.line && a.character <= b.character)
 
 def pos_to_index(pos : Position; text : string)
 	var line = 0
@@ -451,17 +451,17 @@ def Range(start_line, start_char, end_line, end_char : int)
 	return <- [[Range start = Position(start_line, start_char), end = Position(end_line, end_char)]]
 
 def Range(val : JsonValue?)
-	if val == null | val.value is _null
+	if val == null || val.value is _null
 		return <- [[Range start = [[Position]], end = [[Position]] ]]
 	return <- [[Range start <- Position(joj(val, "start")), end <- Position(joj(val, "end")) ]]
 
 def in_range(pos : Position; r : Range)
-	return r.start <= pos & pos <= r.end
+	return r.start <= pos && pos <= r.end
 
 def in_range(b, a : Range)
-	if a.start <= b.start & b.end <= a.end
+	if a.start <= b.start && b.end <= a.end
 		return true
-	return range_ratio(b) < range_ratio(a) & (b.start |> in_range(a) | b.end |> in_range(a))
+	return range_ratio(b) < range_ratio(a) && (b.start |> in_range(a) || b.end |> in_range(a))
 
 def range_oneline(a : Range)
 	return a.start.line == a.end.line

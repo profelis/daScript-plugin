@@ -76,14 +76,14 @@ def getTypeName(info; var items : Completions)
     res = info.annotation != null ? string(info.annotation.name) : "tHandle"
   elif info.basicType == Type tStructure
     res = info.structType?.name ?? "structure"
-  elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
+  elif info.basicType == Type tEnumeration || info.basicType==Type tEnumeration8 || info.basicType==Type tEnumeration16
     res = info.enumType?.name ?? "enumeration"
   elif info.basicType == Type tPointer
     res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
   elif info.basicType == Type tArray
     res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
   elif info.basicType == Type tTable
-    if info.firstType != null & info.secondType!=null
+    if info.firstType != null && info.secondType!=null
       res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
     else
       res = "table"
@@ -95,7 +95,7 @@ def getTypeName(info; var items : Completions)
     else
       res = "tuple"
   elif info.basicType == Type tVariant
-    if info.argTypes != null & info.argNames != null
+    if info.argTypes != null && info.argNames != null
       res = "variant<"
       var variantDesc = "variant<"
       var all : array<Completion>
@@ -116,7 +116,7 @@ def getTypeName(info; var items : Completions)
       delete all
     else
       res = "variant"
-  elif info.basicType == Type tFunction | info.basicType == Type tLambda | info.basicType == Type tBlock
+  elif info.basicType == Type tFunction || info.basicType == Type tLambda || info.basicType == Type tBlock
     res = "{get_das_type_name(info.basicType)}<"
     if info.argTypes != null
       var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
@@ -179,7 +179,7 @@ def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: 
         if verbose
           for it in fields
             structDesc += it._1
-      if verbose & length(props) > 0
+      if verbose && length(props) > 0
         if length(fields) > 0
           structDesc += "\n"
         structDesc += join(props, "")
@@ -226,7 +226,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   impl += ")"
   if info.result != null
     impl += ": {getTypeName(*(info.result), items)}"
-  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN & info.cppName != ""
+  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && info.cppName != ""
     impl += " [{info.cppName}]"
   res.impls |> emplace(impl)
   addItem(move(res), items)
@@ -320,7 +320,7 @@ def js(it : Completion; doc = true) : JsonValue?
   if it.fullName != ""
     tab["filterName"] <- js(it.fullName)
     tab["sortText"] <- js(it.fullName)
-  if doc & length(it.impls) > 0
+  if doc && length(it.impls) > 0
     tab["documentation"] <- js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
   return js(tab)
 
@@ -339,7 +339,7 @@ def first_part(str : string; del : string)
   globalCompletion : Completions
 
   def updateGlobalList(force : bool)
-    if !force & get_clock() - globalCompletionUpdate < 6f
+    if !force && get_clock() - globalCompletionUpdate < 6f
       return
     globalCompletionUpdate = get_clock()
     delete globalCompletion
@@ -372,12 +372,12 @@ def first_part(str : string; del : string)
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
     var found = false
     for it in values(completions)
-      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
+      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
         invoke(blk, it)
         found = true
 
     for it in values(globalCompletion)
-      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.fullName == n
+      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
         invoke(blk, it)
         found = true
 
@@ -385,8 +385,8 @@ def first_part(str : string; del : string)
       return
 
     for it in values(completions)
-      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.name == n
+      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
         invoke(blk, it)
     for it in values(globalCompletion)
-      if it.kind != CompletionItemKind Keyword & (!field | (it.kind != CompletionItemKind Function & it.kind != CompletionItemKind Method)) & it.name == n
+      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
         invoke(blk, it)

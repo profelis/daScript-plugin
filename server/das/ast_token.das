@@ -69,7 +69,7 @@ def to_hover(val : AstToken?; verbose : bool)
 
 
 def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
-    if val.path == path & val.warn != bitfield(0)
+    if val.path == path && val.warn != bitfield(0)
         var d <- [[Diagnostic _range = val._range ]]
         if val.warn.unused
             d.message = "[Unused] {val.desc}"
@@ -105,7 +105,7 @@ def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):
         collect_token(it, path, blk)
 
 def collect_token(val : AstToken?; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    if val.path == path & pos |> in_range(val._range)
+    if val.path == path && pos |> in_range(val._range)
         invoke(blk, val)
     for it in val.children
         collect_token(it, path, pos, blk)
@@ -115,7 +115,7 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
         collect_token(it, path, pos, blk)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
-    if val.defPath == path & val.defRange |> in_range(_range) & ! val._range |> in_range(_range) &  ! val._range |> in_range(val.defRange)
+    if val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         invoke(blk, val)
     for it in val.children
         collect_ref_token(it, path, _range, blk)
@@ -144,7 +144,7 @@ def set_token_type_def(var token : AstToken?; typ)
         token.typeDefPath = typ.at.fileInfo != null ? "{typ.at.fileInfo.name}" : ""
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
-    if arg == null | arg.flags.generated
+    if arg == null || arg.flags.generated
         return false
     let typ = arg._type != null ? "{module_name(arg._module)}{describe([decl=arg._type,extra=true])}" : ""
     var desc = "{arg.name} : {typ}"
@@ -161,7 +161,7 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(token, arg.at)
     set_token_def(token, arg.at)
-    if arg._type != null & arg._type.structType != null
+    if arg._type != null && arg._type.structType != null
         set_token_type_def(token, arg._type.structType)
     invoke(blk, token)
     return true
@@ -173,7 +173,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     let typ = expr._type != null ? "{describe([decl=expr._type,extra=true])}" : ""
     var name = "{expr.name}"
     var desc = "{name} : {typ}"
-    if expr.field != null & expr.field.init != null
+    if expr.field != null && expr.field.init != null
         desc = "{desc} = {describe(expr.field.init)}"
     var res <- new [[AstToken
         name = name,
@@ -184,9 +184,9 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     set_token_path(res, expr.atField)
     if expr.field != null
         set_token_def(res, expr.field.at)
-        if expr.field._type != null & expr.field._type.structType != null
+        if expr.field._type != null && expr.field._type.structType != null
             set_token_type_def(res, expr.field._type.structType)
-    if range_oneline(res._range) & typ |> starts_with("function<")
+    if range_oneline(res._range) && typ |> starts_with("function<")
         res.kind = AstTokenKind Method
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
@@ -214,7 +214,7 @@ def like_call_to_token(expr; blk : block<(var token:AstToken?):void>)
                 // info(blk)
                 // typ += "__blk__"
                 // continue
-            if arg._type != null & !arg._type.flags.constant
+            if arg._type != null && !arg._type.flags.constant
                 typ += "var "
             typ += "arg{idx} : {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
             idx++
@@ -230,7 +230,7 @@ def like_call_to_token(expr; blk : block<(var token:AstToken?):void>)
         _type = typ
     ]]
     set_token_path(res, expr.at)
-    if range_oneline(res._range) & firstArg |> starts_with("self.")
+    if range_oneline(res._range) && firstArg |> starts_with("self.")
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
         res._range.end.character += length(firstArg) - selfLen - 1
@@ -256,7 +256,7 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
                 // info(blk)
                 // typ += "__blk__"
                 // continue
-            if arg._type != null & !arg._type.flags.constant
+            if arg._type != null && !arg._type.flags.constant
                 typ += "var "
             typ += "arg{idx} : {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
             idx++
@@ -274,7 +274,7 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     set_token_path(res, expr.at)
     if expr.func != null
         set_token_def(res, expr.func.atDecl)
-    if range_oneline(res._range) & firstArg |> starts_with("self.")
+    if range_oneline(res._range) && firstArg |> starts_with("self.")
         let selfLen = 4
         res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
         res._range.end.character += length(firstArg) - selfLen - 1
@@ -348,12 +348,12 @@ def parse(t; var res : AstCompletionData)
             // info(comp, get_line_info())
             res.res |> emplace(comp)
 
-    if t.argTypes.length > 0 | t.argNames.length > 0
+    if t.argTypes.length > 0 || t.argNames.length > 0
         res.found = true
         for i in range(0, max(t.argTypes.length, t.argNames.length))
             let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
             var desc = name
-            if t.argTypes.length > i & t.argTypes[i] != null
+            if t.argTypes.length > i && t.argTypes[i] != null
                 desc += " : {describe(t.argTypes[i])}"
             if t.baseType == Type tBitfield
                 desc += " // bitfield"
@@ -395,7 +395,7 @@ class AstCompletionData : AstVisitor
 
 // var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -407,7 +407,7 @@ class AstCompletionData : AstVisitor
 
 // field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -420,7 +420,7 @@ class AstCompletionData : AstVisitor
 
 // safe field
     def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -431,7 +431,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -442,7 +442,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // call
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -453,7 +453,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // ptr to ref
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
-        if found | expr == null
+        if found || expr == null
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -514,7 +514,7 @@ class AstData : AstVisitor
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
-        if str.flags.generated | str.flags.isLambda
+        if str.flags.generated || str.flags.isLambda
             return
         var name = "{module_name(str._module)}{str.name}"
         var desc = "struct {name}"
@@ -551,7 +551,7 @@ class AstData : AstVisitor
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
     def override preVisitFunction(fun:FunctionPtr) : void
-        if fun.flags.generated & !fun.flags._generator & !fun.flags._lambda
+        if fun.flags.generated && !fun.flags._generator && !fun.flags._lambda
             skipExprs = true
             return
         if fun.flags._lambda
@@ -581,7 +581,7 @@ class AstData : AstVisitor
         ]]
         set_token_path(token, fun.at)
         set_token_def(token, fun.atDecl)
-        token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated & token._range |> in_range(token.defRange)
+        token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated && token._range |> in_range(token.defRange)
         for it in fun.arguments
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)
@@ -768,7 +768,7 @@ class AstData : AstVisitor
     def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
         if skipExprs
             return
-        var typ = decl.value != null & decl.value._type != null ? describe(decl.value._type) : ""
+        var typ = decl.value != null && decl.value._type != null ? describe(decl.value._type) : ""
         var name = "{decl.name}"
         if expr._type != null
             name = "{describe(expr._type)}.{name}"
@@ -809,7 +809,7 @@ class AstData : AstVisitor
         var name = "deref"
         var desc = "{name}("
         var typ = expr._type != null ? describe(expr._type) : ""
-        if expr.subexpr != null & expr.subexpr._type != null
+        if expr.subexpr != null && expr.subexpr._type != null
             desc += "arg1 : {describe(expr.subexpr._type)}"
         desc += ")"
         if typ != ""
@@ -903,7 +903,7 @@ class AstData : AstVisitor
         let f2name = [[string "x";"y";"z";"w"]]
         for fch in expr.fields
             let f = int(fch)
-            swizzle += "{f>=0 & f<=3 ? f2name[f] : "?"}"
+            swizzle += "{f>=0 && f<=3 ? f2name[f] : "?"}"
         let typ = "{describe([decl=expr.value._type,extra=true])}.{swizzle}"
         let name = "{describe(expr.value)}.{swizzle}"
         var token <- new [[AstToken
@@ -954,7 +954,7 @@ class AstData : AstVisitor
     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
         if skipExprs
             return
-        if expr.at.line == 0u & expr.at.column == 0u
+        if expr.at.line == 0u && expr.at.column == 0u
             return
         let typ = expr._type != null ? describe([decl=expr._type,extra=true]) : ""
         var name = describe(ExpressionPtr(expr))
