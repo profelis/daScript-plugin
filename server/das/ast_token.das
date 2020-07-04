@@ -690,13 +690,13 @@ class AstData : AstVisitor
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op2
     def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
-        if skipExprs
+        if skipExprs || expr == null
             return
         unsafe
             var name = "{expr.op}"
             var desc = name
             var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            desc = describe(reinterpret<smart_ptr<Function>> call.func)
+            desc = call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
             var token <- new [[AstToken
                 name = name,
                 desc = desc,
