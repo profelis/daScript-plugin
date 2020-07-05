@@ -233,7 +233,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
 
 [private]
 def parseModule(pMod; var items : Completions)
-  let fullModuleName = "{pMod.name}::"
+  let fullModuleName = "{pMod.name}{length(string(pMod.name)) > 0 ? "::" : ""}"
 
   addItem([[Completion name = "{pMod.name}", desc = "module {pMod.name}", kind = CompletionItemKind Module]], items)
   rtti::module_for_each_structure(pMod) <| $(info)
@@ -339,10 +339,12 @@ def first_part(str : string; del : string)
   globalCompletion : Completions
 
   def updateGlobalList(force : bool)
-    if !force && get_clock() - globalCompletionUpdate < 6f
+    if !force && get_clock() - globalCompletionUpdate < 10f
       return
     globalCompletionUpdate = get_clock()
-    delete globalCompletion
+    for it in values(globalCompletion)
+      delete it
+    clear(globalCompletion)
     addKeywords(globalCompletion)
     program_for_each_registered_module() <| $(var mod)
       parseModule(mod, globalCompletion)
@@ -357,7 +359,7 @@ def first_part(str : string; del : string)
       if !globalCompletion |> key_exists(key)
         items[key] <- value
     delete temp
-    info("completion: got {length(items)} items for {program}\n", get_line_info())
+    info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
 
   def getCompletion(items : Completions)
     var list <- [{ for it in values(items); js(it) }]
@@ -367,26 +369,31 @@ def first_part(str : string; del : string)
     return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
 
   def findCompletion(completions : Completions; name : string; field : bool; blk : block<(val : Completion):void>)
-    var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ")
+    var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
+    info("--- {n} / {name} ----", get_line_info())
     var found = false
     for it in values(completions)
       if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
+        // info(it, get_line_info())
         invoke(blk, it)
         found = true
 
     for it in values(globalCompletion)
       if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
+        // info(it, get_line_info())
         invoke(blk, it)
         found = true
 
     if found
       return
 
-    for it in values(completions)
-      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
-        invoke(blk, it)
-    for it in values(globalCompletion)
-      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
-        invoke(blk, it)
+    // for it in values(completions)
+    //   if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
+    //     info(it, get_line_info())
+    //     invoke(blk, it)
+    // for it in values(globalCompletion)
+    //   if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
+    //     info(it, get_line_info())
+    //     invoke(blk, it)

@@ -422,6 +422,9 @@ def operator <(a, b : Position)
 def operator <=(a, b : Position)
 	return a.line < b.line || (a.line == b.line && a.character <= b.character)
 
+def operator ==(a, b : Position)
+	return a.line == b.line && a.character == b.character
+
 def pos_to_index(pos : Position; text : string)
 	var line = 0
 	var charPos = 0
@@ -465,6 +468,12 @@ def in_range(b, a : Range)
 
 def range_oneline(a : Range)
 	return a.start.line == a.end.line
+
+def operator ==(a, b : Range)
+	return a.start == b.start && a.end == b.end
+
+def is_zero(a : Range)
+	return a.start.character == 0 && a.start.line == 0 && a.end.character == 0 && a.end.line == 0
 
 // works only with oneline ranges, @see range_oneline
 def length(a : Range)

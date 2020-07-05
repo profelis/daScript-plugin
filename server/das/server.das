@@ -254,10 +254,16 @@ class TelnetServer : Server
                 set_file_source(access, path, data.text)
 
             compile_file(path, access) <| $(ok, program, error)
+                info("< compiled {path} {ok}", get_line_info())
+                // info(error, get_line_info())
+
                 if program != null
                     for it in data.ast
                         delete it
                     clear(data.ast)
+                    // info("< visit ast {path}", get_line_info())
+                    // if !ok
+                    //     info(program, get_line_info())
                     unsafe
                         var visitor <- AstData()
                         visitor.tokens = addr(data.ast)
@@ -267,6 +273,7 @@ class TelnetServer : Server
                         delete adapter
                         delete visitor
 
+                    // info("info collect tokens {path}", get_line_info())
                     collect_token(data.ast) <| $(var tok : AstToken?)
                         tok.path = resolve_path(tok.path, config)
                         if tok.defPath != ""
@@ -420,7 +427,7 @@ class TelnetServer : Server
                 let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
                 hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
                 completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
-                    hoversData |> emplace([[auto ratio + 0.5, "```dascript\n" + join(val.impls, "\n") + "\n```"]])
+                    hoversData |> emplace([[auto ratio + 0.5, "```dascript\n{join(val.impls, "\n")}\n```"]])
                 // TODO: filter huge tokens?
             if hoversData |> length() > 0
                 hoversData |> sort() <| $(a; b)
@@ -579,7 +586,12 @@ class TelnetServer : Server
         var token : AstToken?
         find_if_exists(registry, path) <| $(data)
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-                if (token == null || tok._range |> in_range(token._range)) && invoke(valid, tok)
+                if (
+                    (token == null
+                        || tok._range |> in_range(token._range)
+                        || (tok.topLevel && !token.topLevel && tok._range == token._range))
+                    && invoke(valid, tok)
+                )
                     token = tok
         return token
 
@@ -694,12 +706,18 @@ class TelnetServer : Server
             delete it
         clear(configs)
 
+    def addUniqueReference(var res : array<Location>; _range : Range; uri : string) : void
+        for it in res
+            if it.uri == uri && it._range == _range
+                return
+        res |> emplace([[Location _range = _range, uri = uri ]])
+
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.defPath != ""
+            return tok.defPath != "" && !is_zero(tok.defRange)
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
                 return tok != null
@@ -713,15 +731,14 @@ class TelnetServer : Server
                 // same references
                 collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
                     addDef = true
-                    res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
+                    self->addUniqueReference(res, tok._range, path_to_uri(tok.path))
                 if addDef
-                    res |> emplace([[Location _range = token.defRange, uri = path_to_uri(token.defPath) ]])
-
+                    self->addUniqueReference(res, token.defRange, path_to_uri(token.defPath))
             // refs to this token
             collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
-                res |> emplace([[Location _range = tok._range, uri = path_to_uri(tok.path) ]])
+                self->addUniqueReference(res, tok._range, path_to_uri(tok.path))
             if !addDef
-                res |> emplace([[Location _range = token._range, uri = path_to_uri(token.path) ]])
+                self->addUniqueReference(res, token._range, path_to_uri(token.path))
         var jsRes : array<json::JsonValue?>
         for it in res
             jsRes |> emplace(js(it))
@@ -894,7 +911,7 @@ def mainLoop(fn : string)
         if telnet != null
             telnet->log(msg, level)
 
-    let initialstrLimit = uint64(2 * 1024 * 1024)
+    let initialstrLimit = uint64(30 * 1024 * 1024)
     var strLimit = initialstrLimit
     var step = 1u
     while !telnet.done

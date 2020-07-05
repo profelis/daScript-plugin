@@ -115,7 +115,7 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
         collect_token(it, path, pos, blk)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
-    if val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
+    if val.path != "" && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         invoke(blk, val)
     for it in val.children
         collect_ref_token(it, path, _range, blk)
@@ -472,11 +472,15 @@ class AstData : AstVisitor
     // def override preVisitProgramBody(prog:ProgramPtr) : void
 // type
     def override preVisitTypeDecl(typ:TypeDeclPtr) : void
+        if typ == null
+            return
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
     // def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
 // type alias
     def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
+        if typ == null
+            return
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
     // def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
@@ -514,6 +518,8 @@ class AstData : AstVisitor
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
     def override preVisitStructure(str:StructurePtr) : void
+        if str == null
+            return
         if str.flags.generated || str.flags.isLambda
             return
         var name = "{module_name(str._module)}{str.name}"
@@ -551,6 +557,8 @@ class AstData : AstVisitor
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
     def override preVisitFunction(fun:FunctionPtr) : void
+        if fun == null
+            return
         if fun.flags.generated && !fun.flags._generator && !fun.flags._lambda
             skipExprs = true
             return
@@ -602,7 +610,7 @@ class AstData : AstVisitor
     // def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
     def override preVisitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool): void
-        if skipExprs
+        if skipExprs || blk == null
             return
         var_to_token(arg) <| $(var token : AstToken?)
             *tokens |> emplace(token)
@@ -617,7 +625,7 @@ class AstData : AstVisitor
     // def override visitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
 // let
     def override preVisitExprLet(expr:smart_ptr<ExprLet>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         for it in expr.variables
             var_to_token(it) <| $(var token : AstToken?)
@@ -631,7 +639,7 @@ class AstData : AstVisitor
     // def override preVisitGlobalLet(prog:ProgramPtr) : void
     // def override visitGlobalLet(prog:ProgramPtr) : void
     def override preVisitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : void
-        if skipExprs
+        if skipExprs || arg == null
             return
         var_to_token(arg) <| $(var token : AstToken?)
             token.topLevel = true
@@ -656,7 +664,7 @@ class AstData : AstVisitor
     // def override visitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
-        if skipExprs
+        if skipExprs || expr == null
             return
         like_call_to_token(expr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
@@ -665,7 +673,7 @@ class AstData : AstVisitor
     // def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // call
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
-        if skipExprs
+        if skipExprs || expr == null
             return
         call_to_token(expr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
@@ -696,7 +704,7 @@ class AstData : AstVisitor
             var name = "{expr.op}"
             var desc = name
             var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            desc = call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
+            desc = call != null && call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
             var token <- new [[AstToken
                 name = name,
                 desc = desc,
@@ -704,7 +712,8 @@ class AstData : AstVisitor
                 _type = desc
             ]]
             set_token_path(token, expr.at)
-            set_token_def(token, call.func.atDecl)
+            if call.func != null
+                set_token_def(token, call.func.atDecl)
             *tokens |> emplace(token)
     // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
     // def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
@@ -746,7 +755,7 @@ class AstData : AstVisitor
     // def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
     // def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
     def override preVisitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         var_to_token(svar) <| $(var token : AstToken?)
             *tokens |> emplace(token)
@@ -766,7 +775,7 @@ class AstData : AstVisitor
     // def override preVisitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
     // def override visitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
     def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
-        if skipExprs
+        if skipExprs || expr == null || decl == null || expr.genFlags.generated
             return
         var typ = decl.value != null && decl.value._type != null ? describe(decl.value._type) : ""
         var name = "{decl.name}"
@@ -782,6 +791,11 @@ class AstData : AstVisitor
         if expr._type != null
             if expr._type.structType != null
                 set_token_def(token, expr._type.structType.at)
+        // if find(name, "finalize") >= 0
+            // info(token, get_line_info())
+            // info(decl.flags, get_line_info())
+            // info(expr.flags, get_line_info())
+            // info(expr.genFlags, get_line_info())
         *tokens |> emplace(token)
     // def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // make array
@@ -804,7 +818,7 @@ class AstData : AstVisitor
     // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
 // ptr to ref
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         var name = "deref"
         var desc = "{name}("
@@ -873,7 +887,7 @@ class AstData : AstVisitor
     // def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
 // var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         var_to_token(expr.variable) <| $(var token)
             token.defPath = token.path
@@ -883,7 +897,7 @@ class AstData : AstVisitor
     // def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
 // field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
@@ -897,7 +911,7 @@ class AstData : AstVisitor
     // def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
 // swizzle
     def override preVisitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         var swizzle = ""
         let f2name = [[string "x";"y";"z";"w"]]
@@ -952,7 +966,7 @@ class AstData : AstVisitor
     // def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
 // const
     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         if expr.at.line == 0u && expr.at.column == 0u
             return
@@ -972,7 +986,7 @@ class AstData : AstVisitor
     // def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
 // const enumeration
     def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
-        if skipExprs
+        if skipExprs || expr == null
             return
         let typ = expr._type != null ? describe(expr._type, false, false, false) : ""
         var name = "{expr.value}"

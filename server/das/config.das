@@ -35,6 +35,8 @@ def PluginConfig(val : JsonValue?)
     ]]
 
 def resolve_path(path : string; config : PluginConfig) : string
+    if path == ""
+        return path
     let st = stat(path)
     if st.is_valid
         return path
