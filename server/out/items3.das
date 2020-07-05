@@ -122,14 +122,14 @@ def getTypeName(info; var items : Items)
     res = info.annotation != null ? string(info.annotation.name) : "tHandle"
   elif info.basicType == Type tStructure
     res = info.structType?.name ?? "structure"
-  elif info.basicType == Type tEnumeration | info.basicType==Type tEnumeration8 | info.basicType==Type tEnumeration16
+  elif info.basicType == Type tEnumeration || info.basicType==Type tEnumeration8 || info.basicType==Type tEnumeration16
     res = info.enumType?.name ?? "enumeration"
   elif info.basicType == Type tPointer
     res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
   elif info.basicType == Type tArray
     res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
   elif info.basicType == Type tTable
-    if info.firstType != null & info.secondType!=null
+    if info.firstType != null && info.secondType!=null
       res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
     else
       res = "table"
@@ -139,7 +139,7 @@ def getTypeName(info; var items : Items)
     else
       res = "tuple"
   elif info.basicType == Type tVariant
-    if info.argTypes != null & info.argNames != null
+    if info.argTypes != null && info.argNames != null
       res = "variant<"
       var variantDesc = "variant<"
       var all : array<Item>
@@ -159,7 +159,7 @@ def getTypeName(info; var items : Items)
         addItem(it, items, true)
     else
       res = "variant"
-  elif info.basicType == Type tFunction | info.basicType == Type tLambda | info.basicType == Type tBlock
+  elif info.basicType == Type tFunction || info.basicType == Type tLambda || info.basicType == Type tBlock
     res = "{get_das_type_name(info.basicType)}<"
     if info.argTypes != null
       res += "(" + join([{for argtype in arg_types(info); getTypeName(argtype, items)}],"; ") + ")"
@@ -253,7 +253,7 @@ def parseFunction(info; fullModuleName : string; var items : Items)
   impl += ")"
   if info.result != null
     impl += ": {getTypeName(*(info.result), items)}"
-  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN & info.cppName != ""
+  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && info.cppName != ""
     impl += " [{info.cppName}]"
   res.impls |> push(impl)
   addItem(res, items)
