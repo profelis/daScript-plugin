@@ -579,7 +579,8 @@ class TelnetServer : Server
         delete ini
 
     def resolveCompletion(id : double; var params : JsonValue?)
-        var copyData := params
+        var err : string
+        var copyData = read_json(write_json(params), err)
         self->sendResponse(id, copyData)
 
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
@@ -911,7 +912,7 @@ def mainLoop(fn : string)
         if telnet != null
             telnet->log(msg, level)
 
-    let initialstrLimit = uint64(30 * 1024 * 1024)
+    let initialstrLimit = uint64(2 * 1024 * 1024)
     var strLimit = initialstrLimit
     var step = 1u
     while !telnet.done
