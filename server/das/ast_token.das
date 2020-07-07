@@ -241,7 +241,11 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     if expr == null
         return false
     // info(expr._type)
-    var typ = "def {expr.name}"
+
+    var typ = "def "
+    if expr.func != null
+        typ += module_name(expr.func._module)
+    typ += "{expr.name}"
     var firstArg : string
     if expr.arguments.length > 0
         typ += "("

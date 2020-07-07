@@ -216,6 +216,7 @@ class TelnetServer : Server
             referencesProvider = true,
             documentSymbolProvider = true,
             workspaceSymbolProvider = true,
+            signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
         ]]
 
@@ -426,7 +427,7 @@ class TelnetServer : Server
                 first = false
                 let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
                 hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
-                completionData->findCompletion(data.completionData, it._type, it.kind != AstTokenKind Function) <| $(val : Completion)
+                completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
                     hoversData |> emplace([[auto ratio + 0.5, "```dascript\n{join(val.impls, "\n")}\n```"]])
                 // TODO: filter huge tokens?
             if hoversData |> length() > 0
@@ -451,9 +452,9 @@ class TelnetServer : Server
                 self->sendResponse(id, js(completionData.globalCompletion))
                 delete ini
                 return
-            self->completion_with_config(id, move(ini), config)
+            self->completion_with_config(id, move(ini), *config)
 
-    def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig?)
+    def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig)
         let path = uri_to_path(ini.textDocument.uri)
         var found = find_if_exists(registry, path) <| $(data)
             let startTime = get_clock()
@@ -463,44 +464,33 @@ class TelnetServer : Server
             if idx > 0
                 // var word : array<uint8>
                 var searchToken = false
-                var tokenOffset = 0
                 var i = 0
                 let maxI = min(idx, ini.position.character)
+                while i < maxI && is_white_space(character_at(data.text, idx - i))
+                    i++
                 while i < maxI
                     let ch = character_at(data.text, idx - i)
+                    // word |> push(uint8(ch))
                     if ch == '.' || ch == ':' || (ch == '>' && idx - i >= 1 && character_at(data.text, idx - i - 1) == '-')
                         searchToken = true
-                        tokenOffset += ch == '.' ? 1 : 2
+                        i += ch == '.' && (idx - i < 1 || character_at(data.text, idx - i - 1) != '?') ? 1 : 2
                         break
-                    if ch == ' '
-                        i++
-                        while i < maxI && character_at(data.text, idx - i) == ' '
-                            i++
-                        if (idx - i >= 2
-                            && character_at(data.text, idx - i) == 's'
-                            && (character_at(data.text, idx - i - 1) == 'a' || character_at(data.text, idx - i - 1) == 'i')
-                            && character_at(data.text, idx - i - 2) == ' ' || (character_at(data.text, idx - i - 2) == '?' && idx - i >= 3 && character_at(data.text, idx - i - 3) == ' ')
-                        )
-                            searchToken = true
-                            tokenOffset = i + (character_at(data.text, idx - i - 2) == ' ' ? 3 : 4)
+                    if (ch == 's' && idx - i >= 1 && (character_at(data.text, idx - i - 1) == 'a' || character_at(data.text, idx - i - 1) == 'i')
+                        && character_at(data.text, idx - i - 2) == ' ' || (character_at(data.text, idx - i - 2) == '?' && idx - i >= 3 && character_at(data.text, idx - i - 3) == ' ')
+                    )
+                        searchToken = true
+                        i += (character_at(data.text, idx - i - 2) == ' ' ? 3 : 4)
                         break
                     if ch == '[' || ch == '-'
                         break
-                    // word |> push(uint8(ch))
-                    tokenOffset ++
+                    i++
+                while i < maxI && is_white_space(character_at(data.text, idx - i))
                     i++
                 if searchToken
                     var insideO = 0
                     var insideD = 0
-                    var fixedOffset = 0
-                    var first = true
-                    for i in range(0, ini.position.character - tokenOffset)
-                        let ch = character_at(data.text, idx - tokenOffset - i)
-                        if first
-                            first = false
-                            if ch == '?'
-                                fixedOffset ++
-                                continue
+                    while i < maxI
+                        let ch = character_at(data.text, idx - i)
                         if ch == ')'
                             insideO ++
                         elif ch == ']'
@@ -509,22 +499,21 @@ class TelnetServer : Server
                             if insideO > 0
                                 insideO --
                             else
-                                fixedOffset ++
+                                i ++
                                 break
                         elif ch == '['
                             if insideD > 0
                                 insideD --
                             else
-                                fixedOffset ++
+                                i ++
                                 break
 
                         if insideO > 0 || insideD > 0
-                            fixedOffset ++
+                            i ++
                             continue
-                        fixedOffset ++
+                        i ++
                         break
-                    tokenOffset += fixedOffset
-                    var pos = Position(ini.position.line, ini.position.character - tokenOffset)
+                    var pos = Position(ini.position.line, ini.position.character - i)
                     // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
@@ -748,6 +737,65 @@ class TelnetServer : Server
     finally
         delete ini
 
+    def signatureHelp(id : double; var params : JsonValue?)
+        var ini <- SignatureHelpParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            if config == null
+                warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
+                self->sendResponse(id, js(completionData.globalCompletion))
+                delete ini
+                return
+            self->signatureHelp_with_config(id, move(ini), config)
+
+    def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
+        let path = uri_to_path(ini.textDocument.uri)
+        var found = false
+        find_if_exists(registry, path) <| $(data)
+            let idx = pos_to_index(ini.position, data.text)
+            // info("@@@@@ pos index {idx}", get_line_info())
+            if idx > 0
+                var list : array<SignatureInformation>
+                // var word : array<uint8>
+                var searchToken = false
+                var i = 0
+                let maxI = min(idx, ini.position.character)
+                while i < maxI
+                    var insideO = 0
+                    while i < maxI
+                        let ch = character_at(data.text, idx - i)
+                        // word |> push(uint8(ch))
+                        if ch == ')'
+                            insideO ++
+                        elif ch == '('
+                            if insideO > 0
+                                insideO --
+                            else
+                                i ++
+                                searchToken = true
+                                break
+                        i++
+                    while i < maxI && is_white_space(character_at(data.text, idx - i))
+                        i++
+                    if searchToken
+                        var pos = Position(ini.position.line, ini.position.character - i)
+                        var token = self->find_token(path, pos) <| $(tok : AstToken?)
+                            return tok != null
+                        if token != null && (token.kind == AstTokenKind Function || token.kind == AstTokenKind Method || token.kind == AstTokenKind Operator)
+                            completionData->findCompletion(data.completionData, token._type) <| $(val : Completion)
+                                for it in val.impls
+                                    list |> emplace([[SignatureInformation _label = it]])
+                            if list |> length() == 0
+                                list |> emplace([[SignatureInformation _label = token.desc]])
+                        if list |> length() > 0
+                            self->sendResponse(id, js([[SignatureHelp signatures <- list ]]))
+                            found = true
+                            break
+        if !found
+            self->sendResponse(id, js())
+    finally
+        delete ini
+
     def override onData(message:uint8?; size:int)
         for i in range(0,size)
             var uch : uint8
@@ -857,6 +905,9 @@ class TelnetServer : Server
 
                     elif method == "workspace/didChangeConfiguration"
                         self->didChangeConfiguration(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/signatureHelp"
+                        self->signatureHelp(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true

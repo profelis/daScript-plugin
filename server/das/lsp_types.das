@@ -341,12 +341,19 @@ struct ServerCapabilitiesWorkspace
 def js(val : ServerCapabilitiesWorkspace)
 	return js({{ "workspaceFolders" => js(val.workspaceFolders) }})
 
+struct SignatureHelpOptions
+	triggerCharacters : array<string>
+	// retriggerCharacters : array<string>
+
+def js(val : SignatureHelpOptions)
+	return js({{ "triggerCharacters" => js([{ for it in val.triggerCharacters; JV(it) }]) }})
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
 	textDocumentSync : TextDocumentSyncKind // TextDocumentSyncOptions | number; number == TextDocumentSyncKind
 	completionProvider : CompletionOptions
 	hoverProvider : bool // | HoverOptions
-	// signatureHelpProvider : SignatureHelpOptions
+	signatureHelpProvider : SignatureHelpOptions
 	// declarationProvider : bool // DeclarationOptions
 	definitionProvider : bool // DefinitionOptions
 	typeDefinitionProvider : bool // TypeDefinitionOptions
@@ -374,6 +381,7 @@ def js(val : ServerCapabilities)
 		"textDocumentSync" => js(int(val.textDocumentSync));
 		"completionProvider" => js(val.completionProvider);
 		"hoverProvider" => js(val.hoverProvider);
+		"signatureHelpProvider" => js(val.signatureHelpProvider);
 		"definitionProvider" => js(val.definitionProvider);
 		"typeDefinitionProvider" => js(val.typeDefinitionProvider);
 		"referencesProvider" => js(val.referencesProvider);
@@ -843,3 +851,29 @@ def ReferenceParams(val : JsonValue?)
 		position <- Position(joj(val, "position")),
 		context <- ReferenceContext(joj(val, "contenxt"))
 	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_signatureHelp
+struct SignatureHelpParams  : TextDocumentPositionParams {}
+	// context : SignatureHelpContext
+
+def SignatureHelpParams(val : JsonValue?)
+	return <- [[SignatureHelpParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+		position <- Position(joj(val, "position"))
+	]]
+
+struct SignatureInformation
+	_label : string
+	// documentation : string // string | MarkupContent;
+	// parameters?: ParameterInformation[];
+
+def js(val : SignatureInformation)
+	return js({{
+		"label" => js(val._label)//; "documentation" => js(val.documentation)
+	}})
+
+struct SignatureHelp
+	signatures : array<SignatureInformation>
+
+def js(val : SignatureHelp)
+	return js({{ "signatures" => js([{ for it in val.signatures ; js(it) }]) }})

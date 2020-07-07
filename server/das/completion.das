@@ -368,20 +368,20 @@ def first_part(str : string; del : string)
     info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n", get_line_info())
     return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
 
-  def findCompletion(completions : Completions; name : string; field : bool; blk : block<(val : Completion):void>)
+  def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
     info("--- {n} / {name} ----", get_line_info())
     var found = false
     for it in values(completions)
-      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
+      if it.kind != CompletionItemKind Keyword && it.fullName == n
         // info(it, get_line_info())
         invoke(blk, it)
         found = true
 
     for it in values(globalCompletion)
-      if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.fullName == n
+      if it.kind != CompletionItemKind Keyword && it.fullName == n
         // info(it, get_line_info())
         invoke(blk, it)
         found = true
@@ -390,10 +390,10 @@ def first_part(str : string; del : string)
       return
 
     // for it in values(completions)
-    //   if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
+    //   if it.kind != CompletionItemKind Keyword && it.name == n
     //     info(it, get_line_info())
     //     invoke(blk, it)
     // for it in values(globalCompletion)
-    //   if it.kind != CompletionItemKind Keyword && (!field || (it.kind != CompletionItemKind Function && it.kind != CompletionItemKind Method)) && it.name == n
+    //   if it.kind != CompletionItemKind Keyword && it.name == n
     //     info(it, get_line_info())
     //     invoke(blk, it)
