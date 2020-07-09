@@ -216,6 +216,7 @@ class TelnetServer : Server
             typeDefinitionProvider = true,
             referencesProvider = true,
             documentSymbolProvider = true,
+            colorProvider = true,
             workspaceSymbolProvider = true,
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
@@ -828,6 +829,82 @@ class TelnetServer : Server
     finally
         delete ini
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
+    def documentColor(id : double; var params : JsonValue?)
+        var ini <- DocumentColorParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        var found = false
+        find_if_exists(registry, path) <| $(data)
+            var res : array<ColorInformation>
+            var line = 0
+	        var charPos = 0
+            var i = 0
+            var step = -1
+            var currentNum : array<int>
+            for i in range(0, length(data.text))
+                let ch = character_at(data.text, i)
+                if ch == '\n'
+                    line++
+                    charPos = 0
+                    step = -1
+                    clear(currentNum)
+                    continue
+                if step == -1
+                    step = ch == '0' ? 0 : -1
+                elif step == 0
+                    step = ch == 'x' || ch == 'X' ? 1 : -1
+                elif step == 1
+                    let isLowH = ch >= 'a' && ch <= 'f'
+                    let isHighH = ch >= 'A' && ch <= 'F'
+                    if is_number(ch) || isLowH || isHighH
+                        currentNum |> push(isLowH ? ch - 'a' + 10 : isHighH ? ch - 'A' + 10 : ch - '0')
+                    else
+                        let len = length(currentNum)
+                        if len == 6 || len == 8
+                            var color : array<double>
+                            if len == 6
+                                color |> push(1lf)
+                            var k = 0
+                            while k < len
+                                let h = currentNum[k++]
+                                let l = currentNum[k++]
+                                color |> push(double(h * 16 + l) / 255lf)
+                            res |> emplace([[ColorInformation
+                                _range = Range(line, charPos - len - 2, line, charPos),
+                                color = [[Color alpha=color[0], red=color[1], green=color[2], blue=color[3]]]
+                            ]])
+                            delete color
+                        step = -1
+                        clear(currentNum)
+                charPos++
+            if length(res) > 0
+                found = true
+                var arr <- [{ for it in res; js(it)}]
+                self->sendResponse(id, js(arr))
+            delete res
+        if !found
+            self->sendResponse(id, js())
+    finally
+        delete ini
+
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
+    def colorPresentation(id : double; var params : JsonValue?)
+        var ini <- ColorPresentationParams(params)
+        let c & = ini.color
+        let len = length(ini._range)
+        let color = build_string() <| $(var str)
+            write(str, "0x")
+            if len > 8
+                format(str, "%02X", int(c.alpha * 255lf))
+            format(str, "%02X", int(c.red * 255lf))
+            format(str, "%02X", int(c.green * 255lf))
+            format(str, "%02X", int(c.blue * 255lf))
+
+        var res <- [[ColorPresentation _label = color]]
+        self->sendResponse(id, js([{ auto[] js(res) }]))
+    finally
+        delete ini
+
     def override onData(message:uint8?; size:int)
         for i in range(0,size)
             var uch : uint8
@@ -940,6 +1017,12 @@ class TelnetServer : Server
 
                     elif method == "textDocument/signatureHelp"
                         self->signatureHelp(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/documentColor"
+                        self->documentColor(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/colorPresentation"
+                        self->colorPresentation(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true

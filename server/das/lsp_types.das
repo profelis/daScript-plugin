@@ -2,6 +2,7 @@
 // options string_heap_page = 0
 
 // options log = true
+require math
 require daslib/json
 require json_tools
 require uriparser
@@ -364,7 +365,7 @@ struct ServerCapabilities
 	// codeActionProvider : CodeActionOptions
 	// codeLensProvider : CodeLensOptions
 	documentLinkProvider : bool //DocumentLinkOptions
-	// colorProvider : DocumentColorOptions
+	colorProvider : bool // DocumentColorOptions
 	// documentFormattingProvider : DocumentFormattingOptions
 	// documentRangeFormattingProvider : DocumentRangeFormattingOptions
 	// documentOnTypeFormattingProvider : DocumentOnTypeFormattingOptions
@@ -387,6 +388,7 @@ def js(val : ServerCapabilities)
 		"referencesProvider" => js(val.referencesProvider);
 		"documentSymbolProvider" => js(val.documentSymbolProvider);
 		"documentLinkProvider" => js(val.documentLinkProvider);
+		"colorProvider" => js(val.colorProvider);
 		"workspaceSymbolProvider" => js(val.workspaceSymbolProvider);
 		"workspace" => js(val.workspace)
 	}})
@@ -447,6 +449,18 @@ def pos_to_index(pos : Position; text : string)
 				return i
 			charPos++
 	return -1
+
+def index_to_pos(index : int; text : string) : Position
+	var line = 0
+	var charPos = 0
+	for i in range(0, min(index, length(text)))
+		let ch = character_at(text, i)
+		if ch == '\n'
+			line++
+			charPos = 0
+			continue
+		charPos++
+	return [[Position line = line, character = charPos]]
 
 def to_string(val : Position)
 	return "{int(val.line)}:{int(val.character)}"
@@ -876,3 +890,63 @@ struct SignatureHelp
 
 def js(val : SignatureHelp)
 	return js({{ "signatures" => js([{ for it in val.signatures ; js(it) }]) }})
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
+struct DocumentColorParams
+	textDocument : TextDocumentIdentifier
+
+def DocumentColorParams(val : JsonValue?)
+	return <- [[DocumentColorParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument"))
+	]]
+
+struct Color
+	red : double
+	green : double
+	blue : double
+	alpha : double
+
+def js(val : Color)
+	return js({{
+		"red" => js(val.red);
+		"green" => js(val.green);
+		"blue" => js(val.blue);
+		"alpha" => js(val.alpha)
+	}})
+
+def Color(val : JsonValue?)
+	return [[Color
+		red = jon(val, "red"),
+		green = jon(val, "green"),
+		blue = jon(val, "blue"),
+		alpha = jon(val, "alpha")
+	]]
+
+struct ColorInformation
+	_range : Range
+	color : Color
+
+def js(val : ColorInformation)
+	return js({{"range" => js(val._range); "color" => js(val.color) }})
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
+struct ColorPresentationParams
+	textDocument : TextDocumentIdentifier
+	color : Color
+	_range : Range
+
+def ColorPresentationParams(val : JsonValue?)
+	return <- [[ColorPresentationParams
+		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+		color <- Color(joj(val, "color")),
+		_range <- Range(joj(val, "range"))
+	]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
+struct ColorPresentation
+	_label : string
+	// textEdit?: TextEdit;
+	// additionalTextEdits?: TextEdit[];
+
+def js(val : ColorPresentation)
+	return js({{ "label" => js(val._label) }})
