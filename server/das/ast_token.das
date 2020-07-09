@@ -138,10 +138,17 @@ def set_token_def(var token : AstToken?; at)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-def set_token_type_def(var token : AstToken?; typ)
-    if typ != null
-        token.typeDefRange = line_info_to_range(typ.at)
-        token.typeDefPath = typ.at.fileInfo != null ? "{typ.at.fileInfo.name}" : ""
+def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
+    if typ == null
+        return
+    if typ.structType != null
+        token.typeDefRange = line_info_to_range(typ.structType.at)
+        token.typeDefPath = typ.structType.at.fileInfo != null ? "{typ.structType.at.fileInfo.name}" : ""
+    elif typ.enumType != null
+        token.typeDefRange = line_info_to_range(typ.enumType.at)
+        token.typeDefPath = typ.enumType.at.fileInfo != null ? "{typ.enumType.at.fileInfo.name}" : ""
+    else
+        set_token_type_def(token, typ.firstType)
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     if arg == null || arg.flags.generated
@@ -161,17 +168,18 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     ]]
     set_token_path(token, arg.at)
     set_token_def(token, arg.at)
-    if arg._type != null && arg._type.structType != null
-        set_token_type_def(token, arg._type.structType)
+    set_token_type_def(token, arg._type)
     invoke(blk, token)
     return true
 
 
 def field_to_token(expr; blk : block<(var token:AstToken?):void>)
-    if expr == null
+    if expr == null || expr.genFlags.generated
+        return false
+    var name = "{expr.name}"
+    if name == "self"
         return false
     let typ = expr._type != null ? "{describe([decl=expr._type,extra=true])}" : ""
-    var name = "{expr.name}"
     var desc = "{name} : {typ}"
     if expr.field != null && expr.field.init != null
         desc = "{desc} = {describe(expr.field.init)}"
@@ -184,8 +192,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     set_token_path(res, expr.atField)
     if expr.field != null
         set_token_def(res, expr.field.at)
-        if expr.field._type != null && expr.field._type.structType != null
-            set_token_type_def(res, expr.field._type.structType)
+        set_token_type_def(res, expr.field._type)
     if range_oneline(res._range) && typ |> starts_with("function<")
         res.kind = AstTokenKind Method
         let selfLen = 4
@@ -684,15 +691,31 @@ class AstData : AstVisitor
     // def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
     // def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
     // def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
-// null coaelescing
-    // def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+// null coalescing
+    def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+        if skipExprs || expr == null
+            return
+        var name = "?? // null coalescing"
+        var desc = name
+        if expr._type != null
+            desc = "?? : {describe(expr._type)} // null coalescing"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = desc
+        ]]
+        set_token_path(token, expr.at)
+        set_token_def(token, expr.at)
+        set_token_type_def(token, expr._type)
+        *tokens |> emplace(token)
     // def override visitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>) : ExpressionPtr
     // def override preVisitExprNullCoalescingDefault(expr:smart_ptr<ExprNullCoalescing>;defval:ExpressionPtr): void
-// at
+// at []
     // def override preVisitExprAt(expr:smart_ptr<ExprAt>): void
     // def override visitExprAt(expr:smart_ptr<ExprAt>) : ExpressionPtr
     // def override preVisitExprAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
-// // safe at
+// // safe at ?[]
     // def override preVisitExprSafeAt(expr:smart_ptr<ExprSafeAt>): void
     // def override visitExprSafeAt(expr:smart_ptr<ExprSafeAt>) : ExpressionPtr
     // def override preVisitExprSafeAtIndex(expr:smart_ptr<ExprAt>;index:ExpressionPtr): void
@@ -721,7 +744,7 @@ class AstData : AstVisitor
             *tokens |> emplace(token)
     // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
     // def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
-// op3
+// op3 ?:
     // def override preVisitExprOp3(expr:smart_ptr<ExprOp3>): void
     // def override visitExprOp3(expr:smart_ptr<ExprOp3>) : ExpressionPtr
     // def override preVisitExprOp3Left(expr:smart_ptr<ExprOp3>;left:ExpressionPtr): void
@@ -792,9 +815,16 @@ class AstData : AstVisitor
             _type = typ
         ]]
         set_token_path(token, decl.at)
-        if expr._type != null
-            if expr._type.structType != null
+        if expr._type != null && expr._type.structType != null
+            var found = false
+            for it in expr._type.structType.fields
+                if string(it.name) == string(decl.name)
+                    found = true
+                    set_token_def(token, it.at)
+                    set_token_type_def(token, it._type)
+            if !found
                 set_token_def(token, expr._type.structType.at)
+                set_token_type_def(token, expr._type)
         // if find(name, "finalize") >= 0
             // info(token, get_line_info())
             // info(decl.flags, get_line_info())
@@ -1001,6 +1031,15 @@ class AstData : AstVisitor
             _type = "{typ}"
         ]]
         set_token_path(token, expr.at)
+        if expr._type != null && expr._type.enumType != null
+            var found = false
+            for it in expr._type.enumType.list
+                if string(it.name) == name
+                    found = true
+                    set_token_def(token, it.at)
+            if !found
+                set_token_def(token, expr._type.enumType.at)
+            set_token_type_def(token, expr._type)
         *tokens |> emplace(token)
 
     // def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr

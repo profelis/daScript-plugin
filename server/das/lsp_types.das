@@ -488,7 +488,7 @@ def length(a : Range)
 	return a.end.character - a.start.character
 
 def range_ratio(a : Range)
-	return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line) : 0) + length(a)
+	return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line + 1000 - a.start.character) : 0) + a.end.character
 
 def js(val : Range)
 	return JV({{ "start" => js(val.start); "end" => js(val.end) }})
@@ -733,7 +733,6 @@ def DefinitionParams(val : JsonValue?)
 		textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
 		position <- Position(joj(val, "position"))
 	]]
-
 
 struct TypeDefinitionParams : TextDocumentPositionParams {}
 

@@ -40,6 +40,7 @@ struct Dascript
     version : double
     completionData : Completions
     ast : AstTokens
+    valid : bool
 
 def Dascript(txt : TextDocumentItem)
     return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = move(txt.text)]]
@@ -240,6 +241,13 @@ class TelnetServer : Server
 
     def validate(path : string; withContent : bool = false)
         info("> validate? '{path}'\n", get_line_info())
+        var valid = false
+        registry |> find_for_edit_if_exists(path) <| $(var data)
+            valid = data.valid
+            data.valid = true
+        if valid
+            info("> validate? '{path}' file is valid. skip", get_line_info())
+            return
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
             if config == null
                 info("> validate? '{path}' config is null", get_line_info())
@@ -377,6 +385,7 @@ class TelnetServer : Server
             unsafe
                 var data = find_for_edit(registry, path)
                 if data != null
+                    data.valid = false
                     // delete_string(data.text) // TODO:
                     data.text <- doc.contentChanges[0].text
                     if doc.textDocument.version >= 0lf
@@ -400,6 +409,7 @@ class TelnetServer : Server
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(res))
+        delete res
     finally
         delete doc
 
@@ -408,6 +418,10 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
             let verbose = config?.hovers?.verbose ?? false
+            // if config != null
+            //     registry |> find_if_exists(path) <| $(data)
+            //         if !data.valid
+            //             self->validate_with_config(path, true, *config)
             self->hover_with_config(id, move(ini), verbose)
 
     def hover_with_config(id : double; var ini : HoverParams; verbose : bool)
@@ -425,7 +439,7 @@ class TelnetServer : Server
                 if first || it._range |> in_range(_range)
                     _range = it._range
                 first = false
-                let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f)
+                let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f) + (it.topLevel ? 0. : 10.)
                 hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
                 completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
                     hoversData |> emplace([[auto ratio + 0.5, "```dascript\n{join(val.impls, "\n")}\n```"]])
@@ -452,6 +466,9 @@ class TelnetServer : Server
                 self->sendResponse(id, js(completionData.globalCompletion))
                 delete ini
                 return
+            // registry |> find_if_exists(path) <| $(data)
+            //     if !data.valid
+            //         self->validate_with_config(path, true, *config)
             self->completion_with_config(id, move(ini), *config)
 
     def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig)
@@ -575,13 +592,13 @@ class TelnetServer : Server
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
         var token : AstToken?
         find_if_exists(registry, path) <| $(data)
+            var minRatio = FLT_MAX
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-                if (
-                    (token == null
-                        || tok._range |> in_range(token._range)
-                        || (tok.topLevel && !token.topLevel && tok._range == token._range))
-                    && invoke(valid, tok)
-                )
+                if !invoke(valid, tok)
+                    return
+                let ratio = float(range_ratio(tok._range)) + (tok.defPath == "" ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
+                if token == null || ratio < minRatio
+                    minRatio = ratio
                     token = tok
         return token
 
@@ -589,6 +606,9 @@ class TelnetServer : Server
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        // registry |> find_if_exists(path) <| $(data)
+        //     if !data.valid
+        //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != ""
         if token == null
@@ -604,6 +624,9 @@ class TelnetServer : Server
     def typeDefinition(id : double; var params : JsonValue?)
         var ini <- TypeDefinitionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        // registry |> find_if_exists(path) <| $(data)
+        //     if !data.valid
+        //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.typeDefPath != ""
         if token == null
@@ -643,6 +666,9 @@ class TelnetServer : Server
     def documentSymbol(id : double; var params : JsonValue?)
         var ini <- DocumentSymbolParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        // registry |> find_if_exists(path) <| $(data)
+        //     if !data.valid
+        //         self->validate(path, true)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?) // wait first validation
             let data = find(registry, path)
             if data == null
@@ -706,6 +732,9 @@ class TelnetServer : Server
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        // registry |> find_if_exists(path) <| $(data)
+        //     if !data.valid
+        //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
             return tok.defPath != "" && !is_zero(tok.defRange)
         if token == null
@@ -746,6 +775,9 @@ class TelnetServer : Server
                 self->sendResponse(id, js(completionData.globalCompletion))
                 delete ini
                 return
+            // registry |> find_if_exists(path) <| $(data)
+            //     if !data.valid
+            //         self->validate_with_config(path, true, *config)
             self->signatureHelp_with_config(id, move(ini), config)
 
     def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
