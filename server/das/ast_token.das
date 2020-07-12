@@ -904,7 +904,28 @@ class AstData : AstVisitor
     // def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
     // def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
 // ref to ptr
-    // def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
+    def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
+        if skipExprs || expr == null
+            return
+        var name = "addr"
+        var desc = "{name}("
+        var typ = expr._type != null ? describe(expr._type) : ""
+        if expr.subexpr != null && expr.subexpr._type != null
+            desc += "arg1 : {describe(expr.subexpr._type)}"
+        desc += ")"
+        if typ != ""
+            desc += " : {typ}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = typ
+        ]]
+        set_token_path(token, expr.at)
+        if expr._type != null
+            if expr._type.structType != null
+                set_token_def(token, expr._type.structType.at)
+        *tokens |> emplace(token)
     // def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
 // @@
     // def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
