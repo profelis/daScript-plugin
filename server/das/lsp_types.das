@@ -641,7 +641,7 @@ struct Diagnostic
 
 def js(val : Diagnostic)
 	var res <- {{ "range" => js(val._range); "message" => js(val.message); "code" => js(val.code); "severity" => js(int(val.severity)) }}
-	if val.source != ""
+	if !empty(val.source)
 		res["source"] = js(val.source)
 	if length(val.relatedInformation) > 0
 		var info : array<JsonValue?>
@@ -831,9 +831,9 @@ struct ConfigurationItem
 
 def js(val : ConfigurationItem)
 	var res : table<string; json::JsonValue?>
-	if val.scopeUri != ""
+	if !empty(val.scopeUri)
 		res["scopeUri"] <- js(val.scopeUri)
-	if val.section != ""
+	if !empty(val.section)
 		res["section"] <- js(val.section)
 	return js(res)
 

@@ -115,7 +115,7 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
         collect_token(it, path, pos, blk)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
-    if val.path != "" && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
+    if !empty(val.path) && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         invoke(blk, val)
     for it in val.children
         collect_ref_token(it, path, _range, blk)
@@ -147,8 +147,10 @@ def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
     elif typ.enumType != null
         token.typeDefRange = line_info_to_range(typ.enumType.at)
         token.typeDefPath = typ.enumType.at.fileInfo != null ? "{typ.enumType.at.fileInfo.name}" : ""
-    else
+    elif typ.firstType != null
         set_token_type_def(token, typ.firstType)
+    elif typ.secondType != null
+        set_token_type_def(token, typ.secondType)
 
 def var_to_token(arg; blk : block<(var token:AstToken?):void>)
     if arg == null || arg.flags.generated
@@ -195,8 +197,6 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
         set_token_type_def(res, expr.field._type)
     if range_oneline(res._range) && typ |> starts_with("function<")
         res.kind = AstTokenKind Method
-        let selfLen = 4
-        res._range.start.character = res._range.start.character > selfLen ? res._range.start.character - selfLen : res._range.start.character
         res._range.end.character += length(res.name)
     invoke(blk, res)
     return true
@@ -723,6 +723,26 @@ class AstData : AstVisitor
     // def override preVisitExprIs(expr:smart_ptr<ExprIs>): void
     // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
+// op1
+    def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
+        if skipExprs || expr == null
+            return
+        unsafe
+            var name = "{expr.op}"
+            var desc = name
+            var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
+            desc = call != null && call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
+            var token <- new [[AstToken
+                name = name,
+                desc = desc,
+                kind = AstTokenKind Operator,
+                _type = desc
+            ]]
+            set_token_path(token, expr.at)
+            if call.func != null
+                set_token_def(token, call.func.atDecl)
+            *tokens |> emplace(token)
+    // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
 // op2
     def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
         if skipExprs || expr == null
@@ -974,9 +994,6 @@ class AstData : AstVisitor
 // safe as variant
     // def override preVisitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : void
     // def override visitExprSafeAsVariant(expr:smart_ptr<ExprSafeAsVariant>) : ExpressionPtr
-// op1
-    // def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
-    // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
 // return
     // def override preVisitExprReturn(expr:smart_ptr<ExprReturn>) : void
     // def override visitExprReturn(expr:smart_ptr<ExprReturn>) : ExpressionPtr

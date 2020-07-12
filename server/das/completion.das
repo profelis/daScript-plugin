@@ -226,7 +226,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   impl += ")"
   if info.result != null
     impl += ": {getTypeName(*(info.result), items)}"
-  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && info.cppName != ""
+  if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && !empty(info.cppName)
     impl += " [{info.cppName}]"
   res.impls |> emplace(impl)
   addItem(move(res), items)
@@ -317,7 +317,7 @@ def addKeywords(var items : Completions)
 [export]
 def js(it : Completion; doc = true) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(double(int(it.kind))) }}
-  if it.fullName != ""
+  if !empty(it.fullName)
     tab["filterName"] <- js(it.fullName)
     tab["sortText"] <- js(it.fullName)
   if doc && length(it.impls) > 0

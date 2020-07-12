@@ -1,4 +1,5 @@
 require daslib/json
+require strings
 require json_tools
 require fio
 require lib
@@ -35,7 +36,7 @@ def PluginConfig(val : JsonValue?)
     ]]
 
 def resolve_path(path : string; config : PluginConfig) : string
-    if path == ""
+    if empty(path)
         return path
     let st = stat(path)
     if st.is_valid

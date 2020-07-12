@@ -286,9 +286,9 @@ class TelnetServer : Server
                     // info("info collect tokens {path}", get_line_info())
                     collect_token(data.ast) <| $(var tok : AstToken?)
                         tok.path = resolve_path(tok.path, config)
-                        if tok.defPath != ""
+                        if !empty(tok.defPath)
                             tok.defPath = resolve_path(tok.defPath, config)
-                        if tok.typeDefPath != ""
+                        if !empty(tok.typeDefPath)
                             tok.typeDefPath = resolve_path(tok.typeDefPath, config)
 
                 if ok
@@ -324,11 +324,10 @@ class TelnetServer : Server
                     let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
                     if hasDiagnosticRelatedInformationCapability
-                        var extra = "{err.extra}"
-                        let fixme = "{err.fixme}"
-                        if extra != "" || fixme != ""
-                            if fixme != ""
-                                extra += "\n{fixme}"
+                        if !empty(err.extra) || !empty(err.fixme)
+                            var extra = "{err.extra}"
+                            if !empty(err.fixme)
+                                extra += "\n{err.fixme}"
                             var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
                             diag.relatedInformation <- [{ auto[] info }]
                     unsafe
@@ -381,7 +380,7 @@ class TelnetServer : Server
     def didChange(id : double; params : JsonValue?)
         var doc <- DidChangeTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
-        info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
+        // info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
         if length(doc.contentChanges) > 0
             unsafe
                 var data = find_for_edit(registry, path)
@@ -391,7 +390,7 @@ class TelnetServer : Server
                     data.text <- doc.contentChanges[0].text
                     if doc.textDocument.version >= 0lf
                         data.version = doc.textDocument.version
-                    info("> file changed {path} len {length(data.text)}, total files {length(registry)}\n", get_line_info())
+                    // info("> file changed {path} len {length(data.text)}, total files {length(registry)}\n", get_line_info())
                 else
                     info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
@@ -440,7 +439,7 @@ class TelnetServer : Server
                 if first || it._range |> in_range(_range)
                     _range = it._range
                 first = false
-                let ratio = float(range_ratio(it._range)) + (it.defPath == "" ? 100f : 0f) + (it.topLevel ? 0. : 10.)
+                let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
                 hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
                 completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
                     hoversData |> emplace([[auto ratio + 0.5, "```dascript\n{join(val.impls, "\n")}\n```"]])
@@ -597,7 +596,7 @@ class TelnetServer : Server
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
                 if !invoke(valid, tok)
                     return
-                let ratio = float(range_ratio(tok._range)) + (tok.defPath == "" ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
+                let ratio = float(range_ratio(tok._range)) + (empty(tok.defPath) ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
                 if token == null || ratio < minRatio
                     minRatio = ratio
                     token = tok
@@ -611,7 +610,7 @@ class TelnetServer : Server
         //     if !data.valid
         //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.defPath != ""
+            return !empty(tok.defPath)
         if token == null
             self->sendResponse(id, js())
             return
@@ -629,14 +628,14 @@ class TelnetServer : Server
         //     if !data.valid
         //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.typeDefPath != ""
+            return !empty(tok.typeDefPath)
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok.defPath != ""
+                return !empty(tok.defPath)
         if token == null
             self->sendResponse(id, js())
             return
-        let hasType = token.typeDefPath != ""
+        let hasType = !empty(token.typeDefPath)
         var defPath = hasType ? token.typeDefPath : token.defPath
         let _range & = hasType ? token.typeDefRange : token.defRange
         var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
@@ -684,7 +683,7 @@ class TelnetServer : Server
     def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
         if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`")
             return
-        if ast.path != "" && (query == "" || find(ast.name, query) != -1)
+        if !empty(ast.path) && (empty(query) || find(ast.name, query) != -1)
             var data <- {{
                 "name" => js(ast.name);
                 "containerName" => js(ast.desc);
@@ -737,7 +736,7 @@ class TelnetServer : Server
         //     if !data.valid
         //         self->validate(path, true)
         var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return tok.defPath != "" && !is_zero(tok.defRange)
+            return !empty(tok.defPath) && !is_zero(tok.defRange)
         if token == null
             token = self->find_token(path, ini.position) <| $(tok : AstToken?)
                 return tok != null
@@ -747,7 +746,7 @@ class TelnetServer : Server
         var res : array<Location>
         for data in values(registry)
             var addDef = false
-            if token.defPath != ""
+            if !empty(token.defPath)
                 // same references
                 collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
                     addDef = true
@@ -877,6 +876,7 @@ class TelnetServer : Server
                         step = -1
                         clear(currentNum)
                 charPos++
+            delete currentNum
             if length(res) > 0
                 found = true
                 var arr <- [{ for it in res; js(it)}]
@@ -948,7 +948,7 @@ class TelnetServer : Server
                 var obj & = msg.value as _object
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
-                    info("> result {id} callbacks num: {length(requestCallbacks)}\n", get_line_info())
+                    // info("> result {id} callbacks num: {length(requestCallbacks)}\n", get_line_info())
                     var found = false
                     var idx = 0
                     while idx < length(requestCallbacks)
@@ -959,14 +959,14 @@ class TelnetServer : Server
                             requestCallbacks |> erase(idx)
                         else
                             idx++
-                    info("> result after: cb num: {length(requestCallbacks)}\n", get_line_info())
+                    // info("> result after: cb num: {length(requestCallbacks)}\n", get_line_info())
                     if !found
                         warning("\n@@@@@@@@@@@@@@@@@@\nTODO: unhandled result: {id} \n@@@@@@@@@@@@@@@@@@\n", get_line_info())
                         warning(write_json(msg), get_line_info())
 
                 elif obj |> key_exists("method")
                     let method = jos(msg, "method")
-                    info("> method {method}\n", get_line_info())
+                    // info("> method {method}\n", get_line_info())
                     if method == "initialize"
                         self->initialize(jon(msg, "id"), joj(msg, "params"))
 
