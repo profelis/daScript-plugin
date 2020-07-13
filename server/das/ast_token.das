@@ -869,7 +869,7 @@ class AstData : AstVisitor
     // def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
 // type info
     def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "typeinfo"
         var desc = "{name}("
@@ -904,7 +904,7 @@ class AstData : AstVisitor
     // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
 // ptr to ref
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "deref"
         var desc = "{name}("
@@ -927,17 +927,46 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
 // label
-    // def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
+    def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
+        if skipExprs || expr == null || expr.genFlags.generated
+            return
+        var name = "label {expr.labelName}"
+        var token <- new [[AstToken
+            name = "{expr.labelName}",
+            desc = name,
+            kind = AstTokenKind Operator,
+            _type = ""
+        ]]
+        set_token_path(token, expr.at)
+        *tokens |> emplace(token)
     // def override visitExprLabel(expr:smart_ptr<ExprLabel>) : ExpressionPtr
 // goto
-    // def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
+    def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
+        if skipExprs || expr == null || expr.genFlags.generated
+            return
+        var name = "goto"
+        if expr.labelName >= 0
+            name += " label {expr.labelName}"
+        elif expr.subexpr != null
+            name += " {describe(expr.subexpr)}"
+        var token <- new [[AstToken
+            name = name,
+            desc = name,
+            kind = AstTokenKind Operator,
+            _type = ""
+        ]]
+        set_token_path(token, expr.at)
+        if expr._type != null
+            if expr._type.structType != null
+                set_token_def(token, expr._type.structType.at)
+        *tokens |> emplace(token)
     // def override visitExprGoto(expr:smart_ptr<ExprGoto>) : ExpressionPtr
 // ref to value
     // def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
     // def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
 // ref to ptr
     def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "addr"
         var desc = "{name}("
@@ -994,7 +1023,7 @@ class AstData : AstVisitor
     // def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
 // var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         var_to_token(expr.variable) <| $(var token)
             token.defPath = token.path
@@ -1004,7 +1033,7 @@ class AstData : AstVisitor
     // def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
 // field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
@@ -1018,7 +1047,7 @@ class AstData : AstVisitor
     // def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
 // swizzle
     def override preVisitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         var swizzle = ""
         let f2name = [[string "x";"y";"z";"w"]]
@@ -1070,7 +1099,7 @@ class AstData : AstVisitor
     // def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
 // const
     def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         if expr.at.line == 0u && expr.at.column == 0u
             return
@@ -1090,7 +1119,7 @@ class AstData : AstVisitor
     // def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
 // const enumeration
     def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
-        if skipExprs || expr == null
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         let typ = expr._type != null ? describe(expr._type, false, false, false) : ""
         var name = "{expr.value}"
