@@ -868,7 +868,39 @@ class AstData : AstVisitor
     // def override preVisitExprArrayComprehensionSubexpr(expr:smart_ptr<ExprArrayComprehension>;subexrp:ExpressionPtr) : void
     // def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
 // type info
-    // def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
+    def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
+        if skipExprs || expr == null
+            return
+        var name = "typeinfo"
+        var desc = "{name}("
+        if !empty(expr.trait)
+            desc += "{expr.trait}"
+        if !empty(expr.subtrait)
+            desc += "<{expr.subtrait}"
+            if !empty(expr.extratrait)
+                desc += "; {expr.extratrait}"
+            desc += "> "
+        else
+            desc += " "
+        var typ = expr._type != null ? describe(expr._type) : ""
+        if expr.subexpr != null && expr.subexpr._type != null
+            desc += "arg1 : {describe(expr.subexpr._type)}"
+        elif expr.typeexpr != null
+            desc += "type<{describe(expr.typeexpr)}>"
+        desc += ")"
+        if typ != ""
+            desc += " : {typ}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = typ
+        ]]
+        set_token_path(token, expr.at)
+        if expr._type != null
+            if expr._type.structType != null
+                set_token_def(token, expr._type.structType.at)
+        *tokens |> emplace(token)
     // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
 // ptr to ref
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
