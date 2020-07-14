@@ -966,7 +966,7 @@ class TelnetServer : Server
 
                 elif obj |> key_exists("method")
                     let method = jos(msg, "method")
-                    // info("> method {method}\n", get_line_info())
+                    info("> method {method}\n", get_line_info())
                     if method == "initialize"
                         self->initialize(jon(msg, "id"), joj(msg, "params"))
 

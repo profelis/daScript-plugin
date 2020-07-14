@@ -731,7 +731,8 @@ class AstData : AstVisitor
             var name = "{expr.op}"
             var desc = name
             var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            desc = call != null && call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
+            if call != null && call.func != null
+                desc = "{describe(reinterpret<smart_ptr<Function>> call.func)}"
             var token <- new [[AstToken
                 name = name,
                 desc = desc,
@@ -751,7 +752,9 @@ class AstData : AstVisitor
             var name = "{expr.op}"
             var desc = name
             var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            desc = call != null && call.func != null ? describe(reinterpret<smart_ptr<Function>> call.func) : ""
+            if call != null && call.func != null
+                // desc = "{module_name(call.func._module)}{describe(reinterpret<smart_ptr<Function>> call.func)}"
+                desc = "{describe(reinterpret<smart_ptr<Function>> call.func)}"
             var token <- new [[AstToken
                 name = name,
                 desc = desc,
