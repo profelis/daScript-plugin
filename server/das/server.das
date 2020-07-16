@@ -535,7 +535,7 @@ class TelnetServer : Server
                                 continue
                             i ++
                             break
-                    var pos = Position(ini.position.line, ini.position.character - i)
+                    var pos = Position(ini.position.line, ini.position.character - i + 1)
                     // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
