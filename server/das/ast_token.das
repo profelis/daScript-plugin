@@ -1,4 +1,4 @@
-
+options indenting = 4
 require ast
 require math
 require rtti_tools

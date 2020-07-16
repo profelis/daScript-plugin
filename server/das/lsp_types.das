@@ -1,3 +1,5 @@
+options indenting = 4
+
 // options heap_page = 0
 // options string_heap_page = 0
 

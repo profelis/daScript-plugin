@@ -1,3 +1,5 @@
+options indenting = 4
+
 require daslib/json
 
 def joj(val : JsonValue?; id : string) : JsonValue?

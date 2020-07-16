@@ -1,3 +1,5 @@
+options indenting = 4
+
 require daslib/json
 require strings
 require json_tools
