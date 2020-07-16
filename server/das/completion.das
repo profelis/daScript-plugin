@@ -19,6 +19,7 @@ struct Completion
   fullName : string        //
   impls : array<string>      // documentation
   kind : CompletionItemKind
+  funcFirstArg : string
 
 typedef
   Completions = table<string; Completion>
@@ -54,6 +55,10 @@ let
                        "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
+
+  operators = [[auto "!"; "~"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; "&&="; "||="; "^^="; "&&"; "||"; "^^"; "+"; "-"; "*"; "/"; "%"; "<"; ">";
+                     "=="; "!="; "<="; ">="; "&"; "|"; "^"; "++"; "--"; "+++"; "---"; "<<"; ">>"; "<<="; ">>="; "<<<"; ">>>"; "<<<="; ">>>="
+  ]]
 
 [private]
 def addItem(var item : Completion; var items : Completions; once = false)
@@ -217,12 +222,15 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   var impl = "def {fullModuleName}{info.name}("
   var firstArg = true
   for it in info
-    if it.basicType == Type fakeContext
-      continue
-    if !firstArg
+    // if it.basicType == Type fakeContext
+    //   continue
+    let argType = getTypeName(it, items)
+    if firstArg
+      res.funcFirstArg = argType
+    else
       impl += "; "
     firstArg = false
-    impl += "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
+    impl += "{it.name}: {argType}{getValue(get_variable_value(it))}"
   impl += ")"
   if info.result != null
     impl += ": {getTypeName(*(info.result), items)}"
@@ -329,10 +337,22 @@ def js(items : Completions; doc = true) : JsonValue?
   var list <- [{ for it in values(items); js(it, doc) }]
   return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
+[export]
+def is_operator(str : string)
+  return find_index(operators, str) >= 0
+
 [private]
 def first_part(str : string; del : string)
   let parts <- split(str, del)
   return parts[0]
+
+[private]
+def isalnum_at(text : string; pos : int)
+  if pos < 0 || pos >= length(text)
+    return false
+  unsafe
+    let ch = character_uat(text, pos)
+    return is_alpha(ch) || is_number(ch)
 
 [export] class CompletionData
   globalCompletionUpdate : clock
@@ -368,32 +388,34 @@ def first_part(str : string; del : string)
     info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n", get_line_info())
     return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
 
+
   def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
     n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
     info("--- {n} / {name} ----", get_line_info())
-    var found = false
     for it in values(completions)
       if it.kind != CompletionItemKind Keyword && it.fullName == n
-        // info(it, get_line_info())
         invoke(blk, it)
-        found = true
 
     for it in values(globalCompletion)
       if it.kind != CompletionItemKind Keyword && it.fullName == n
+        invoke(blk, it)
+
+  def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
+    var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
+    n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part("<") |> first_part("-") |> first_part("(")
+    info("--- {n} / {name} ----", get_line_info())
+    for it in values(completions)
+      if (starts_with(it.funcFirstArg, n) &&
+          (length(it.funcFirstArg) == length(n) || !isalnum_at(it.funcFirstArg, length(n)))
+        )
         // info(it, get_line_info())
         invoke(blk, it)
-        found = true
 
-    if found
-      return
-
-    // for it in values(completions)
-    //   if it.kind != CompletionItemKind Keyword && it.name == n
-    //     info(it, get_line_info())
-    //     invoke(blk, it)
-    // for it in values(globalCompletion)
-    //   if it.kind != CompletionItemKind Keyword && it.name == n
-    //     info(it, get_line_info())
-    //     invoke(blk, it)
+    for it in values(globalCompletion)
+      if (starts_with(it.funcFirstArg, n) &&
+          (length(it.funcFirstArg) == length(n) || !isalnum_at(it.funcFirstArg, length(n)))
+        )
+        // info(it, get_line_info())
+        invoke(blk, it)

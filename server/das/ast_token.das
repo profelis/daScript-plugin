@@ -321,7 +321,7 @@ def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : 
         ]]
         res |> emplace(comp)
 
-def parse(t; var res : AstCompletionData)
+def parse(t; var res : AstCompletionData; depth = 0)
     if t == null
         return
     // info("@@@@@@@@@@@@@", get_line_info())
@@ -329,6 +329,7 @@ def parse(t; var res : AstCompletionData)
     // info("@@@@@@@@@@@@@", get_line_info())
     if t.annotation != null
         res.found = true
+        res._type = describe(t)
         unsafe
             let baseAnnotation & = reinterpret<rtti::Annotation?> t.annotation
             var items: Completions
@@ -339,6 +340,7 @@ def parse(t; var res : AstCompletionData)
 
     elif t.structType != null
         res.found = true
+        res._type = describe(t)
         let structType = t.structType
         let structTyp = describe([decl=t,extra=false,contracts=false])
         for decl in structType.fields
@@ -361,6 +363,7 @@ def parse(t; var res : AstCompletionData)
 
     if t.argTypes.length > 0 || t.argNames.length > 0
         res.found = true
+        res._type = describe(t)
         for i in range(0, max(t.argTypes.length, t.argNames.length))
             let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
             var desc = name
@@ -377,36 +380,58 @@ def parse(t; var res : AstCompletionData)
             res.res |> emplace(comp)
 
     if t.baseType == Type tFloat2
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "float", res.res)
     elif t.baseType == Type tFloat3
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "float", res.res)
     elif t.baseType == Type tFloat4
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "float", res.res)
     elif t.baseType == Type tInt2
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "int", res.res)
     elif t.baseType == Type tInt3
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "int", res.res)
     elif t.baseType == Type tInt4
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "int", res.res)
     elif t.baseType == Type tUInt2
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "uint", res.res)
     elif t.baseType == Type tUInt3
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "uint", res.res)
     elif t.baseType == Type tUInt4
+        res.found = true
+        res._type = describe(t)
         addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "uint", res.res)
 
     if t.firstType != null
-        parse(t.firstType, res)
+        parse(t.firstType, res, depth + 1)
+    if depth == 0 && !res.found
+        res.found = true
+        res._type = describe(t)
 
 class AstCompletionData : AstVisitor
     path : string
     pos : Position
+    _type : string
     found : bool = false
     res : array<Completion>
 
 // var
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -418,7 +443,7 @@ class AstCompletionData : AstVisitor
 
 // field
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -431,7 +456,7 @@ class AstCompletionData : AstVisitor
 
 // safe field
     def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -442,7 +467,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -453,7 +478,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // call
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return
@@ -464,7 +489,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 // ptr to ref
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
-        if found || expr == null
+        if found || expr == null || expr.genFlags.generated
             return
         if string(expr.at.fileInfo.name) != path
             return

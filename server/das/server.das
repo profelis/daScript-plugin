@@ -19,7 +19,6 @@ require daslib/strings_boost
 require rtti
 require network
 require fio
-require uriparser
 require daslib/json
 require json_tools
 require lib
@@ -216,7 +215,7 @@ class TelnetServer : Server
             typeDefinitionProvider = true,
             referencesProvider = true,
             documentSymbolProvider = true,
-            colorProvider = true,
+            // colorProvider = true,
             workspaceSymbolProvider = true,
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
@@ -355,6 +354,8 @@ class TelnetServer : Server
         registry[path] <- Dascript(ini.textDocument)
         info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
+
+        self->updateGlobalCompletion(false)
     finally
         delete ini
 
@@ -483,53 +484,56 @@ class TelnetServer : Server
                 var searchToken = false
                 var i = 0
                 let maxI = min(idx, ini.position.character)
-                while i < maxI && is_white_space(character_at(data.text, idx - i))
-                    i++
-                while i < maxI
-                    let ch = character_at(data.text, idx - i)
-                    // word |> push(uint8(ch))
-                    if ch == '.' || ch == ':' || (ch == '>' && idx - i >= 1 && character_at(data.text, idx - i - 1) == '-')
-                        searchToken = true
-                        i += ch == '.' && (idx - i < 1 || character_at(data.text, idx - i - 1) != '?') ? 1 : 2
-                        break
-                    if (ch == 's' && idx - i >= 1 && (character_at(data.text, idx - i - 1) == 'a' || character_at(data.text, idx - i - 1) == 'i')
-                        && character_at(data.text, idx - i - 2) == ' ' || (character_at(data.text, idx - i - 2) == '?' && idx - i >= 3 && character_at(data.text, idx - i - 3) == ' ')
-                    )
-                        searchToken = true
-                        i += (character_at(data.text, idx - i - 2) == ' ' ? 3 : 4)
-                        break
-                    if ch == '[' || ch == '-'
-                        break
-                    i++
-                while i < maxI && is_white_space(character_at(data.text, idx - i))
-                    i++
-                if searchToken
-                    var insideO = 0
-                    var insideD = 0
+                unsafe
+                    while i < maxI && is_white_space(character_uat(data.text, idx - i))
+                        i++
                     while i < maxI
-                        let ch = character_at(data.text, idx - i)
-                        if ch == ')'
-                            insideO ++
-                        elif ch == ']'
-                            insideD ++
-                        elif ch == '('
-                            if insideO > 0
-                                insideO --
-                            else
-                                i ++
-                                break
-                        elif ch == '['
-                            if insideD > 0
-                                insideD --
-                            else
-                                i ++
-                                break
+                        let ch = character_uat(data.text, idx - i)
+                        // word |> push(uint8(ch))
+                        if ch == '.' || ch == ':' || (ch == '>' && idx - i >= 1 && character_uat(data.text, idx - i - 1) == '-')
+                            searchToken = true
+                            i += ch == '.' && (idx - i < 1 || character_uat(data.text, idx - i - 1) != '?') ? 1 : 2
+                            break
+                        if (ch == 's' && idx - i >= 1 && (character_uat(data.text, idx - i - 1) == 'a' || character_uat(data.text, idx - i - 1) == 'i')
+                            && character_uat(data.text, idx - i - 2) == ' ' || (character_uat(data.text, idx - i - 2) == '?' && idx - i >= 3 && character_uat(data.text, idx - i - 3) == ' ')
+                        )
+                            searchToken = true
+                            i += (character_uat(data.text, idx - i - 2) == ' ' ? 3 : 4)
+                            break
+                        if ch == '[' || ch == '-'
+                            break
+                        i++
+                if searchToken
+                    let beforeSpacesPos = i
+                    unsafe
+                        while i < maxI && is_white_space(character_uat(data.text, idx - i))
+                            i++
+                        var insideO = 0
+                        var insideD = 0
+                        while i < maxI
+                            let ch = character_uat(data.text, idx - i)
+                            if ch == ')'
+                                insideO ++
+                            elif ch == ']'
+                                insideD ++
+                            elif ch == '('
+                                if insideO > 0
+                                    insideO --
+                                else
+                                    i ++
+                                    break
+                            elif ch == '['
+                                if insideD > 0
+                                    insideD --
+                                else
+                                    i ++
+                                    break
 
-                        if insideO > 0 || insideD > 0
+                            if insideO > 0 || insideD > 0
+                                i ++
+                                continue
                             i ++
-                            continue
-                        i ++
-                        break
+                            break
                     var pos = Position(ini.position.line, ini.position.character - i)
                     // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
@@ -549,6 +553,30 @@ class TelnetServer : Server
 
                                 for it in visitor.res
                                     list |> emplace(js(it))
+
+                                if visitor.found && !empty(visitor._type)
+                                    completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
+                                        var comp = js(val)
+                                        let isOperator = is_operator(val.name)
+                                        var obj & = comp.value as _object
+                                        erase(obj, "insertText")
+                                        obj["additionalTextEdits"] = js([{ auto[]
+                                            js({{
+                                                "range" => js({{
+                                                    "start" => js(Position(ini.position.line, ini.position.character - beforeSpacesPos));
+                                                    "end" => js(Position(ini.position.line, ini.position.character))
+                                                }});
+                                                "newText" => js(isOperator ? "" : " |> ")
+                                            }})
+                                        }])
+                                        obj["textEdit"] = js({{
+                                            "range" => js({{
+                                                "start" => js(Position(ini.position.line, ini.position.character + 1));
+                                                "end" => js(Position(ini.position.line, ini.position.character + 1))
+                                            }});
+                                            "newText" => js(isOperator ? " {val.name} " : "{val.name}(")
+                                        }})
+                                        list |> emplace(comp)
 
                                 delete adapter
                                 delete visitor
@@ -794,21 +822,22 @@ class TelnetServer : Server
                 let maxI = min(idx, ini.position.character)
                 while i < maxI
                     var insideO = 0
-                    while i < maxI
-                        let ch = character_at(data.text, idx - i)
-                        // word |> push(uint8(ch))
-                        if ch == ')'
-                            insideO ++
-                        elif ch == '('
-                            if insideO > 0
-                                insideO --
-                            else
-                                i ++
-                                searchToken = true
-                                break
-                        i++
-                    while i < maxI && is_white_space(character_at(data.text, idx - i))
-                        i++
+                    unsafe
+                        while i < maxI
+                            let ch = character_uat(data.text, idx - i)
+                            // word |> push(uint8(ch))
+                            if ch == ')'
+                                insideO ++
+                            elif ch == '('
+                                if insideO > 0
+                                    insideO --
+                                else
+                                    i ++
+                                    searchToken = true
+                                    break
+                            i++
+                        while i < maxI && is_white_space(character_uat(data.text, idx - i))
+                            i++
                     if searchToken
                         var pos = Position(ini.position.line, ini.position.character - i)
                         var token = self->find_token(path, pos) <| $(tok : AstToken?)
@@ -836,12 +865,14 @@ class TelnetServer : Server
         find_if_exists(registry, path) <| $(data)
             var res : array<ColorInformation>
             var line = 0
-	        var charPos = 0
+            var charPos = 0
             var i = 0
             var step = -1
             var currentNum : array<int>
             for i in range(0, length(data.text))
-                let ch = character_at(data.text, i)
+                var ch : int
+                unsafe
+                    ch = character_uat(data.text, i)
                 if ch == '\n'
                     line++
                     charPos = 0
@@ -938,8 +969,8 @@ class TelnetServer : Server
             var error : string
             var msg = read_json(current_string, error)
             clear(current_string)
-            if inited
-                self->updateGlobalCompletion(false)
+            // if inited
+            //     self->updateGlobalCompletion(false)
 
             if msg == null
                 error("Json read error: {error}\n", get_line_info())
