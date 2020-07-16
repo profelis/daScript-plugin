@@ -9,7 +9,8 @@ import {
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient'
 
-const DEFAULT_PORT = 7999 + Math.round(Math.random() * 3000)
+let SPAWN_SERVER = true
+let DEFAULT_PORT = 7999 + Math.round(Math.random() * 3000)
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
 const sockets: Map<string, net.Socket> = new Map()
@@ -44,11 +45,10 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 	return folder
 }
 
-function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[]) {
-	const spawnServer = true
+function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[], cwd: string) {
 	return new Promise<[cp.ChildProcess, net.Socket]>(resolve => {
-		console.log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}'`)
-		const child: cp.ChildProcess = spawnServer ? cp.spawn(cmd, args) : null
+		console.log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
+		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
 
 		const socket = net.connect({ port: port }, () => {
 			socket.setNoDelay()
@@ -92,7 +92,7 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 	})
 }
 
-function setArg(args: string[], pattern: string, value: string) : string[] {
+function setArg(args: string[], pattern: string, value: string): string[] {
 	const res = new Array<string>()
 	for (const it of args) {
 		res.push(it.replace(pattern, value))
@@ -106,6 +106,12 @@ export function activate(context: ExtensionContext) {
 
 	const cmd = settings.get<string>("dascript.compiler")
 	let args = settings.get<string[]>("dascript.server.args")
+	let port = settings.get("dascript.debug.port", -1)
+	if (port != 0) {
+		SPAWN_SERVER = port > 0
+		DEFAULT_PORT = Math.abs(port)
+	}
+	const cwd = context.asAbsolutePath(path.join('server', 'das'))
 	const serverFilePath = context.asAbsolutePath(path.join('server', 'das', 'server.das'))
 	args = setArg(args, "${file}", serverFilePath)
 	const outputChannel: OutputChannel = Window.createOutputChannel('daScript')
@@ -119,7 +125,7 @@ export function activate(context: ExtensionContext) {
 		if (uri.scheme === 'untitled' && !defaultClient) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT
-				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()))
+				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()), cwd)
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -144,7 +150,7 @@ export function activate(context: ExtensionContext) {
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT + 1 + clients.size
-				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, setArg(args, "${port}", port.toPrecision()))
+				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, setArg(args, "${port}", port.toPrecision()), cwd)
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
