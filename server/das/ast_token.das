@@ -344,6 +344,8 @@ def parse(t; var res : AstCompletionData; depth = 0)
         let structType = t.structType
         let structTyp = describe([decl=t,extra=false,contracts=false])
         for decl in structType.fields
+            if decl.flags.generated
+                continue
             let typ = decl._type != null ? "{describe([decl=decl._type,extra=true])}" : ""
             let fieldName = "{decl.name}"
             let fullName = "{structTyp}.{fieldName}"
@@ -356,7 +358,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
                 name = fieldName,
                 fullName = fullName,
                 desc = fieldDesc,
-                kind = CompletionItemKind Field
+                kind = starts_with(typ, "function<") ? CompletionItemKind Method : CompletionItemKind Field
             ]]
             // info(comp, get_line_info())
             res.res |> emplace(comp)
