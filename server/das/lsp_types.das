@@ -7,7 +7,7 @@ options indenting = 4
 require math
 require daslib/json
 require json_tools
-// require uriparser
+require uriparser
 require strings
 require daslib/strings_boost
 
@@ -15,26 +15,26 @@ typedef
     JSTab = table<string; JsonValue?>
     DocumentUri = string
 
-def urlDecode(str : string) : string
-    return join(split(str, "%3A"), ":")
+// def urlDecode(str : string) : string
+//     return join(split(str, "%3A"), ":")
 
-def urlEncode(str : string) : string
-    return join(split(str, ":"), "%3A")
-
-def uri_to_path(str : string)
-    let path = urlDecode(str)
-    unsafe
-        return path |> character_at(9) == ':' ? chop(path, 8, length(path) - 8) : chop(path, 7, length(path) - 7)
-
-def path_to_uri(str : string)
-    let prefix = str |> character_at(1) == ':' ? "file:///" : "file://"
-    return "{prefix}{urlEncode(str)}"
+// def urlEncode(str : string) : string
+//     return join(split(str, ":"), "%3A")
 
 // def uri_to_path(str : string)
-//     return uri_to_file_name(str)
+//     let path = urlDecode(str)
+//     unsafe
+//         return path |> character_at(9) == ':' ? chop(path, 8, length(path) - 8) : chop(path, 7, length(path) - 7)
 
 // def path_to_uri(str : string)
-//     return file_name_to_uri(str) // escape_uri(str, false, false)
+//     let prefix = str |> character_at(1) == ':' ? "file:///" : "file://"
+//     return "{prefix}{urlEncode(str)}"
+
+def uri_to_path(str : string)
+    return uri_to_file_name(str)
+
+def path_to_uri(str : string)
+    return file_name_to_uri(str) // escape_uri(str, false, false)
 
 def js(val : int)
     return new [[JsonValue value <- [[JsValue _number = double(val)]]]]
@@ -350,7 +350,7 @@ struct SignatureHelpOptions
     // retriggerCharacters : array<string>
 
 def js(val : SignatureHelpOptions)
-    return js({{ "triggerCharacters" => js([{ for it in val.triggerCharacters; JV(it) }]) }})
+    return js({{ "triggerCharacters" => js([{ for it in val.triggerCharacters; js(it) }]) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
@@ -448,8 +448,7 @@ def pos_to_index(pos : Position; text : string)
     var line = 0
     var charPos = 0
     unsafe
-        for i in range(0, length(text))
-            let ch = character_uat(text, i)
+        for i, ch in range(0, length(text)), text
             if ch == '\n'
                 if line == pos.line
                     return i // something wrong with char pos, return last char in line
@@ -463,14 +462,15 @@ def pos_to_index(pos : Position; text : string)
 def index_to_pos(index : int; text : string) : Position
     var line = 0
     var charPos = 0
-    unsafe
-        for i in range(0, min(index, length(text)))
-            let ch = character_uat(text, i)
-            if ch == '\n'
-                line++
-                charPos = 0
-                continue
-            charPos++
+    for i in range(0, min(index, length(text)))
+        var ch : int
+        unsafe
+            ch = character_uat(text, i)
+        if ch == '\n'
+            line++
+            charPos = 0
+            continue
+        charPos++
     return [[Position line = line, character = charPos]]
 
 def to_string(val : Position)
@@ -519,7 +519,7 @@ def range_ratio(a : Range)
     return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line + 1000 - a.start.character) : 0) + a.end.character
 
 def js(val : Range)
-    return JV({{ "start" => js(val.start); "end" => js(val.end) }})
+    return js({{ "start" => js(val.start); "end" => js(val.end) }})
 
 def to_string(val : Range)
     return "{to_string(val.start)} - {to_string(val.end)}"
@@ -530,7 +530,7 @@ struct Location
     _range : Range
 
 def js(val : Location)
-    return JV({{ "uri" => js(val.uri); "range" => js(val._range)}})
+    return js({{ "uri" => js(val.uri); "range" => js(val._range)}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#locationLink
 struct LocaltionLink
@@ -662,7 +662,7 @@ def js(val : Diagnostic)
         for it in val.relatedInformation
             info |> push(js(it))
         res["relatedInformation"] = js(info)
-    return JV(res)
+    return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_publishDiagnostics
 struct PublishDiagnosticsParams
@@ -671,14 +671,14 @@ struct PublishDiagnosticsParams
     diagnostics : array<Diagnostic>
 
 def js(val : PublishDiagnosticsParams)
-    var res <- {{ "uri" => JV(val.uri) }}
+    var res <- {{ "uri" => js(val.uri) }}
     if val.version != null
-        res["version"] = JV(*(val.version))
+        res["version"] = js(*(val.version))
     var diagnostics : array<JsonValue?>
     for it in val.diagnostics
         diagnostics |> push(js(it))
-    res["diagnostics"] = JV(diagnostics)
-    return JV(res)
+    res["diagnostics"] = js(diagnostics)
+    return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentPositionParams
 struct TextDocumentPositionParams
@@ -964,3 +964,11 @@ struct ColorPresentation
 
 def js(val : ColorPresentation)
     return js({{ "label" => js(val._label) }})
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textEdit
+struct TextEdit
+    _range : Range
+    newText : string
+
+def js(val : TextEdit)
+    return js({{ "range" => js(val._range); "newText" => js(val.newText) }})

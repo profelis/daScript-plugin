@@ -561,22 +561,16 @@ class TelnetServer : Server
                                         let isOperator = is_operator(val.name)
                                         var obj & = comp.value as _object
                                         erase(obj, "insertText")
-                                        obj["additionalTextEdits"] = js([{ auto[]
-                                            js({{
-                                                "range" => js({{
-                                                    "start" => js(Position(ini.position.line, ini.position.character - beforeSpacesPos));
-                                                    "end" => js(Position(ini.position.line, ini.position.character))
-                                                }});
-                                                "newText" => js(isOperator ? "" : " |> ")
-                                            }})
-                                        }])
-                                        obj["textEdit"] = js({{
-                                            "range" => js({{
-                                                "start" => js(Position(ini.position.line, ini.position.character + 1));
-                                                "end" => js(Position(ini.position.line, ini.position.character + 1))
-                                            }});
-                                            "newText" => js(isOperator ? " {val.name} " : "{val.name}(")
-                                        }})
+                                        var addEdit <- [[TextEdit
+                                            _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
+                                            newText = isOperator ? "" : " |> "
+                                        ]]
+                                        obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
+                                        var edit <- [[TextEdit
+                                            _range = Range(ini.position.line, ini.position.character + 1, ini.position.line, ini.position.character + 1),
+                                            newText = isOperator ? " {val.name} " : "{val.name}("
+                                        ]]
+                                        obj["textEdit"] = js(edit)
                                         list |> emplace(comp)
 
                                 delete adapter
@@ -870,10 +864,7 @@ class TelnetServer : Server
             var i = 0
             var step = -1
             var currentNum : array<int>
-            for i in range(0, length(data.text))
-                var ch : int
-                unsafe
-                    ch = character_uat(data.text, i)
+            for i, ch in range(0, length(data.text)), data.text
                 if ch == '\n'
                     line++
                     charPos = 0

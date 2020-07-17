@@ -349,8 +349,6 @@ def first_part(str : string; del : string)
 
 [private]
 def isalnum_at(text : string; pos : int)
-  if pos < 0 || pos >= length(text)
-    return false
   unsafe
     let ch = character_uat(text, pos)
     return is_alpha(ch) || is_number(ch)
