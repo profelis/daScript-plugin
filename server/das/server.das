@@ -216,7 +216,7 @@ class TelnetServer : Server
             typeDefinitionProvider = true,
             referencesProvider = true,
             documentSymbolProvider = true,
-            // colorProvider = true,
+            colorProvider = true,
             workspaceSymbolProvider = true,
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
@@ -264,8 +264,7 @@ class TelnetServer : Server
                 set_file_source(access, path, data.text)
 
             compile_file(path, access) <| $(ok, program, error)
-                info("< compiled {path} {ok}", get_line_info())
-                // info(error, get_line_info())
+                info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
                 if program != null
                     for it in data.ast

@@ -45,14 +45,24 @@ function getOuterMostWorkspaceFolder(folder: WorkspaceFolder): WorkspaceFolder {
 	return folder
 }
 
-function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[], cwd: string) {
+function createServerWithSocket(folder_uri: string, port: number, cmd: string, args: string[], cwd: string, out: OutputChannel) {
 	return new Promise<[cp.ChildProcess, net.Socket]>(resolve => {
-		console.log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
+		const log = function (data: string) {
+			console.log(data)
+			if (!sockets.has(folder_uri))
+				out.appendLine(data)
+		}
+		log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
+
+		if (child)
+			child.on('error', (err) => {
+				log(`Failed to spawn server ${err.message}`);
+			});
 
 		const socket = net.connect({ port: port }, () => {
 			socket.setNoDelay()
-			console.log(`> ${port} connected - '${folder_uri}'`)
+			log(`> ${port} connected - '${folder_uri}'`)
 			childProcesses.set(folder_uri, child)
 			sockets.set(folder_uri, socket)
 			resolve([child, socket])
@@ -60,16 +70,19 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 
 		if (child) {
 			child.stdout.on('data', (data) => {
-				console.log(`stdout: ${data}`)
+				log(`stdout: ${data}`)
 			})
 
 			child.stderr.on('data', (data) => {
-				console.error(`stderr: ${data}`)
+				log(`stderr: ${data}`)
 			})
 			child.on('close', (code) => {
-				console.log(`child process exited with code ${code} - '${folder_uri}'`)
+				log(`child process exited with code ${code} - '${folder_uri}'`)
 				childProcesses.delete(folder_uri)
-				sockets.delete(folder_uri)
+				if (sockets.has(folder_uri))
+					sockets.delete(folder_uri)
+				else
+					resolve([child, socket])
 			})
 		}
 
@@ -125,7 +138,7 @@ export function activate(context: ExtensionContext) {
 		if (uri.scheme === 'untitled' && !defaultClient) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT
-				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()), cwd)
+				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()), cwd, outputChannel)
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
@@ -150,7 +163,7 @@ export function activate(context: ExtensionContext) {
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT + 1 + clients.size
-				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, setArg(args, "${port}", port.toPrecision()), cwd)
+				const [_, socket] = await createServerWithSocket(folderUri, port, cmd, setArg(args, "${port}", port.toPrecision()), cwd, outputChannel)
 				const result: StreamInfo = {
 					writer: socket,
 					reader: socket
