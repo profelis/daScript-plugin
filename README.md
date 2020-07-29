@@ -11,9 +11,10 @@ Plugin for scripting language [daScript](https://dascript.org/)
 ## Features
 
 - Code diagnostics
-- Code completion (limited support)
+- Code completion
 - Hover hints
 - Go to definition
+- Go to type definition
 - Snippets
 
 ## Development
