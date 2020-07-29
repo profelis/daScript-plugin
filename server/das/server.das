@@ -519,25 +519,25 @@ class TelnetServer : Server
                             elif ch == '('
                                 if insideO > 0
                                     insideO --
-                                else
+                                if insideO == 0 && insideD == 0
                                     i ++
                                     break
                             elif ch == '['
                                 if insideD > 0
                                     insideD --
-                                else
+                                if insideO == 0 && insideD == 0
                                     i ++
                                     break
 
                             if insideO > 0 || insideD > 0
                                 i ++
                                 continue
-                            i ++
                             break
-                    var pos = Position(ini.position.line, ini.position.character - i + 1)
+                    var pos = Position(ini.position.line, ini.position.character - i)
                     // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
+                    // info(pos, get_line_info())
                     let uri = path_to_uri(path)
                     var access <- make_file_access(config.project.file)
                     set_file_source(access, path, data.text)
