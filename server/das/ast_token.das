@@ -435,7 +435,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
@@ -447,7 +447,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprField(expr:smart_ptr<ExprField>) : void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.atField)
         if !pos |> in_range(_range) || _range.end > pos
@@ -460,7 +460,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.atField)
         if !pos |> in_range(_range) || _range.end > pos
@@ -471,7 +471,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
@@ -482,7 +482,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
@@ -493,7 +493,7 @@ class AstCompletionData : AstVisitor
     def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
         if found || expr == null || expr.genFlags.generated
             return
-        if string(expr.at.fileInfo.name) != path
+        if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
             return
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
@@ -536,10 +536,12 @@ class AstData : AstVisitor
         ]]
         set_token_path(token, enu.at)
         for it in enu.list
-            var typ = it.value._type != null ? describe(it.value._type) : ""
+            var typ = ""
             var desc = "{enu.name} {it.name}"
             if it.value != null
                 desc += " = {describe(it.value)}"
+                if it.value._type != null
+                    typ = describe(it.value._type)
             var tok <- new [[AstToken
                 topLevel = true,
                 name = "{it.name}",
@@ -610,9 +612,12 @@ class AstData : AstVisitor
                 if !first
                     desc += "; "
                 first = false
-                if !arg._type.flags.constant
-                    desc += "var "
-                desc += "{arg.name} : {describe([decl=arg._type,extra=true])}"
+                if arg._type != null
+                    if !arg._type.flags.constant
+                        desc += "var "
+                    desc += "{arg.name} : {describe([decl=arg._type,extra=true])}"
+                else
+                    desc += "{arg.name}"
                 if arg.init != null
                     desc += " = {describe(arg.init)}"
             desc += ")"
@@ -767,7 +772,7 @@ class AstData : AstVisitor
                 _type = desc
             ]]
             set_token_path(token, expr.at)
-            if call.func != null
+            if call != null && call.func != null
                 set_token_def(token, call.func.atDecl)
             *tokens |> emplace(token)
     // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
@@ -789,7 +794,7 @@ class AstData : AstVisitor
                 _type = desc
             ]]
             set_token_path(token, expr.at)
-            if call.func != null
+            if call != null && call.func != null
                 set_token_def(token, call.func.atDecl)
             *tokens |> emplace(token)
     // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
@@ -875,11 +880,6 @@ class AstData : AstVisitor
             if !found
                 set_token_def(token, expr._type.structType.at)
                 set_token_type_def(token, expr._type)
-        // if find(name, "finalize") >= 0
-            // info(token, get_line_info())
-            // info(decl.flags, get_line_info())
-            // info(expr.flags, get_line_info())
-            // info(expr.genFlags, get_line_info())
         *tokens |> emplace(token)
     // def override visitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // make array
@@ -1084,8 +1084,8 @@ class AstData : AstVisitor
         for fch in expr.fields
             let f = int(fch)
             swizzle += "{f>=0 && f<=3 ? f2name[f] : "?"}"
-        let typ = "{describe([decl=expr.value._type,extra=true])}.{swizzle}"
-        let name = "{describe(expr.value)}.{swizzle}"
+        let typ = expr.value != null && expr.value._type != null ? "{describe([decl=expr.value._type,extra=true])}.{swizzle}" : ""
+        let name = expr.value != null ? "{describe(expr.value)}.{swizzle}" : swizzle
         var token <- new [[AstToken
             name = name,
             desc = "{name} : {typ}",
