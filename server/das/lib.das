@@ -1,6 +1,7 @@
 options indenting = 4
 
 require strings
+require daslib/strings_boost
 
 [export]
 def move ( var a )
@@ -33,9 +34,25 @@ def bytes_hr(value : uint64)
         return "{float(value) / 1024f}kb ({int(value)})"
     return "{int(value)} b"
 
+def ends_with_separator(str : string)
+    for c in "\\/"
+        if ends_with(str, string(c))
+            return true
+    return false
+
+def starts_with_separator(str : string)
+    for c in "\\/"
+        if starts_with(str, string(c))
+            return true
+    return false
+
 def join_path(a, b : string; sep : string = "/")
     return build_string() <| $(builder)
         builder |> write(a)
-        if ! ends_with(a, "/") // ! ends_with(a, "\\")
+        let ends = ends_with_separator(a)
+        let starts = starts_with_separator(b)
+        if ends && starts
+            builder |> write(slice(b, 1))
+        elif ! ends && !starts
             builder |> write(sep)
-        builder |> write(b)
+            builder |> write(b)
