@@ -10,6 +10,7 @@ options indenting = 4
 // options string_heap_page = 16384
 // options heap = 8000000
 // options heap_page = 16384
+options stack = 4194304
 options persistent_heap = true
 
 require math
