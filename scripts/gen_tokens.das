@@ -52,7 +52,7 @@ def getTokens(from, to : string) : Tokens
         let data = fio::fread(f)
         let start = find(data, from) + length(from)
         let end = find(data, to)
-        if start == -1 | end == -1
+        if start == -1 || end == -1
             debug("error: can't find bounds")
             return
         let sub = slice(data, start, end)
