@@ -1,4 +1,5 @@
 options indenting = 4
+options no_aot = true
 // options log = true
 // options log_nodes = true
 // options log_require = true

@@ -1,4 +1,5 @@
 options indenting = 4
+options no_aot = true
 
 require strings
 require daslib/strings_boost

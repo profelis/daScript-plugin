@@ -1,8 +1,6 @@
-options indenting = 4
-// options heap_page = 0
-// options string_heap_page = 0
-// options log = true
+options no_aot = true
 options indenting=2
+
 options rtti = true
 require rtti
 require rtti_tools

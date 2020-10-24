@@ -1,9 +1,6 @@
 options indenting = 4
+options no_aot = true
 
-// options heap_page = 0
-// options string_heap_page = 0
-
-// options log = true
 require math
 require daslib/json
 require json_tools
