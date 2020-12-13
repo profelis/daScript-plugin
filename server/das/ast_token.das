@@ -168,7 +168,7 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
         desc = desc,
         kind = AstTokenKind Variable,
         _type = typ,
-        warn = arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
+        warn = !arg.flags.marked_used && arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
     ]]
     set_token_path(token, arg.at)
     set_token_def(token, arg.at)
