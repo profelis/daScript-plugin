@@ -75,7 +75,7 @@ def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
         var d <- [[Diagnostic _range = val._range ]]
         if val.warn.unused
             d.message = "[Unused] {val.desc}"
-            d.severity = DiagnosticSeverity Information
+            d.severity = DiagnosticSeverity Warning
         else
             d.message = "[Deprecated] {val.desc}"
             d.severity = DiagnosticSeverity Warning
