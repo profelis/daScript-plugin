@@ -350,7 +350,7 @@ class TelnetServer : Server
             unsafe
                 delete access
 
-    def didOpen(id : double; params : JsonValue?)
+    [unused_argument(id)] def didOpen(id : double; params : JsonValue?)
         var ini = DidOpenTextDocumentParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         registry[path] <- Dascript(ini.textDocument)
@@ -361,7 +361,7 @@ class TelnetServer : Server
     finally
         delete ini
 
-    def didSave(id : double; params : JsonValue?)
+    [unused_argument(id)] def didSave(id : double; params : JsonValue?)
         var doc = DidSaveTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
@@ -380,7 +380,7 @@ class TelnetServer : Server
     finally
         delete doc
 
-    def didChange(id : double; params : JsonValue?)
+    [unused_argument(id)] def didChange(id : double; params : JsonValue?)
         var doc <- DidChangeTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         // info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
@@ -401,7 +401,7 @@ class TelnetServer : Server
     finally
         delete doc
 
-    def didClose(id : double; params : JsonValue?)
+    [unused_argument(id)] def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
         let path = uri_to_path(doc.textDocument.uri)
         find_for_edit_if_exists(registry, path) <| $(var data)
@@ -544,7 +544,7 @@ class TelnetServer : Server
                     var access <- make_file_access(config.project.file)
                     set_file_source(access, path, data.text)
 
-                    compile_file(path, access) <| $(ok, program, error)
+                    compile_file(path, access) <| $[unused_argument(ok, error)](ok, program, error)
                         if program != null
                             unsafe
                                 var visitor <- AstCompletionData()
@@ -729,7 +729,7 @@ class TelnetServer : Server
         delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
-    def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
+    [unused_argument(id)] def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
         var ini <- DidChangeWorkspaceFoldersParams(params)
         for it in ini.event.removed
             for i in range(0, length(workspaceFolders))
@@ -741,7 +741,7 @@ class TelnetServer : Server
         delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
-    def didChangeConfiguration(id : double; var params : JsonValue?)
+    [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
         for it in values(configs)
             delete it
         clear(configs)
@@ -804,7 +804,8 @@ class TelnetServer : Server
             //         self->validate_with_config(path, true, *config)
             self->signatureHelp_with_config(id, move(ini), config)
 
-    def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
+    // TODO: config???
+    [unused_argument(config)] def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
         let path = uri_to_path(ini.textDocument.uri)
         var found = false
         find_if_exists(registry, path) <| $(data)
