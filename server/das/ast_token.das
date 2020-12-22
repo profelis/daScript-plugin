@@ -50,6 +50,7 @@ struct AstToken
     desc : string
     kind : AstTokenKind
     _type : string
+    typeDesc : string
     warn : AstTokenWarn
     children : array<AstToken?>
 
@@ -66,8 +67,9 @@ typedef
 def to_hover(val : AstToken?; verbose : bool)
     if !verbose
         return "```dascript\n{val.desc}\n```"
-    var res = "```dascript\n{val.desc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
-    return <- res
+    return "```dascript\n{val.desc}\n{val.typeDesc}\n```"
+    // var res = "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
+    // return <- res
 
 
 def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
@@ -140,6 +142,10 @@ def set_token_def(var token : AstToken?; at)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
+def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
+    if typ != null
+        token.typeDesc = "isLocal:{typ.isLocal} isPod:{typ.isPod} isRawPod:{typ.isRawPod} canCopy:{typ.canCopy} canMove:{typ.canMove} canClone:{typ.canClone} canNew:{typ.canNew} needDelete:{typ.needDelete} canDelete:{typ.canDelete} canDeletePtr:{typ.canDeletePtr} hasNonTrivialCtor:{typ.hasNonTrivialCtor} hasNonTrivialDtor:{typ.hasNonTrivialDtor} hasNonTrivialCopy:{typ.hasNonTrivialCopy} canBePlacedInContainer:{typ.canBePlacedInContainer} isRefType:{typ.isRefType} isConst:{typ.isConst} sizeOf:{typ.sizeOf} countOf:{typ.countOf} alignOf:{typ.alignOf}"
+
 def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
     if typ == null
         return
@@ -170,6 +176,7 @@ def var_to_token(arg; blk : block<(var token:AstToken?):void>)
         _type = typ,
         warn = !arg.flags.marked_used && arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
     ]]
+    set_type_desc(token, arg._type)
     set_token_path(token, arg.at)
     set_token_def(token, arg.at)
     set_token_type_def(token, arg._type)
@@ -194,6 +201,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
         _type = typ
     ]]
     set_token_path(res, expr.atField)
+    set_type_desc(res, expr._type)
     if expr.field != null
         set_token_def(res, expr.field.at)
         set_token_type_def(res, expr.field._type)
@@ -304,6 +312,7 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
         kind = AstTokenKind Struct,
         _type = typeName
     ]]
+    set_type_desc(tok, typ)
     set_token_path(tok, typ.at)
     if typ.structType != null
         set_token_def(tok, typ.structType.at)
@@ -591,6 +600,7 @@ class AstData : AstVisitor
                 kind = AstTokenKind Field,
                 _type = typ
             ]]
+            set_type_desc(tok, decl._type)
             set_token_path(tok, decl.at)
             token.children |> emplace(tok)
         *tokens |> emplace(token)
@@ -739,6 +749,7 @@ class AstData : AstVisitor
             kind = AstTokenKind Operator,
             _type = desc
         ]]
+        set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         set_token_def(token, expr.at)
         set_token_type_def(token, expr._type)
@@ -871,6 +882,8 @@ class AstData : AstVisitor
             kind = AstTokenKind Field,
             _type = typ
         ]]
+        if decl.value != null
+            set_type_desc(token, decl.value._type)
         set_token_path(token, decl.at)
         if expr._type != null && expr._type.structType != null
             var found = false
@@ -952,6 +965,7 @@ class AstData : AstVisitor
             kind = AstTokenKind Operator,
             _type = typ
         ]]
+        set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         if expr._type != null
             if expr._type.structType != null
@@ -1014,6 +1028,7 @@ class AstData : AstVisitor
             kind = AstTokenKind Operator,
             _type = typ
         ]]
+        set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         if expr._type != null
             if expr._type.structType != null
@@ -1143,6 +1158,7 @@ class AstData : AstVisitor
             kind = AstTokenKind Constant,
             _type = "{typ}"
         ]]
+        set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         *tokens |> emplace(token)
     // def override visitExprConst(expr:smart_ptr<ExprConst>) : ExpressionPtr
@@ -1161,6 +1177,7 @@ class AstData : AstVisitor
             kind = AstTokenKind EnumMember,
             _type = "{typ}"
         ]]
+        set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         if expr._type != null && expr._type.enumType != null
             var found = false
