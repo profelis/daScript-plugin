@@ -143,7 +143,7 @@ def set_token_def(var token : AstToken?; at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
 def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
-    if typ != null
+    if typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext
         token.typeDesc = "isLocal:{typ.isLocal} isPod:{typ.isPod} isRawPod:{typ.isRawPod} canCopy:{typ.canCopy} canMove:{typ.canMove} canClone:{typ.canClone} canNew:{typ.canNew} needDelete:{typ.needDelete} canDelete:{typ.canDelete} canDeletePtr:{typ.canDeletePtr} hasNonTrivialCtor:{typ.hasNonTrivialCtor} hasNonTrivialDtor:{typ.hasNonTrivialDtor} hasNonTrivialCopy:{typ.hasNonTrivialCopy} canBePlacedInContainer:{typ.canBePlacedInContainer} isRefType:{typ.isRefType} isConst:{typ.isConst} sizeOf:{typ.sizeOf} countOf:{typ.countOf} alignOf:{typ.alignOf}"
 
 def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
