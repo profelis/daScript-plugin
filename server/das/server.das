@@ -275,22 +275,23 @@ class TelnetServer : Server
                     // info("< visit ast {path}", get_line_info())
                     // if !ok
                     //     info(program, get_line_info())
-                    unsafe
-                        var visitor <- AstData()
-                        visitor.tokens = addr(data.ast)
-                        var adapter <- make_visitor(visitor)
-                        visit(program, adapter)
-                        visitor.tokens = null
-                        delete adapter
-                        delete visitor
+                    if ok
+                        unsafe
+                            var visitor <- AstData()
+                            visitor.tokens = addr(data.ast)
+                            var adapter <- make_visitor(visitor)
+                            visit(program, adapter)
+                            visitor.tokens = null
+                            delete adapter
+                            delete visitor
 
-                    // info("info collect tokens {path}", get_line_info())
-                    collect_token(data.ast) <| $(var tok : AstToken?)
-                        tok.path = resolve_path(tok.path, config)
-                        if !empty(tok.defPath)
-                            tok.defPath = resolve_path(tok.defPath, config)
-                        if !empty(tok.typeDefPath)
-                            tok.typeDefPath = resolve_path(tok.typeDefPath, config)
+                        // info("info collect tokens {path}", get_line_info())
+                        collect_token(data.ast) <| $(var tok : AstToken?)
+                            tok.path = resolve_path(tok.path, config)
+                            if !empty(tok.defPath)
+                                tok.defPath = resolve_path(tok.defPath, config)
+                            if !empty(tok.typeDefPath)
+                                tok.typeDefPath = resolve_path(tok.typeDefPath, config)
 
                 if ok
                     var diags : array<Diagnostic>
@@ -545,7 +546,7 @@ class TelnetServer : Server
                     set_file_source(access, path, data.text)
 
                     compile_file(path, access) <| $[unused_argument(ok, error)](ok, program, error)
-                        if program != null
+                        if program != null && ok
                             unsafe
                                 var visitor <- AstCompletionData()
                                 visitor.path = path
