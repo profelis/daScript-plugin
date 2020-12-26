@@ -128,22 +128,23 @@ def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : bloc
     for it in val
         collect_ref_token(it, path, _range, blk)
 
-def module_name(mod)
+def module_name(mod: rtti::Module?)
     if mod == null
         return ""
     let name = "{mod.name}"
     return length(name) == 0 ? "" : "{name}::"
 
-def set_token_path(var token : AstToken?; at)
+def set_token_path(var token : AstToken?; at: rtti::LineInfo)
     token._range = line_info_to_range(at)
     token.path = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-def set_token_def(var token : AstToken?; at)
+def set_token_def(var token : AstToken?; at: rtti::LineInfo)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
 def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
-    if typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext
+    if (typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext 
+        && typ.baseType != Type none && typ.baseType != Type autoinfer && typ.baseType != Type alias && typ.baseType != Type anyArgument)
         token.typeDesc = "isLocal:{typ.isLocal} isPod:{typ.isPod} isRawPod:{typ.isRawPod} canCopy:{typ.canCopy} canMove:{typ.canMove} canClone:{typ.canClone} canNew:{typ.canNew} needDelete:{typ.needDelete} canDelete:{typ.canDelete} canDeletePtr:{typ.canDeletePtr} hasNonTrivialCtor:{typ.hasNonTrivialCtor} hasNonTrivialDtor:{typ.hasNonTrivialDtor} hasNonTrivialCopy:{typ.hasNonTrivialCopy} canBePlacedInContainer:{typ.canBePlacedInContainer} isRefType:{typ.isRefType} isConst:{typ.isConst} sizeOf:{typ.sizeOf} countOf:{typ.countOf} alignOf:{typ.alignOf}"
 
 def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
@@ -160,7 +161,7 @@ def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
     elif typ.secondType != null
         set_token_type_def(token, typ.secondType)
 
-def var_to_token(arg; blk : block<(var token:AstToken?):void>)
+def var_to_token(arg: smart_ptr<ast::Variable>; blk : block<(var token:AstToken?):void>)
     if arg == null || arg.flags.generated
         return false
     let typ = arg._type != null ? "{module_name(arg._module)}{describe([decl=arg._type,extra=true])}" : ""
