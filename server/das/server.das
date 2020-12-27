@@ -85,11 +85,18 @@ class TelnetServer : Server
     requestId : double = 1000lf // current request id
     requestCallbacks : array<Req> // active requests
 
+    sendingError : bool = false
+
     def TelnetServer()
         Server`Server(cast<Server> self)
 
     def override onError(msg:string; code:int)
+        if sendingError
+            print("server recursive error: {msg} - {code}")
+            return
+        sendingError = true
         info("server error:{code} - {msg}\n", get_line_info())
+        sendingError = false
         done = true
 
     def override onConnect()
