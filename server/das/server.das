@@ -272,7 +272,9 @@ class TelnetServer : Server
             if withContent
                 set_file_source(access, path, data.text)
 
-            compile_file(path, access) <| $(ok, program, error)
+            var cp = CodeOfPolicies()
+            cp.ignore_shared_modules = true
+            compile_file(path, access, cp) <| $(ok, program, error)
                 info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
                 if program != null
@@ -552,8 +554,10 @@ class TelnetServer : Server
                     var access <- make_file_access(config.project.file)
                     set_file_source(access, path, data.text)
 
-                    compile_file(path, access) <| $[unused_argument(ok, error)](ok, program, error)
-                        if program != null && ok
+                    var cp = CodeOfPolicies()
+                    cp.ignore_shared_modules = true
+                    compile_file(path, access, cp) <| $[unused_argument(ok, error)](ok, program, error)
+                        if program != null
                             unsafe
                                 var visitor <- AstCompletionData()
                                 visitor.path = path
