@@ -126,7 +126,8 @@ class TelnetServer : Server
         unsafe
             self->send(reinterpret<uint8?> packStr, length(packStr))
     finally
-        delete data
+        unsafe
+            delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendResponse(id : double; var data : JsonValue?)
@@ -279,7 +280,8 @@ class TelnetServer : Server
 
                 if program != null
                     for it in data.ast
-                        delete it
+                        unsafe
+                            delete it
                     clear(data.ast)
                     // info("< visit ast {path}", get_line_info())
                     // if !ok
@@ -755,7 +757,8 @@ class TelnetServer : Server
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
         for it in values(configs)
-            delete it
+            unsafe
+                delete it
         clear(configs)
 
     def addUniqueReference(var res : array<Location>; _range : Range; uri : string) : void
