@@ -33,13 +33,13 @@ struct Dascript
     valid : bool
 
 def Dascript(txt : TextDocumentItem)
-    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = move(txt.text)]]
+    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = txt.text]]
 
 def Dascript(doc : DidChangeTextDocumentParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text = doc.contentChanges[0].text]]
 
 def Dascript(doc : DidSaveTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = move(doc.text)]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = doc.text]]
 
 def Dascript(doc : HoverParams)
     return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
@@ -425,7 +425,7 @@ class TelnetServer : Server
             //     registry |> find_if_exists(path) <| $(data)
             //         if !data.valid
             //             self->validate_with_config(path, true, *config)
-            self->hover_with_config(id, move(ini), verbose)
+            self->hover_with_config(id, ini, verbose)
 
     def hover_with_config(id : double; var ini : HoverParams; verbose : bool)
         let path = uri_to_path(ini.textDocument.uri)
@@ -472,7 +472,7 @@ class TelnetServer : Server
             // registry |> find_if_exists(path) <| $(data)
             //     if !data.valid
             //         self->validate_with_config(path, true, *config)
-            self->completion_with_config(id, move(ini), *config)
+            self->completion_with_config(id, ini, *config)
 
     def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig)
         let path = uri_to_path(ini.textDocument.uri)
@@ -802,7 +802,7 @@ class TelnetServer : Server
             // registry |> find_if_exists(path) <| $(data)
             //     if !data.valid
             //         self->validate_with_config(path, true, *config)
-            self->signatureHelp_with_config(id, move(ini), config)
+            self->signatureHelp_with_config(id, ini, config)
 
     // TODO: config???
     [unused_argument(config)] def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)

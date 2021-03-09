@@ -125,7 +125,7 @@ def getTypeName(info; var items : Completions)
       variantDesc += "\n>"
       for it in all
         it.impls |> emplace(variantDesc)
-        addItem(move(it), items, true)
+        addItem(it, items, true)
       delete all
     else
       res = "variant"
@@ -203,7 +203,7 @@ def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: 
       for it in all
         if verbose
           it.impls |> emplace(structDesc)
-        addItem(move(it), items)
+        addItem(it, items)
 
       delete props
       delete fields
@@ -245,7 +245,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && !empty(info.cppName)
     impl += " [{info.cppName}]"
   res.impls |> emplace(impl)
-  addItem(move(res), items)
+  addItem(res, items)
 
 [private]
 def parseModule(pMod; var items : Completions)
@@ -281,11 +281,11 @@ def parseModule(pMod; var items : Completions)
       structDesc = shortStructDesc
       for it in all
         it.impls |> emplace("{structDesc}\n\t...\n\t{it.desc}\n\t...")
-        addItem(move(it), items)
+        addItem(it, items)
     else
       for it in all
         it.impls |> emplace(structDesc)
-        addItem(move(it), items)
+        addItem(it, items)
     delete all
 
   rtti::module_for_each_function(pMod) <| $(info)
@@ -308,7 +308,7 @@ def parseModule(pMod; var items : Completions)
     addItem([[Completion name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
     for it in all
       it._1.impls |> emplace(enumDesc)
-      addItem(move(it._1), items)
+      addItem(it._1, items)
     delete all
 
   rtti::module_for_each_global(pMod) <| $ (glob)
@@ -430,7 +430,7 @@ def isalnum_at(text : string; pos : int)
     for val in values(globalCompletion)
       list |> emplace(js(val))
     info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n", get_line_info())
-    return js({{ "isIncomplete" => js(false); "items" => js(move(list))}})
+    return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
 
   def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)

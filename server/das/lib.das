@@ -4,16 +4,12 @@ options no_aot = true
 require strings
 require daslib/strings_boost
 
-[export]
-def move ( var a )
-    return <- a
-
 [generic]
 def strip_left(str : string; part : string)
     return starts_with(str, part) ? slice(str, length(part)) : str
 
 def get_int_arg(args:array<string>; name : string; def_val : int) : int
-    for i in range(0, length(args))
+    for i in iter_range(args)
         if args[i] == name
             if i == length(args) - 1
                 return def_val
@@ -21,7 +17,7 @@ def get_int_arg(args:array<string>; name : string; def_val : int) : int
     return def_val
 
 def get_str_arg(args:array<string>; name : string; def_val : string) : string
-    for i in range(0, length(args))
+    for i in iter_range(args)
         if args[i] == name
             if i == length(args) - 1
                 return def_val
@@ -56,4 +52,6 @@ def join_path(a, b : string; sep : string = "/")
             builder |> write(slice(b, 1))
         elif ! ends && !starts
             builder |> write(sep)
+            builder |> write(b)
+        else
             builder |> write(b)
