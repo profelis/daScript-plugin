@@ -8,7 +8,6 @@ require ast
 require daslib/ast_boost
 require strings
 require daslib/strings_boost
-require rtti
 require network
 require fio
 require daslib/json

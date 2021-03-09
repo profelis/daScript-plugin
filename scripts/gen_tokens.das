@@ -6,10 +6,10 @@ variant Tokens
     status : bool
     tokens : array<string>
 
-[init]
+[export]
 def main
-    // let data <- getKeywords()
-    let data <- getBasicTypes()
+    let data <- getKeywords()
+    // let data <- getBasicTypes()
     if data is status
         debug("get tokens status: {data}")
         return

@@ -29,9 +29,9 @@ let
   // src\parser\ds_parser.ypp:129
   keywords = [[string "struct"; "class"; "let"; "def"; "while"; "if"; "static_if"; "else"; "for"; "recover"; "true"; "false"; "new";
                       "typeinfo"; "type"; "in"; "is"; "as"; "elif"; "static_elif"; "array"; "return"; "null"; "break"; "try"; "options";
-                      "table"; "expect"; "const"; "require"; "operator"; "enum"; "finally"; "delete"; "deref"; "scope"; "typedef";
-                      "with"; "cast"; "override"; "abstract"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where"; "pass"; "reinterpret";
-                      "module"; "public"; "label"; "goto"; "implicit"; "shared"; "smart_ptr"]]
+                      "table"; "expect"; "const"; "require"; "operator"; "enum"; "finally"; "delete"; "deref"; "typedef"; "with";
+                      "cast"; "override"; "abstract"; "upcast"; "iterator"; "var"; "addr"; "continue"; "where"; "pass"; "reinterpret";
+                      "module"; "public"; "label"; "goto"; "implicit"; "explicit"; "shared"; "private"; "smart_ptr"; "unsafe"]]
 
   // src\parser\ds_parser.ypp:186
   basicTypes = [[string "bool"; "void"; "string"; "auto"; "int"; "int2"; "int3"; "int4"; "uint"; "bitfield"; "uint2"; "uint3"; "uint4";
@@ -49,10 +49,11 @@ let
             }]
 
   // src\ast\ast_lint.cpp:312
-  langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments"; "heap";
-                       "heap_page"; "string_heap"; "string_heap_page"; "stack"; "intern_const_strings"; "intern_strings"; "no_aot"; "aot_prologue"; "plot";
-                       "plot_read_write"; "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
-                       "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
+  langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments";
+                       "no_unused_block_arguments"; "stack"; "intern_strings"; "multiple_contexts"; "persistent_heap"; "persistent_string_heap";
+                       "heap_size_hint"; "string_heap_size_hint"; "no_aot"; "aot_prologue";
+                       "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_nodes_aot_hash"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
+                       "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_gmn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
