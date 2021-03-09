@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -77,6 +77,12 @@
 					"type": "integer",
 					"default": 0,
 					"description": "Server port (negative value - disable server spawn)"
+				},
+				"dascript.experimental": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "Experimental (beta) features"
 				}
 			}
 		},

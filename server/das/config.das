@@ -30,12 +30,14 @@ struct PluginConfig
     hovers : PluginConfigHovers
     // compiler : string // unused
     project : PluginConfigProject
+    experimental: bool
     // server : { args : array<string> } // unused
 
 def PluginConfig(val : JsonValue?)
     return <- [[PluginConfig
         hovers <- PluginConfigHovers(joj(val, "hovers")),
-        project <- PluginConfigProject(joj(val, "project"))
+        project <- PluginConfigProject(joj(val, "project")),
+        experimental = job(val, "experimental")
     ]]
 
 def resolve_path(path : string; config : PluginConfig) : string

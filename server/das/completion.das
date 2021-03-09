@@ -1,5 +1,6 @@
 options no_aot = true
-options indenting=2
+options indenting = 2
+options multiple_contexts = true
 
 options rtti = true
 require rtti
@@ -10,6 +11,7 @@ require daslib/strings_boost
 require lsp_types
 require lib
 require logger
+require daslib/jobque_boost
 
 struct Completion
   name : string              // label
@@ -361,17 +363,55 @@ def isalnum_at(text : string; pos : int)
   globalCompletionUpdate : clock
   globalCompletion : Completions
 
-  def updateGlobalList(force : bool)
-    if !force && get_clock() - globalCompletionUpdate < 10f
+  def updateGlobalList(experementalFeatures: bool)
+    if get_clock() - globalCompletionUpdate < 10f
       return
     globalCompletionUpdate = get_clock()
-    for it in values(globalCompletion)
-      delete it
-    clear(globalCompletion)
-    addKeywords(globalCompletion)
-    program_for_each_registered_module() <| $(var mod)
-      parseModule(mod, globalCompletion)
-    info("completion: got {length(globalCompletion)} global items\n", get_line_info())
+
+    let useJobs = experementalFeatures
+    if !useJobs
+      var t0 = ref_time_ticks()
+      delete globalCompletion
+      addKeywords(globalCompletion)
+      program_for_each_registered_module() <| $(var mod)
+        parseModule(mod, globalCompletion)
+      var dt = get_time_usec(t0)
+      var sec = double(dt)/1000000.0lf
+      info("completion: got {length(globalCompletion)} global items in {sec}s\n", get_line_info())
+
+    else
+      with_job_que <|
+        var t0 = ref_time_ticks()
+
+        var modsNum = 0
+        program_for_each_registered_module() <| $[unused_argument(mod)](var mod)
+          modsNum += 1
+        with_channel(modsNum) <| $ (channel)
+
+          for i in range(modsNum)
+            new_job <| @
+              var coms: Completions
+              var num = i
+              program_for_each_registered_module() <| $(var mod)
+                if i == 0
+                  parseModule(mod, coms)
+                num --
+              for it in values(coms)
+                unsafe
+                  channel |> push(addr(it))
+              channel |> notify()
+
+          delete globalCompletion
+          addKeywords(globalCompletion)
+
+          for item in each(channel, type<Completion>)
+            var key = "{item.desc}{int(item.kind)}"
+            globalCompletion[key] := item
+
+        var dt = get_time_usec(t0)
+        var sec = double(dt)/1000000.0lf
+        info("completion: got {length(globalCompletion)} global items in {sec} s in {modsNum} jobs\n", get_line_info())
+
 
   def programCompletion(program : smart_ptr<Program>; var items : Completions)
     var temp : Completions

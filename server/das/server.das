@@ -1,16 +1,5 @@
 options indenting = 4
 options no_aot = true
-// options log = true
-// options log_nodes = true
-// options log_require = true
-// options heap_page = 0
-// options string_heap_page = 0
-// options optimize = false
-// options debugger=true // required for GC
-// options string_heap = 8000000
-// options string_heap_page = 16384
-// options heap = 8000000
-// options heap_page = 16384
 options stack = 4194304
 options persistent_heap = true
 
@@ -114,8 +103,12 @@ class TelnetServer : Server
             self->save(session)
             gc0_save_smart_ptr("telnet-session", session)
 
-    def updateGlobalCompletion(force : bool)
-        completionData->updateGlobalList(force)
+    def updateGlobalCompletion(path: string)
+        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            info(config, get_line_info())
+            info(config?.experimental ?? false, get_line_info())
+
+            completionData->updateGlobalList(config?.experimental ?? false)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendRawData(var data : JsonValue?)
@@ -241,7 +234,6 @@ class TelnetServer : Server
     def initialized()
         inited = true
         info("> initialized! port: {port}\n", get_line_info())
-        self->updateGlobalCompletion(true)
 
         var capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
         if hasConfigurationCapability
@@ -369,7 +361,7 @@ class TelnetServer : Server
         info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
 
-        self->updateGlobalCompletion(false)
+        self->updateGlobalCompletion(path)
     finally
         delete ini
 
@@ -756,10 +748,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
-        for it in values(configs)
-            unsafe
-                delete it
-        clear(configs)
+        delete configs
 
     def addUniqueReference(var res : array<Location>; _range : Range; uri : string) : void
         for it in res
