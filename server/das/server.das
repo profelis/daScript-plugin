@@ -105,9 +105,6 @@ class TelnetServer : Server
 
     def updateGlobalCompletion(path: string)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            info(config, get_line_info())
-            info(config?.experimental ?? false, get_line_info())
-
             completionData->updateGlobalList(config?.experimental ?? false)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
