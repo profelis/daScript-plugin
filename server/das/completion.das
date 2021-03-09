@@ -113,7 +113,7 @@ def getTypeName(info; var items : Completions)
       var variantDesc = "variant<"
       var all : array<Completion>
       var f = true
-      for argname,argtype in arg_names(info),arg_types(info)
+      for argname, argtype in arg_names(info), arg_types(info)
         if !f
           res += "; "
         f = false
@@ -140,10 +140,12 @@ def getTypeName(info; var items : Completions)
     res += ">"
   elif info.basicType == Type fakeContext
     res = "__context__"
+  elif info.basicType == Type fakeLineInfo
+    res = "__lineInfo__"
   else
     res = get_das_type_name(info.basicType)
   var dim <- [{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}]
-  res += join(dim,"")
+  res += join(dim, "")
   delete dim
   if info.isConst
     res += " const"
@@ -174,7 +176,7 @@ def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: 
       var props : array<string>
       var fields : array<tuple<uint; string>>
       var all : array<Completion>
-      basic_struct_for_each_field(sann) <| $ ( name,cppName,xtype,offset)
+      basic_struct_for_each_field(sann) <| $ ( name, cppName, xtype, offset)
         var field = "{getTypeName(xtype, items)} [{cppName}"
         if offset != -1u
           field += " @ {offset}]"
@@ -241,7 +243,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
     impl += "{it.name}: {argType}{getValue(get_variable_value(it))}"
   impl += ")"
   if info.result != null
-    impl += ": {getTypeName(*(info.result), items)}"
+    impl += ": {getTypeName(*info.result, items)}"
   if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && !empty(info.cppName)
     impl += " [{info.cppName}]"
   res.impls |> emplace(impl)
@@ -249,6 +251,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
 
 [private]
 def parseModule(pMod; var items : Completions)
+  let hugeStructDescSize = 500
   let fullModuleName = "{pMod.name}{length(string(pMod.name)) > 0 ? "::" : ""}"
 
   addItem([[Completion name = "{pMod.name}", desc = "module {pMod.name}", kind = CompletionItemKind Module]], items)
@@ -257,27 +260,22 @@ def parseModule(pMod; var items : Completions)
     let fullName = "{fullModuleName}{structName}"
     var shortStructDesc = ""
     structure_for_each_annotation(info) <| $(ann; annArgs)
-      // var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}] // BUG: workaround
-      // let argT = join(args,", ")
-      // delete args
-      var argT = ""
-      var first = true
-      for arg in annArgs
-        if !first
-          argT += ", "
-        first = false
-        argT += "{arg.name}{getValue(get_annotation_argument_value(arg))}"
+      var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}]
+      let argT = join(args,", ")
+      delete args
       shortStructDesc += "[{ann.name}({argT})]\n"
     shortStructDesc += "struct {fullName}"
     var structDesc = shortStructDesc
     var all : array<Completion>
     for it in info
       let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
-      structDesc += "\n\t{desc}"
+      if structDesc |> length() < hugeStructDescSize
+        structDesc += "\n\t{desc}"
       all |> emplace([[Completion name = "{it.name}", fullName = "{fullModuleName}{structName}.{desc}", desc = desc, kind = CompletionItemKind Field]])
     addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = CompletionItemKind Struct]], items)
 
-    if structDesc |> length() > 500
+    if structDesc |> length() >= hugeStructDescSize
+      info("deep: {structName}", get_line_info())
       structDesc = shortStructDesc
       for it in all
         it.impls |> emplace("{structDesc}\n\t...\n\t{it.desc}\n\t...")
@@ -394,7 +392,7 @@ def isalnum_at(text : string; pos : int)
               var coms: Completions
               var num = i
               program_for_each_registered_module() <| $(var mod)
-                if i == 0
+                if num == 0
                   parseModule(mod, coms)
                 num --
               for it in values(coms)

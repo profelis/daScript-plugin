@@ -103,6 +103,9 @@ class TelnetServer : Server
             gc0_save_smart_ptr("telnet-session", session)
 
     def updateGlobalCompletion(path: string)
+        if empty(path)
+            completionData->updateGlobalList(false)
+            return
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
             completionData->updateGlobalList(config?.experimental ?? false)
 
@@ -199,6 +202,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
+        self->updateGlobalCompletion("")
         // info(write_json(params))
         var ini <- InitializeParams(params)
         workspaceFolders := ini.workspaceFolders
@@ -563,15 +567,14 @@ class TelnetServer : Server
                                         var comp = js(val)
                                         let isOperator = is_operator(val.name)
                                         var obj & = comp.value as _object
-                                        erase(obj, "insertText")
                                         var addEdit <- [[TextEdit
                                             _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
-                                            newText = isOperator ? "" : " |> "
+                                            newText = isOperator ? " " : " "
                                         ]]
                                         obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
                                         var edit <- [[TextEdit
-                                            _range = Range(ini.position.line, ini.position.character + 1, ini.position.line, ini.position.character + 1),
-                                            newText = isOperator ? " {val.name} " : "{val.name}("
+                                            _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
+                                            newText = isOperator ? "{val.name} " : "|> {val.name}("
                                         ]]
                                         obj["textEdit"] = js(edit)
                                         list |> emplace(comp)
