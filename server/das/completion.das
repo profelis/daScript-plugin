@@ -57,9 +57,10 @@ let
                        "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                        "max_infer_passes"; "indenting"; "debugger"]]
 
-  operators = [[auto "!"; "~"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; "&&="; "||="; "^^="; "&&"; "||"; "^^"; "+"; "-"; "*"; "/"; "%"; "<"; ">";
-                     "=="; "!="; "<="; ">="; "&"; "|"; "^"; "++"; "--"; "+++"; "---"; "<<"; ">>"; "<<="; ">>="; "<<<"; ">>>"; "<<<="; ">>>="
-  ]]
+  // src\parser\ds_parser.ypp: 893
+  operators = [[string "!"; "~"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; "&&="; "||="; "^^="; "&&"; "||"; "^^"; "+"; "-";
+                       "*"; "/"; "%"; "<"; ">"; "=="; "!="; "<="; ">="; "&"; "|"; "^"; "++"; "--"; "+++"; "---"; "<<"; ">>"; "<<=";
+                       ">>="; "<<<"; ">>>"; "<<<="; ">>>="]]
 
 [private]
 def addItem(var item : Completion; var items : Completions; once = false)

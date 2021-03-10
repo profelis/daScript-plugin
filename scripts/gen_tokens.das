@@ -8,7 +8,8 @@ variant Tokens
 
 [export]
 def main
-    let data <- getKeywords()
+    // let data <- getKeywords()
+    let data <- getOperators()
     // let data <- getBasicTypes()
     if data is status
         debug("get tokens status: {data}")
@@ -37,12 +38,15 @@ def buildString(data : array<string>; prefix, postfix, decorator, delimeter : st
         return res
 
 def getKeywords()
-    return <- getTokens("/* keywords */", "/* basic types */")
+    return <- getTokens("/* keywords */")
 
 def getBasicTypes()
-    return <- getTokens("/* basic types */", "/* operators */")
+    return <- getTokens("/* basic types */")
 
-def getTokens(from, to : string) : Tokens
+def getOperators()
+    return <- getTokens("DAS_OPERATOR '!'")
+
+def getTokens(from : string) : Tokens
     let path = get_das_root() + "/src/parser/ds_parser.ypp"
     var res <- [[Tokens status = false]]
     fio::fopen(path, "rb") <| $(f)
@@ -50,17 +54,16 @@ def getTokens(from, to : string) : Tokens
             debug("error: can't open {path}")
             return
         let data = fio::fread(f)
-        let start = find(data, from) + length(from)
-        let end = find(data, to)
-        if start == -1 || end == -1
+        let start = find(data, from) + length(from) + 2
+        if start == -1
             debug("error: can't find bounds")
             return
-        let sub = slice(data, start, end)
-        let tokens <- split(sub, "\r\n")
+        let sub = slice(data, start, length(data) - 1)
+        let tokens <- split(split(sub, "\r\n\r\n")[0], "\r\n") // workaround split
         var list : array<string>
         for it in tokens
-            if it |> strip() |> length() == 0
-                continue
+            if it |> strip() |> length() == 0 || find(it, "\"") == -1
+                break
             let b = find(it, "\"") + 1
             list |> emplace(slice(it, b, find(it, "\"", b)))
         res <- [[Tokens tokens <- list]]
