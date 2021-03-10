@@ -64,16 +64,15 @@ let
 
 [private]
 def addItem(var item : Completion; var items : Completions; once = false)
+  var found = false
   let key = "{item.desc}{int(item.kind)}"
-  unsafe
-    var it = find_for_edit(items, key)
-    if it != null
-      if once
-        return
+  find_for_edit_if_exists(items, key) <| $(it)
+    found = true
+    if !once
       for impl in item.impls
         (*it).impls |> emplace(impl)
-      delete item
-      return
+    delete item
+  if !found
     items[key] <- item
 
 [private]
@@ -363,8 +362,8 @@ def isalnum_at(text : string; pos : int)
   globalCompletionUpdate : clock
   globalCompletion : Completions
 
-  def updateGlobalList(experementalFeatures: bool)
-    if get_clock() - globalCompletionUpdate < 10f
+  def updateGlobalList(force:bool; experementalFeatures: bool)
+    if !force && get_clock() - globalCompletionUpdate < 10f
       return
     globalCompletionUpdate = get_clock()
 

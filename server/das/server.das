@@ -104,10 +104,10 @@ class TelnetServer : Server
 
     def updateGlobalCompletion(path: string)
         if empty(path)
-            completionData->updateGlobalList(false)
+            completionData->updateGlobalList(true, false)
             return
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            completionData->updateGlobalList(config?.experimental ?? false)
+            completionData->updateGlobalList(false, config?.experimental ?? false)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendRawData(var data : JsonValue?)
@@ -202,7 +202,6 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
-        self->updateGlobalCompletion("")
         // info(write_json(params))
         var ini <- InitializeParams(params)
         workspaceFolders := ini.workspaceFolders
@@ -234,6 +233,7 @@ class TelnetServer : Server
     def initialized()
         inited = true
         info("> initialized! port: {port}\n", get_line_info())
+        self->updateGlobalCompletion("")
 
         var capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
         if hasConfigurationCapability
@@ -1078,8 +1078,8 @@ class TelnetServer : Server
 def main(fn : string)
     return mainLoop(fn)
 
-[export,init]
-def init()
+[export]
+def main()
     mainLoop("")
 
 def mainLoop(fn : string)
