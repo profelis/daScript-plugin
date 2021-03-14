@@ -41,7 +41,7 @@ def PluginConfig(val : JsonValue?)
     ]]
 
 def resolve_path(path : string; config : PluginConfig) : string
-    if empty(path)
+    if path |> empty()
         return path
     let st = stat(path)
     if st.is_valid
@@ -52,9 +52,8 @@ def resolve_path(path : string; config : PluginConfig) : string
         if newSt.is_valid
             return newPath
     let root = get_das_root()
-    for it in [[string[] "daslib"; "src/builtin"]]
-        let sysPath = join_path(root, it)
-        let newPath = join_path(sysPath, path)
+    for it in [[auto[] "daslib"; "src/builtin"]]
+        let newPath = root |> join_path(it) |> join_path(path)
         let newSt = stat(newPath)
         if newSt.is_valid
             return newPath

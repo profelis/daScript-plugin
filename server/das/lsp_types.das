@@ -32,7 +32,7 @@ def uri_to_path(str : string)
     return uri_to_file_name(str)
 
 def path_to_uri(str : string)
-    return file_name_to_uri(str) // escape_uri(str, false, false)
+    return file_name_to_uri(str)
 
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -64,6 +64,7 @@ def TextDocumentSyncClientCapabilities(val : JsonValue?)
         didSave = job(val, "didSave")
     ]]
 
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_completion
 struct CompletionClientCapabilitiesCompletionItem
     snippetSupport : bool
     commitCharactersSupport : bool
@@ -71,10 +72,12 @@ struct CompletionClientCapabilitiesCompletionItem
     deprecatedSupport : bool
     preselectSupport : bool
     // tagSupport : { valueSet: CompletionItemTag[] }
+    // insertReplaceSupport: bool // ?
+    // resolveSupport: { properties: string[] }
+    // insertTextModeSupport: {	valueSet: InsertTextMode[]; }
 
 def CompletionClientCapabilitiesCompletionItem(val : JsonValue?)
     var documentationFormat : array<string>
-    // TODO:
     return <- [[CompletionClientCapabilitiesCompletionItem
         snippetSupport = job(val, "snippetSupport"),
         commitCharactersSupport = job(val, "commitCharactersSupport"),
@@ -150,6 +153,7 @@ def TextDocumentClientCapabilities(val : JsonValue?)
         publishDiagnostics <- PublishDiagnosticsClientCapabilities(joj(val, "publishDiagnostics"))
     ]]
 
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspaceEditClientCapabilities
 struct WorkspaceEditClientCapabilities
     documentChanges : bool
     resourceOperations : array<string> // ResourceOperationKind = 'create' | 'rename' | 'delete'
@@ -585,10 +589,7 @@ def js(val : Diagnostic)
     if !empty(val.source)
         res["source"] = js(val.source)
     if length(val.relatedInformation) > 0
-        var info : array<JsonValue?>
-        for it in val.relatedInformation
-            info |> push(js(it))
-        res["relatedInformation"] = js(info)
+        res["relatedInformation"] = js([{ for it in val.relatedInformation; js(it) }])
     return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_publishDiagnostics
@@ -669,10 +670,7 @@ struct Hover
     _range : Range
 
 def js(val : Hover)
-    var contents : array<JsonValue?>
-    for it in val.contents
-        contents |> emplace(js(it))
-    return js({{ "contents" => js(contents); "range" => js(val._range) }})
+    return js({{ "contents" => js([{ for it in val.contents; js(it) }]); "range" => js(val._range) }})
 
 
 struct DefinitionParams : TextDocumentPositionParams {}

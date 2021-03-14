@@ -123,12 +123,12 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendResponse(id : double; var data : JsonValue?)
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(id); "result" => data }}))
+        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "result" => data }}))
 
     def sendRequest(method : string; var data : JsonValue?; var cb : ReqCb) : double
         let reqId = requestId
         self->onRequest(reqId, cb)
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "id" => js(reqId); "method" => js(method); "params" => data }}))
+        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(reqId); "method" => js(method); "params" => data }}))
         requestId = requestId + 1lf
         return reqId
 
@@ -141,7 +141,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#notificationMessage
     def sendNotification(method : string; var data : JsonValue?)
-        self->sendRawData(js({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}))
+        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "method" => js(method); "params" => data }}))
 
     def registerCapability(methods : array<string>)
         var registrations : array<Registration>
@@ -460,7 +460,7 @@ class TelnetServer : Server
                 found = true
                 delete h
         if !found
-            warning("< hover info not found @ {to_string(ini.position)}\n", get_line_info())
+            warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
             self->sendResponse(id, js())
         delete ini
 
