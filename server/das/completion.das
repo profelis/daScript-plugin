@@ -275,7 +275,6 @@ def parseModule(pMod; var items : Completions)
     addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}", impls <- [{auto[] structDesc}], kind = CompletionItemKind Struct]], items)
 
     if structDesc |> length() >= hugeStructDescSize
-      info("deep: {structName}", get_line_info())
       structDesc = shortStructDesc
       for it in all
         it.impls |> emplace("{structDesc}\n\t...\n\t{it.desc}\n\t...")
@@ -330,18 +329,18 @@ def addKeywords(var items : Completions)
 
 [export]
 def js(it : Completion) : JsonValue?
-  var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(double(int(it.kind))) }}
+  var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(it.kind) }}
   if !empty(it.fullName)
     tab["filterName"] <- js(it.fullName)
     tab["sortText"] <- js(it.fullName)
   if length(it.impls) > 0
-    tab["documentation"] <- js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
+    tab["documentation"] <- js <| {{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }}
   return js(tab)
 
 [export]
 def js(items : Completions) : JsonValue?
   var list <- [{ for it in values(items); js(it) }]
-  return js({{ "isIncomplete" => js(false); "items" => js(list)}})
+  return js <| {{ "isIncomplete" => js(false); "items" => js(list)}}
 
 [export]
 def is_operator(str : string)
