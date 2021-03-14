@@ -329,18 +329,18 @@ def addKeywords(var items : Completions)
     addItem([[Completion name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
 [export]
-def js(it : Completion; doc = true) : JsonValue?
+def js(it : Completion) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(double(int(it.kind))) }}
   if !empty(it.fullName)
     tab["filterName"] <- js(it.fullName)
     tab["sortText"] <- js(it.fullName)
-  if doc && length(it.impls) > 0
+  if length(it.impls) > 0
     tab["documentation"] <- js({{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }})
   return js(tab)
 
 [export]
-def js(items : Completions; doc = true) : JsonValue?
-  var list <- [{ for it in values(items); js(it, doc) }]
+def js(items : Completions) : JsonValue?
+  var list <- [{ for it in values(items); js(it) }]
   return js({{ "isIncomplete" => js(false); "items" => js(list)}})
 
 [export]

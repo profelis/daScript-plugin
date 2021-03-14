@@ -7,6 +7,7 @@ require json_tools
 require uriparser
 require strings
 require daslib/strings_boost
+require js public
 
 typedef
     JSTab = table<string; JsonValue?>
@@ -33,26 +34,6 @@ def uri_to_path(str : string)
 def path_to_uri(str : string)
     return file_name_to_uri(str) // escape_uri(str, false, false)
 
-def js(val : int)
-    return new [[JsonValue value <- [[JsValue _number = double(val)]]]]
-
-def js(val : bool)
-    return new [[JsonValue value <- [[JsValue _bool = val]]]]
-
-def js(val : double)
-    return new [[JsonValue value <- [[JsValue _number = val]]]]
-
-def js(val : string)
-    return new [[JsonValue value <- [[JsValue _string = val]]]]
-
-def js(var val : JSTab)
-    return new [[JsonValue value <- [[JsValue _object <- val]]]]
-
-def js(var val : array<JsonValue?>)
-    return new [[JsonValue value <- [[JsValue _array <- val]]]]
-
-def js()
-    return new [[JsonValue value <- [[JsValue _null = null]]]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct WorkspaceFolder
@@ -297,57 +278,31 @@ struct ServerInfo
     name : string
     version : string // ?
 
-def js(val : ServerInfo)
-    return js({{ "name" => js(val.name); "version" => js(val.version) }})
-
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_synchronization
 enum TextDocumentSyncKind
     None = 0
     Full = 1
     Incremental = 2
 
+def js(val: TextDocumentSyncKind)
+    return js(uint(val))
+
 struct CompletionOptions
     triggerCharacters : array<string> // ?
     allCommitCharacters : array<string> // ?
     resolveProvider : bool
-
-def js(val : CompletionOptions)
-    var res <- {{ "resolveProvider" => js(val.resolveProvider) }} // TODO:
-    if val.triggerCharacters |> length() > 0
-        var triggerCharacters : array<JsonValue?>
-        for it in val.triggerCharacters
-            triggerCharacters |> emplace(js(it))
-        res["triggerCharacters"] <- js(triggerCharacters)
-    if val.allCommitCharacters |> length() > 0
-        var allCommitCharacters : array<JsonValue?>
-        for it in val.allCommitCharacters
-            allCommitCharacters |> emplace(js(it))
-        res["allCommitCharacters"] <- js(allCommitCharacters)
-    return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_workspaceFolders
 struct WorkspaceFoldersServerCapabilities
     supported : bool
     changeNotifications : bool
 
-def js(val : WorkspaceFoldersServerCapabilities)
-    return js({{
-        "supported" => js(val.supported);
-        "changeNotifications" => js(val.changeNotifications)
-    }})
-
 struct ServerCapabilitiesWorkspace
     workspaceFolders : WorkspaceFoldersServerCapabilities
-
-def js(val : ServerCapabilitiesWorkspace)
-    return js({{ "workspaceFolders" => js(val.workspaceFolders) }})
 
 struct SignatureHelpOptions
     triggerCharacters : array<string>
     // retriggerCharacters : array<string>
-
-def js(val : SignatureHelpOptions)
-    return js({{ "triggerCharacters" => js([{ for it in val.triggerCharacters; js(it) }]) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
@@ -377,38 +332,16 @@ struct ServerCapabilities
     workspace : ServerCapabilitiesWorkspace
     // experimental : void?
 
-def js(val : ServerCapabilities)
-    return js({{
-        "textDocumentSync" => js(int(val.textDocumentSync));
-        "completionProvider" => js(val.completionProvider);
-        "hoverProvider" => js(val.hoverProvider);
-        "signatureHelpProvider" => js(val.signatureHelpProvider);
-        "definitionProvider" => js(val.definitionProvider);
-        "typeDefinitionProvider" => js(val.typeDefinitionProvider);
-        "referencesProvider" => js(val.referencesProvider);
-        "documentSymbolProvider" => js(val.documentSymbolProvider);
-        "documentLinkProvider" => js(val.documentLinkProvider);
-        "colorProvider" => js(val.colorProvider);
-        "workspaceSymbolProvider" => js(val.workspaceSymbolProvider);
-        "workspace" => js(val.workspace)
-    }})
-
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct InitializeResult
     capabilities : ServerCapabilities
     serverInfo : ServerInfo // ?
-
-def js(val : InitializeResult)
-    return js({{ "capabilities" => js(val.capabilities); "serverInfo" => js(val.serverInfo) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
 struct ResponseError
     code : double
     message : string
     data : JsonValue? // ? string | number | boolean | array | object | null
-
-def js(val : ResponseError)
-    return js({{ "code" => js(val.code); "message" => js(val.message); "data" => val.data }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#position
 struct Position
@@ -422,9 +355,6 @@ def Position(val : JsonValue?)
     if val == null || val.value is _null
         return <- [[Position]]
     return <- [[Position line = int(jon(val, "line")), character = int(jon(val, "character")) ]]
-
-def js(val : Position)
-    return js({{ "line" => js(double(val.line)); "character" => js(double(val.character)) }})
 
 def operator <(a, b : Position)
     return a.line < b.line || (a.line == b.line && a.character < b.character)
@@ -514,9 +444,6 @@ def length(a : Range)
 
 def range_ratio(a : Range)
     return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line + 1000 - a.start.character) : 0) + a.end.character
-
-def js(val : Range)
-    return js({{ "start" => js(val.start); "end" => js(val.end) }})
 
 def to_string(val : Range)
     return "{to_string(val.start)} - {to_string(val.end)}"
@@ -622,18 +549,21 @@ enum DiagnosticSeverity
     Information = 3
     Hint = 4
 
+def js(val: DiagnosticSeverity)
+    return js(uint(val))
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 enum DiagnosticTag
     Unnecessary = 1
     Deprecated = 2
 
+def js(data: DiagnosticTag)
+    return js(uint(data))
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 struct DiagnosticRelatedInformation
     location : Location
     message : string
-
-def js(val : DiagnosticRelatedInformation)
-    return js({{ "location" => js(val.location); "message" => js(val.message)}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 variant DiagnosticsCode
@@ -651,7 +581,7 @@ struct Diagnostic
     relatedInformation : array<DiagnosticRelatedInformation>
 
 def js(val : Diagnostic)
-    var res <- {{ "range" => js(val._range); "message" => js(val.message); "code" => js(val.code); "severity" => js(int(val.severity)) }}
+    var res <- {{ "range" => js(val._range); "message" => js(val.message); "code" => js(val.code); "severity" => js(val.severity) }}
     if !empty(val.source)
         res["source"] = js(val.source)
     if length(val.relatedInformation) > 0
@@ -667,15 +597,6 @@ struct PublishDiagnosticsParams
     version : double?
     diagnostics : array<Diagnostic>
 
-def js(val : PublishDiagnosticsParams)
-    var res <- {{ "uri" => js(val.uri) }}
-    if val.version != null
-        res["version"] = js(*(val.version))
-    var diagnostics : array<JsonValue?>
-    for it in val.diagnostics
-        diagnostics |> push(js(it))
-    res["diagnostics"] = js(diagnostics)
-    return js(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentPositionParams
 struct TextDocumentPositionParams
@@ -708,6 +629,9 @@ enum CompletionItemKind
     Event = 23
     Operator = 24
     TypeParameter = 25
+
+def js(val: CompletionItemKind)
+    return js(uint(val))
 
 struct CompletionItem
     _label : string
@@ -748,7 +672,7 @@ def js(val : Hover)
     var contents : array<JsonValue?>
     for it in val.contents
         contents |> emplace(js(it))
-    return js({{ "contents" => js(contents); "range" => js(val._range)  }})
+    return js({{ "contents" => js(contents); "range" => js(val._range) }})
 
 
 struct DefinitionParams : TextDocumentPositionParams {}
@@ -785,13 +709,16 @@ enum MessageType
     Info = 3
     Log = 4
 
+def js(val: MessageType)
+    return js(uint(val))
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#window_logMessage
 struct LogMessageParams
     _type : MessageType
     message : string
 
 def js(val : LogMessageParams)
-    return js({{ "type" => js(int(val._type)); "message" => js(val.message) }})
+    return js({{ "type" => js(val._type); "message" => js(val.message) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
 struct WorkspaceFoldersChangeEvent
@@ -822,40 +749,16 @@ struct Registration
     method : string
     // registerOptions : any
 
-def js(val : Registration)
-    return js({{ "id" => js(val.id); "method" => js(val.method) }})
-
 struct RegistrationParams
     registrations : array<Registration>
-
-def js(val : RegistrationParams)
-    // var registrations : array<JsonValue?> <- [{ for it in val.registrations; js(it) }]
-    var registrations : array<JsonValue?>
-    for it in val.registrations
-        registrations |> push(js(it))
-    return js({{ "registrations" => js(registrations) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_configuration
 struct ConfigurationItem
     scopeUri : string // ?
     section : string // ?
 
-def js(val : ConfigurationItem)
-    var res : table<string; json::JsonValue?>
-    if !empty(val.scopeUri)
-        res["scopeUri"] <- js(val.scopeUri)
-    if !empty(val.section)
-        res["section"] <- js(val.section)
-    return js(res)
-
 struct ConfigurationParams
     items : array<ConfigurationItem>
-
-def js(val : ConfigurationParams)
-    var items : array<JsonValue?>
-    for it in val.items
-        items |> emplace(js(it))
-    return js({{ "items" => js(items) }})
 
 struct ReferenceContext
     includeDeclaration : bool
@@ -899,8 +802,6 @@ def js(val : SignatureInformation)
 struct SignatureHelp
     signatures : array<SignatureInformation>
 
-def js(val : SignatureHelp)
-    return js({{ "signatures" => js([{ for it in val.signatures ; js(it) }]) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
 struct DocumentColorParams
@@ -916,14 +817,6 @@ struct Color
     green : double
     blue : double
     alpha : double
-
-def js(val : Color)
-    return js({{
-        "red" => js(val.red);
-        "green" => js(val.green);
-        "blue" => js(val.blue);
-        "alpha" => js(val.alpha)
-    }})
 
 def Color(val : JsonValue?)
     return [[Color
