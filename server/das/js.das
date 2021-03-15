@@ -1,5 +1,5 @@
 options indenting = 2
-options remove_unused_symbols = false
+options no_aot = true
 module js shared
 
 

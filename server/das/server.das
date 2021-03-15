@@ -117,8 +117,6 @@ class TelnetServer : Server
         // print("<---- send data {length(packStr)}\n") // only print!
         unsafe
             self->send(reinterpret<uint8?> packStr, length(packStr))
-    finally
-        unsafe
             delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
@@ -152,7 +150,6 @@ class TelnetServer : Server
             if error != null
                 info("error: registerCapability\n", get_line_info())
                 info(error, get_line_info())
-    finally
         delete registrationParams
 
     def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
