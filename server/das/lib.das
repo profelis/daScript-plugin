@@ -27,12 +27,14 @@ def bytes_hr(value : uint64)
         return "{float(value) / 1024f}kb ({int(value)})"
     return "{int(value)} b"
 
+[private]
 def ends_with_separator(str : string)
     for c in "\\/"
         if ends_with(str, string(c))
             return true
     return false
 
+[private]
 def starts_with_separator(str : string)
     for c in "\\/"
         if starts_with(str, string(c))

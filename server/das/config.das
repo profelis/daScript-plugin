@@ -40,21 +40,23 @@ def PluginConfig(val : JsonValue?)
         experimental = job(val, "experimental")
     ]]
 
+[private]
+def is_valid(path: string)
+    let st = stat(path)
+    return st.is_valid
+
 def resolve_path(path : string; config : PluginConfig) : string
     if path |> empty()
         return path
-    let st = stat(path)
-    if st.is_valid
+    if path |> is_valid()
         return path
     for it in config.project.roots
-        let newPath = join_path(it, path)
-        let newSt = stat(newPath)
-        if newSt.is_valid
+        let newPath = it |> join_path(path)
+        if newPath |> is_valid()
             return newPath
     let root = get_das_root()
     for it in [[auto[] "daslib"; "src/builtin"]]
         let newPath = root |> join_path(it) |> join_path(path)
-        let newSt = stat(newPath)
-        if newSt.is_valid
+        if newPath |> is_valid()
             return newPath
     return path
