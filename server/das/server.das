@@ -611,9 +611,7 @@ class TelnetServer : Server
         delete ini
 
     def resolveCompletion(id : double; var params : JsonValue?)
-        var err : string
-        var copyData = read_json(write_json(params), err)
-        self->sendResponse(id, copyData)
+        self->sendResponse(id, clone_to_move(params))
 
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
         var token : AstToken?

@@ -4,6 +4,14 @@ options no_aot = true
 require daslib/json
 require daslib/json_boost
 
+def clone(var a: JsonValue?&; b: JsonValue?)
+    unsafe
+        delete a
+    if b == null
+        a = JV(null)
+    else
+        a = new [[JsonValue value := b.value]]
+
 def joj(val : JsonValue?; id : string) : JsonValue?
     var res : JsonValue? = null
     if val == null || !(val is _object)
