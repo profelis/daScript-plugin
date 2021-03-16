@@ -59,6 +59,8 @@ def js(value): JsonValue?
     return value
   elif typeinfo(is_pointer value)
     return value == null ? null : _::js(*value)
+  elif typeinfo(is_enum value)
+    return js(int(value))
   elif typeinfo(is_string value)
     return _::js(value)
   elif typeinfo(is_struct value)

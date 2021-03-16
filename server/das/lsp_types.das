@@ -288,9 +288,6 @@ enum TextDocumentSyncKind
     Full = 1
     Incremental = 2
 
-def js(val: TextDocumentSyncKind)
-    return js(uint(val))
-
 struct CompletionOptions
     triggerCharacters : array<string> // ?
     allCommitCharacters : array<string> // ?
@@ -553,16 +550,10 @@ enum DiagnosticSeverity
     Information = 3
     Hint = 4
 
-def js(val: DiagnosticSeverity)
-    return js(uint(val))
-
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 enum DiagnosticTag
     Unnecessary = 1
     Deprecated = 2
-
-def js(data: DiagnosticTag)
-    return js(uint(data))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 struct DiagnosticRelatedInformation
@@ -630,9 +621,6 @@ enum CompletionItemKind
     Event = 23
     Operator = 24
     TypeParameter = 25
-
-def js(val: CompletionItemKind)
-    return js(uint(val))
 
 struct CompletionItem
     _label : string
@@ -707,8 +695,6 @@ enum MessageType
     Info = 3
     Log = 4
 
-def js(val: MessageType)
-    return js(uint(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#window_logMessage
 struct LogMessageParams
