@@ -8,6 +8,7 @@ require strings
 require lsp_types
 require logger
 require completion
+require lib
 
 bitfield AstTokenWarn
     unused
@@ -71,6 +72,43 @@ def to_hover(val : AstToken?; verbose : bool)
     // var res = "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
     // return <- res
 
+def add_unique_reference(var res : array<Location>; _range : Range; uri : string) : void
+    for it in res
+        if it.uri == uri && it._range == _range
+            return
+    res |> emplace([[Location _range = _range, uri = uri ]])
+
+def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
+    if !ast.topLevel || ast.path != path
+        return
+    var data <- {{
+        "name" => js(ast.name |> strip_left("`"));
+        "detail" => js(ast._type);
+        "kind" => js(int(ast.kind));
+        "range" => js(ast._range);
+        "selectionRange" => js(ast._range)
+    }}
+    if ast.children |> length() > 0
+        var children : array<JsonValue?>
+        for it in ast.children
+            it |> build_document_symbol(path, children)
+        if children |> length() > 0
+            data["children"] <- js(children)
+    res |> emplace(js(data))
+
+def build_symbol_information(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
+    if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`")
+        return
+    if !empty(ast.path) && (empty(query) || find(ast.name, query) != -1)
+        var data <- {{
+            "name" => js(ast.name);
+            "containerName" => js(ast.desc);
+            "kind" => js(int(ast.kind));
+            "location" => js({{ "range" => js(ast._range); "uri" => js(path_to_uri(ast.path)) }})
+        }}
+        res |> emplace(js(data))
+    for it in ast.children
+        it |> build_symbol_information(query, limit, res)
 
 def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
     if val.path == path && val.warn != bitfield(0)
@@ -128,22 +166,22 @@ def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : bloc
     for it in val
         collect_ref_token(it, path, _range, blk)
 
-def module_name(mod: rtti::Module?)
+def module_name(mod: Module?)
     if mod == null
         return ""
     let name = "{mod.name}"
     return length(name) == 0 ? "" : "{name}::"
 
-def set_token_path(var token : AstToken?; at: rtti::LineInfo)
+def set_token_path(var token : AstToken?; at: LineInfo)
     token._range = line_info_to_range(at)
     token.path = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-def set_token_def(var token : AstToken?; at: rtti::LineInfo)
+def set_token_def(var token : AstToken?; at: LineInfo)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
 def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
-    if (typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext 
+    if (typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext
         && typ.baseType != Type none && typ.baseType != Type autoinfer && typ.baseType != Type alias && typ.baseType != Type anyArgument)
         token.typeDesc = "isLocal:{typ.isLocal} isPod:{typ.isPod} isRawPod:{typ.isRawPod} canCopy:{typ.canCopy} canMove:{typ.canMove} canClone:{typ.canClone} canNew:{typ.canNew} needDelete:{typ.needDelete} canDelete:{typ.canDelete} canDeletePtr:{typ.canDeletePtr} hasNonTrivialCtor:{typ.hasNonTrivialCtor} hasNonTrivialDtor:{typ.hasNonTrivialDtor} hasNonTrivialCopy:{typ.hasNonTrivialCopy} canBePlacedInContainer:{typ.canBePlacedInContainer} isRefType:{typ.isRefType} isConst:{typ.isConst} sizeOf:{typ.sizeOf} countOf:{typ.countOf} alignOf:{typ.alignOf}"
 
@@ -343,7 +381,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
         res.found = true
         res._type = describe(t)
         unsafe
-            let baseAnnotation & = reinterpret<rtti::Annotation?> t.annotation
+            let baseAnnotation & = reinterpret<Annotation?> t.annotation
             var items: Completions
             parseAnnotation(*baseAnnotation, module_name(t._module), items, false /*include struct name*/)
             for it in values(items)

@@ -403,6 +403,7 @@ def index_to_pos(index : int; text : string) : Position
 
 def to_string(val : Position)
     return "{int(val.line)}:{int(val.character)}"
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#range
 struct Range
     start : Position
@@ -444,7 +445,7 @@ def length(a : Range)
     return a.end.character - a.start.character
 
 def range_ratio(a : Range)
-    return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line + 1000 - a.start.character) : 0) + a.end.character
+    return (!range_oneline(a) ? 1000 * (a.end.line - a.start.line) : 0) + a.end.character - a.start.character
 
 def to_string(val : Range)
     return "{to_string(val.start)} - {to_string(val.end)}"
@@ -809,6 +810,15 @@ def Color(val : JsonValue?)
         blue = jon(val, "blue"),
         alpha = jon(val, "alpha")
     ]]
+
+def to_string(c: Color; len: int): string
+    return build_string() <| $(var str)
+        write(str, "0x")
+        if len > 8
+            format(str, "%02X", int(c.alpha * 255lf))
+        format(str, "%02X", int(c.red * 255lf))
+        format(str, "%02X", int(c.green * 255lf))
+        format(str, "%02X", int(c.blue * 255lf))
 
 struct ColorInformation
     _range : Range

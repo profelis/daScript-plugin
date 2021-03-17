@@ -8,6 +8,7 @@ require ast
 require daslib/ast_boost
 require strings
 require daslib/strings_boost
+require daslib/defer
 require network
 require fio
 require daslib/json
@@ -146,11 +147,11 @@ class TelnetServer : Server
         for it in methods
             registrations |> emplace([[Registration method = it, id = it]])
         var registrationParams <- [[RegistrationParams registrations <- registrations]]
+        defer_delete(registrationParams)
         self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
                 info("error: registerCapability\n", get_line_info())
                 info(error, get_line_info())
-        delete registrationParams
 
     def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
         var found = configs |> find_if_exists(path) <| $(config)
@@ -189,22 +190,21 @@ class TelnetServer : Server
 
     def log(msg : string; level : LogLevel)
         if !inited || done
+            print(msg)
             return
         var res = [[LogMessageParams message = msg]]
         unsafe
             res._type = reinterpret<MessageType>(level)
         self->sendNotification("window/logMessage", js(res))
-    finally
         delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     def initialize(id : double; params : JsonValue?)
-        // info(write_json(params))
         var ini <- InitializeParams(params)
+        defer_delete(ini)
         workspaceFolders := ini.workspaceFolders
         hasConfigurationCapability = ini.capabilities.workspace.configuration
         hasDiagnosticRelatedInformationCapability = ini.capabilities.textDocument.publishDiagnostics.relatedInformation
-        // info(ini)
         var workspace <- [[WorkspaceFoldersServerCapabilities supported = true, changeNotifications = true]]
         var cmpl <- [[CompletionOptions resolveProvider = true, triggerCharacters <- [{ auto[] "." }] ]]
         var cap <- [[ServerCapabilities
@@ -223,8 +223,6 @@ class TelnetServer : Server
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
         self->sendResponse(id, js(res))
-    finally
-        delete ini
         delete res
 
     def initialized()
@@ -248,7 +246,7 @@ class TelnetServer : Server
         if valid
             info("> validate? '{path}' file is valid. skip", get_line_info())
             return
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+        self->getConfig(path) <| @(config : PluginConfig?)
             if config == null
                 info("> validate? '{path}' config is null", get_line_info())
             else
@@ -259,6 +257,10 @@ class TelnetServer : Server
             info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
             let uri = path_to_uri(path)
             var access <- make_file_access(config.project.file)
+            defer <| $()
+                self->updateGlobalCompletion(path)
+                unsafe
+                    delete access
             if withContent
                 set_file_source(access, path, data.text)
 
@@ -325,15 +327,14 @@ class TelnetServer : Server
                     let localUri = resolve_path(err.at.fileInfo != null ? path_to_uri(string(err.at.fileInfo.name)) : uri, config)
                     let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-                    if hasDiagnosticRelatedInformationCapability
-                        if !empty(err.extra) || !empty(err.fixme)
-                            var extra = "{err.extra}"
-                            if !empty(err.fixme)
-                                extra += "\n{err.fixme}"
-                            var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                            diag.relatedInformation <- [{ auto[] info }]
+                    if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
+                        var extra = "{err.extra}"
+                        if !empty(err.fixme)
+                            extra += "\n{err.fixme}"
+                        var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
+                        diag.relatedInformation <- [{ auto[] info }]
                     unsafe
-                        var list = find_for_edit(map, localUri)
+                        var list = find_for_edit(map, localUri) // map is locked
                         if list != null
                             *list |> emplace(diag)
                         else
@@ -346,81 +347,66 @@ class TelnetServer : Server
                             collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", js(params))
+                    delete params
                 delete map
-        finally
-            unsafe
-                delete access
 
     [unused_argument(id)] def didOpen(id : double; params : JsonValue?)
         var ini = DidOpenTextDocumentParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         registry[path] <- Dascript(ini.textDocument)
         info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
         self->validate(path, false)
 
-        self->updateGlobalCompletion(path)
-    finally
-        delete ini
-
     [unused_argument(id)] def didSave(id : double; params : JsonValue?)
         var doc = DidSaveTextDocumentParams(params)
+        defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
-        var version = -1lf
         unsafe
-            var data = find_for_edit(registry, path)
+            var data = registry |> find_for_edit(path) // registry is locked
             if data != null
-                version = data.version
-                if length(doc.text) > 0
-                    // delete_string(data.text) // TODO:
-                    data.text = doc.text
+                data.version = -1lf
+                data.text <- doc.text
             else
                 registry[path] <- Dascript(doc)
                 info("> unknown? register again, total files {length(registry)}\n", get_line_info())
-            self->validate(path, false)
-    finally
-        delete doc
+        self->validate(path, false)
 
     [unused_argument(id)] def didChange(id : double; params : JsonValue?)
         var doc <- DidChangeTextDocumentParams(params)
+        defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
-        // info("> file changed? {path} changes {length(doc.contentChanges)}\n", get_line_info())
         if length(doc.contentChanges) > 0
             unsafe
-                var data = find_for_edit(registry, path)
+                var data = registry |> find_for_edit(path) // registry is locked
                 if data != null
                     data.valid = false
-                    // delete_string(data.text) // TODO:
                     data.text <- doc.contentChanges[0].text
-                    if doc.textDocument.version >= 0lf
-                        data.version = doc.textDocument.version
-                    // info("> file changed {path} len {length(data.text)}, total files {length(registry)}\n", get_line_info())
+                    data.version = doc.textDocument.version
                 else
                     info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
                 // self->validate(path, true) // TODO: validate every N sec
-    finally
-        delete doc
 
     [unused_argument(id)] def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
+        defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
-        find_for_edit_if_exists(registry, path) <| $(var data)
-            // delete_string(data.text) // TODO:
+        registry |> find_for_edit_if_exists(path) <| $(var data)
             delete *data
-        erase(registry, path)
+        registry |> erase(path)
         info("> close file {path}, total files {length(registry)}\n", get_line_info())
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", js(res))
         delete res
-    finally
-        delete doc
 
     def hover(id : double; params : JsonValue?)
         var ini = HoverParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            defer_delete(ini)
             let verbose = config?.hovers?.verbose ?? false
             // if config != null
             //     registry |> find_if_exists(path) <| $(data)
@@ -428,14 +414,14 @@ class TelnetServer : Server
             //             self->validate_with_config(path, true, *config)
             self->hover_with_config(id, ini, verbose)
 
-    def hover_with_config(id : double; var ini : HoverParams; verbose : bool)
+    def hover_with_config(id : double; ini : HoverParams; verbose : bool)
         let path = uri_to_path(ini.textDocument.uri)
         if !registry |> key_exists(path)
             registry[path] <- Dascript(ini)
             warning("> {path} unknown? register again, total files {length(registry)}\n", get_line_info())
             self->validate(path, false)
         var found = false
-        find_if_exists(registry, path) <| $(var data)
+        registry |> find_if_exists(path) <| $(var data)
             var hoversData : array<tuple<float; string>>
             var _range : Range
             var first = true
@@ -459,31 +445,28 @@ class TelnetServer : Server
         if !found
             warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
             self->sendResponse(id, js())
-        delete ini
 
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            defer_delete(ini)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
                 self->sendResponse(id, js(completionData.globalCompletion))
-                delete ini
                 return
             // registry |> find_if_exists(path) <| $(data)
             //     if !data.valid
             //         self->validate_with_config(path, true, *config)
             self->completion_with_config(id, ini, *config)
 
-    def completion_with_config(id : double; var ini : CompletionParams; config : PluginConfig)
+    def completion_with_config(id : double; ini : CompletionParams; config : PluginConfig)
         let path = uri_to_path(ini.textDocument.uri)
         var found = find_if_exists(registry, path) <| $(data)
             let startTime = get_clock()
             var list : array<JsonValue?>
             let idx = pos_to_index(ini.position, data.text)
-            // info("@@@@@ pos index {idx}", get_line_info())
             if idx > 0
-                // var word : array<uint8>
                 var searchToken = false
                 var i = 0
                 let maxI = min(idx, ini.position.character)
@@ -492,7 +475,6 @@ class TelnetServer : Server
                         i++
                     while i < maxI
                         let ch = character_uat(data.text, idx - i)
-                        // word |> push(uint8(ch))
                         if ch == '.' || ch == ':' || (ch == '>' && idx - i >= 1 && character_uat(data.text, idx - i - 1) == '-')
                             searchToken = true
                             i += ch == '.' && (idx - i < 1 || character_uat(data.text, idx - i - 1) != '?') ? 1 : 2
@@ -537,12 +519,16 @@ class TelnetServer : Server
                                 continue
                             break
                     var pos = Position(ini.position.line, ini.position.character - i)
+                    defer_delete(pos)
                     // let search = reverse(string(word))
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
                     // info(pos, get_line_info())
                     let uri = path_to_uri(path)
                     var access <- make_file_access(config.project.file)
+                    defer <| $()
+                        unsafe
+                            delete access
                     set_file_source(access, path, data.text)
 
                     var cp = CodeOfPolicies()
@@ -566,7 +552,7 @@ class TelnetServer : Server
                                         var obj & = comp.value as _object
                                         var addEdit <- [[TextEdit
                                             _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
-                                            newText = isOperator ? " " : " "
+                                            newText = " "
                                         ]]
                                         obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
                                         var edit <- [[TextEdit
@@ -578,15 +564,12 @@ class TelnetServer : Server
 
                                 delete adapter
                                 delete visitor
-                    delete pos
-                    unsafe
-                        delete access
 
             if list |> length() == 0
                 for it in values(data.completionData)
-                    list |> emplace(js(it))
+                    list |> emplace <| js(it)
                 for val in values(completionData.globalCompletion)
-                    list |> emplace(js(val))
+                    list |> emplace <| js(val)
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
@@ -607,15 +590,13 @@ class TelnetServer : Server
         if !found
             warning("< send global completion {length(completionData.globalCompletion)}\n", get_line_info())
             self->sendResponse(id, js(completionData.globalCompletion))
-    finally
-        delete ini
 
     def resolveCompletion(id : double; var params : JsonValue?)
         self->sendResponse(id, clone_to_move(params))
 
     def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
         var token : AstToken?
-        find_if_exists(registry, path) <| $(data)
+        registry |> find_if_exists(path) <| $(data)
             var minRatio = FLT_MAX
             collect_token(data.ast, path, pos) <| $(tok : AstToken?)
                 if !invoke(valid, tok)
@@ -629,6 +610,7 @@ class TelnetServer : Server
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         // registry |> find_if_exists(path) <| $(data)
         //     if !data.valid
@@ -641,12 +623,11 @@ class TelnetServer : Server
         var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
         self->sendResponse(id, js(loc))
         delete loc
-    finally
-        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
         var ini <- TypeDefinitionParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         // registry |> find_if_exists(path) <| $(data)
         //     if !data.valid
@@ -665,26 +646,6 @@ class TelnetServer : Server
         var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
         self->sendResponse(id, js(loc))
         delete loc
-    finally
-        delete ini
-
-    def buildDocumentSymbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
-        if !ast.topLevel || ast.path != path
-            return
-        var data <- {{
-            "name" => js(ast.name |> strip_left("`"));
-            "detail" => js(ast._type);
-            "kind" => js(int(ast.kind));
-            "range" => js(ast._range);
-            "selectionRange" => js(ast._range)
-        }}
-        if ast.children |> length() > 0
-            var children : array<JsonValue?>
-            for it in ast.children
-                self->buildDocumentSymbol(it, path, children)
-            if children |> length() > 0
-                data["children"] <- js(children)
-        res |> emplace(js(data))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
     def documentSymbol(id : double; var params : JsonValue?)
@@ -694,65 +655,45 @@ class TelnetServer : Server
         //     if !data.valid
         //         self->validate(path, true)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?) // wait first validation
-            let data = find(registry, path)
+            defer_delete(ini)
+            let data = registry |> find(path)
             if data == null
                 self->sendResponse(id, js())
-            else
-                var res : array<JsonValue?>
-                for it in data.ast
-                    self->buildDocumentSymbol(it, path, res)
-                self->sendResponse(id, js(res))
-            delete ini
-
-    def buildSymbolInformation(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
-        if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`")
-            return
-        if !empty(ast.path) && (empty(query) || find(ast.name, query) != -1)
-            var data <- {{
-                "name" => js(ast.name);
-                "containerName" => js(ast.desc);
-                "kind" => js(int(ast.kind));
-                "location" => js({{ "range" => js(ast._range); "uri" => js(path_to_uri(ast.path)) }})
-            }}
-            res |> emplace(js(data))
-        for it in ast.children
-            self->buildSymbolInformation(it, query, limit, res)
+                return
+            var res : array<JsonValue?>
+            for it in data.ast
+                it |> build_document_symbol(path, res)
+            self->sendResponse(id, js(res))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
     def workspaceSymbol(id : double; var params : JsonValue?)
         var ini <- WorkspaceSymbolParams(params)
+        defer_delete(ini)
         var res : array<JsonValue?>
         for data in values(registry)
             for it in data.ast
-                self->buildSymbolInformation(it, ini.query, 300, res)
+                it |> build_symbol_information(ini.query, 300, res)
         self->sendResponse(id, js(res))
-        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
     [unused_argument(id)] def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
         var ini <- DidChangeWorkspaceFoldersParams(params)
+        defer_delete(ini)
         for it in ini.event.removed
-            for i in range(0, length(workspaceFolders))
-                if workspaceFolders[i].uri == it.uri
-                    workspaceFolders |> erase(i)
-                    break
+            let idx = find_index_if(workspaceFolders) <| $(fldr) => fldr.uri == it.uri
+            if idx >= 0
+                workspaceFolders |> erase(idx)
         for it in ini.event.added
             workspaceFolders |> push(it)
-        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
         delete configs
 
-    def addUniqueReference(var res : array<Location>; _range : Range; uri : string) : void
-        for it in res
-            if it.uri == uri && it._range == _range
-                return
-        res |> emplace([[Location _range = _range, uri = uri ]])
-
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         // registry |> find_if_exists(path) <| $(data)
         //     if !data.valid
@@ -766,36 +707,32 @@ class TelnetServer : Server
             self->sendResponse(id, js())
             return
         var res : array<Location>
+        defer_delete(res)
         for data in values(registry)
             var addDef = false
             if !empty(token.defPath)
                 // same references
                 collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
                     addDef = true
-                    self->addUniqueReference(res, tok._range, path_to_uri(tok.path))
+                    res |> add_unique_reference(tok._range, path_to_uri(tok.path))
                 if addDef
-                    self->addUniqueReference(res, token.defRange, path_to_uri(token.defPath))
+                    res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
             // refs to this token
             collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
-                self->addUniqueReference(res, tok._range, path_to_uri(tok.path))
+                res |> add_unique_reference(tok._range, path_to_uri(tok.path))
             if !addDef
-                self->addUniqueReference(res, token._range, path_to_uri(token.path))
-        var jsRes : array<json::JsonValue?>
-        for it in res
-            jsRes |> emplace(js(it))
+                res |> add_unique_reference(token._range, path_to_uri(token.path))
+        var jsRes <- [{ for it in res; js(it) }]
         self->sendResponse(id, js(jsRes))
-        delete res
-    finally
-        delete ini
 
     def signatureHelp(id : double; var params : JsonValue?)
         var ini <- SignatureHelpParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
+            defer_delete(ini)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
                 self->sendResponse(id, js(completionData.globalCompletion))
-                delete ini
                 return
             // registry |> find_if_exists(path) <| $(data)
             //     if !data.valid
@@ -803,15 +740,13 @@ class TelnetServer : Server
             self->signatureHelp_with_config(id, ini, config)
 
     // TODO: config???
-    [unused_argument(config)] def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
+    [unused_argument(config)] def signatureHelp_with_config(id : double; ini : SignatureHelpParams; config : PluginConfig?)
         let path = uri_to_path(ini.textDocument.uri)
         var found = false
         find_if_exists(registry, path) <| $(data)
             let idx = pos_to_index(ini.position, data.text)
-            // info("@@@@@ pos index {idx}", get_line_info())
             if idx > 0
                 var list : array<SignatureInformation>
-                // var word : array<uint8>
                 var searchToken = false
                 var i = 0
                 let maxI = min(idx, ini.position.character)
@@ -820,7 +755,6 @@ class TelnetServer : Server
                     unsafe
                         while i < maxI
                             let ch = character_uat(data.text, idx - i)
-                            // word |> push(uint8(ch))
                             if ch == ')'
                                 insideO ++
                             elif ch == '('
@@ -849,16 +783,16 @@ class TelnetServer : Server
                             break
         if !found
             self->sendResponse(id, js())
-    finally
-        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
     def documentColor(id : double; var params : JsonValue?)
         var ini <- DocumentColorParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         var found = false
-        find_if_exists(registry, path) <| $(data)
+        registry |> find_if_exists(path) <| $(data)
             var res : array<ColorInformation>
+            defer_delete(res)
             var line = 0
             var charPos = 0
             var i = 0
@@ -904,29 +838,18 @@ class TelnetServer : Server
                 found = true
                 var arr <- [{ for it in res; js(it)}]
                 self->sendResponse(id, js(arr))
-            delete res
         if !found
             self->sendResponse(id, js())
-    finally
-        delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
     def colorPresentation(id : double; var params : JsonValue?)
         var ini <- ColorPresentationParams(params)
-        let c & = ini.color
+        defer_delete(ini)
         let len = length(ini._range)
-        let color = build_string() <| $(var str)
-            write(str, "0x")
-            if len > 8
-                format(str, "%02X", int(c.alpha * 255lf))
-            format(str, "%02X", int(c.red * 255lf))
-            format(str, "%02X", int(c.green * 255lf))
-            format(str, "%02X", int(c.blue * 255lf))
-
+        let color = ini.color |> to_string(len)
         var res <- [[ColorPresentation _label = color]]
         self->sendResponse(id, js([{ auto[] js(res) }]))
-    finally
-        delete ini
+        delete res
 
     def override onData(message:uint8?; size:int)
         for i in range(0,size)
