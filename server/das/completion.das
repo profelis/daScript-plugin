@@ -6,6 +6,7 @@ options rtti = true
 require rtti
 require rtti_tools
 require daslib/json
+require daslib/defer
 require strings
 require daslib/strings_boost
 require lsp_types
@@ -166,7 +167,7 @@ def getValue(value)
   return " = {value}"
 
 [export]
-def parseAnnotation(ann : rtti::Annotation; fullModuleName : string; var items: Completions; verbose = true)
+def parseAnnotation(ann : Annotation; fullModuleName : string; var items: Completions; verbose = true)
   if ann.isBasicStructureAnnotation
     unsafe
       let sann & = reinterpret<BasicStructureAnnotation&>(ann)
@@ -255,7 +256,7 @@ def parseModule(pMod; var items : Completions)
   let fullModuleName = "{pMod.name}{length(string(pMod.name)) > 0 ? "::" : ""}"
 
   addItem([[Completion name = "{pMod.name}", desc = "module {pMod.name}", kind = CompletionItemKind Module]], items)
-  rtti::module_for_each_structure(pMod) <| $(info)
+  module_for_each_structure(pMod) <| $(info)
     let structName = "{info.name}"
     let fullName = "{fullModuleName}{structName}"
     var shortStructDesc = ""
@@ -285,14 +286,14 @@ def parseModule(pMod; var items : Completions)
         addItem(it, items)
     delete all
 
-  rtti::module_for_each_function(pMod) <| $(info)
+  module_for_each_function(pMod) <| $(info)
     if find(info.name, "`") == -1 // generic
       parseFunction(info, fullModuleName, items)
 
-  rtti::module_for_each_generic(pMod) <| $(info)
+  module_for_each_generic(pMod) <| $(info)
     parseFunction(info, fullModuleName, items)
 
-  rtti::module_for_each_enumeration(pMod) <| $(info)
+  module_for_each_enumeration(pMod) <| $(info)
     let enumName = "{info.name}"
     let fullName = "{fullModuleName}{enumName}"
     var enumDesc = "enum {fullName}"
@@ -308,12 +309,12 @@ def parseModule(pMod; var items : Completions)
       addItem(it._1, items)
     delete all
 
-  rtti::module_for_each_global(pMod) <| $ (glob)
+  module_for_each_global(pMod) <| $ (glob)
     let globName = "{glob.name}"
     let fullName = "{fullModuleName}{globName}"
     addItem([[Completion name = globName, fullName = fullName, desc = "const {fullName}{getValue(get_variable_value(glob))}", kind = CompletionItemKind Constant]], items)
 
-  rtti::module_for_each_annotation(pMod) <| $(ann)
+  module_for_each_annotation(pMod) <| $(ann)
     parseAnnotation(ann, fullModuleName, items)
 
 [private]
@@ -348,7 +349,8 @@ def is_operator(str : string)
 
 [private]
 def first_part(str : string; del : string)
-  let parts <- split(str, del)
+  var parts <- split(str, del)
+  defer_delete(parts)
   return parts[0]
 
 [private]
