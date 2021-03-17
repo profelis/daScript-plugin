@@ -12,46 +12,25 @@ enum LogLevel
 var
     onLog : lambda<(msg : string; level : LogLevel) : void>
 
-def error(data; li : rtti::LineInfo)
+[private]
+def log(data; li: LineInfo; level: LogLevel)
     var msg : string
     static_if typeinfo(is_string data)
         msg = "{data} {to_string(li)}\n"
     else
         msg = "{sprint(data, print_flags_debugger)} {to_string(li)}\n"
     if onLog != null
-        invoke(onLog, msg, LogLevel Error)
-    print("[error] ")
-    print(msg)
+        invoke(onLog, msg, level)
+    print("[{level}] {msg}\n")
 
-def warning(data; li : rtti::LineInfo)
-    var msg : string
-    static_if typeinfo(is_string data)
-        msg = "{data} {to_string(li)}\n"
-    else
-        msg = "{sprint(data, print_flags_debugger)} {to_string(li)}\n"
-    if onLog != null
-        invoke(onLog, msg, LogLevel Warning)
-    print("[warn] ")
-    print(msg)
+def error(data; li : LineInfo)
+    log(data, li, LogLevel Error)
 
-def info(data; li : rtti::LineInfo)
-    var msg : string
-    static_if typeinfo(is_string data)
-        msg = "{data} {to_string(li)}\n"
-    else
-        msg = "{sprint(data, print_flags_debugger)} {to_string(li)}\n"
-    if onLog != null
-        invoke(onLog, msg, LogLevel Info)
-    print("[info] ")
-    print(msg)
+def warning(data; li : LineInfo)
+    log(data, li, LogLevel Warning)
 
-def log(data; li : rtti::LineInfo)
-    var msg : string
-    static_if typeinfo(is_string data)
-        msg = "{data} {to_string(li)}\n"
-    else
-        msg = "{sprint(data, print_flags_debugger)} {to_string(li)}\n"
-    if onLog != null
-        invoke(onLog, msg, LogLevel Log)
-    print("[log] ")
-    print(msg)
+def info(data; li : LineInfo)
+    log(data, li, LogLevel Info)
+
+def log(data; li : LineInfo)
+    log(data, li, LogLevel Log)
