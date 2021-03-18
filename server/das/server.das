@@ -573,9 +573,9 @@ class TelnetServer : Server
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
-                    if (token.kind == AstTokenKind Constant
-                        || data.completionData |> key_exists(token.name)
-                        || completionData.globalCompletion |> key_exists(token.name)
+                    if (token.kind == AstTokenKind Constant // ignore constants (strings for example)
+                        || data.completionData |> contains(token.name, token.kind)
+                        || completionData.globalCompletion |> contains(token.name, token.kind)
                         || tokensList |> key_exists(token.name)
                     )
                         return

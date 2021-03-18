@@ -328,6 +328,25 @@ def addKeywords(var items : Completions)
   for it in langOptions
     addItem([[Completion name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
+[private]
+def first_part(str : string; del : string)
+  var parts <- split(str, del)
+  defer_delete(parts)
+  return parts[0]
+
+[private]
+def isalnum_at(text : string; pos : int)
+  unsafe
+    let ch = character_uat(text, pos)
+    return is_alpha(ch) || is_number(ch)
+
+[export]
+def contains(completions: Completions; name: string; kind: CompletionItemKind): bool
+  for it in values(completions)
+    if it.name == name && it.kind == kind
+      return true
+  return false
+
 [export]
 def js(it : Completion) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(it.kind) }}
@@ -346,18 +365,6 @@ def js(items : Completions) : JsonValue?
 [export]
 def is_operator(str : string)
   return find_index(operators, str) >= 0
-
-[private]
-def first_part(str : string; del : string)
-  var parts <- split(str, del)
-  defer_delete(parts)
-  return parts[0]
-
-[private]
-def isalnum_at(text : string; pos : int)
-  unsafe
-    let ch = character_uat(text, pos)
-    return is_alpha(ch) || is_number(ch)
 
 [export] class CompletionData
   globalCompletionUpdate : clock
