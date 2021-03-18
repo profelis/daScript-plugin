@@ -580,7 +580,7 @@ class TelnetServer : Server
                     )
                         return
                     tokensList[token.name] = null
-                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(int(CompletionItemKind Text)) }}))
+                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(CompletionItemKind Text) }}))
                 delete tokensList
 
             var res <- js({{ "isIncomplete" => js(false); "items" => js(list)}})

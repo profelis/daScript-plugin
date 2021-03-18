@@ -21,7 +21,7 @@ def log(data; li: LineInfo; level: LogLevel)
         msg = "{sprint(data, print_flags_debugger)} {to_string(li)}\n"
     if onLog != null
         invoke(onLog, msg, level)
-    print("[{level}] {msg}\n")
+    print("[{level}] {msg}")
 
 def error(data; li : LineInfo)
     log(data, li, LogLevel Error)
