@@ -300,32 +300,31 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     // info(expr._type)
 
     var typ = "def "
+    var firstArg : string
     if expr.func != null
         typ += module_name(expr.func._module)
-    typ += "{expr.name}"
-    var firstArg : string
-    if expr.arguments.length > 0
-        typ += "("
-        var idx = 1
-        for arg in expr.arguments
-            if idx == 1
-                firstArg = describe(arg)
-            else
-                typ += ", "
-            // if arg is ExprMakeBlock
-                // var blk & = reinterpret<smart_ptr<ExprMakeBlock>>(arg)
-                // info(blk)
-                // typ += "__blk__"
-                // continue
-            if arg._type != null && !arg._type.flags.constant
-                typ += "var "
-            typ += "arg{idx} : {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
-            idx++
-        typ += ")"
+        typ += "{expr.func.name}"
+        if expr.func.arguments.length > 0
+            typ += "("
+            var idx = 1
+            for arg in expr.func.arguments
+                if idx == 1
+                    firstArg = "{arg.name}"
+                else
+                    typ += ", "
+                if arg._type != null && !arg._type.flags.constant
+                    typ += "var "
+                typ += "{arg.name}: {arg._type != null ? describe([decl=arg._type,extra=true]) : "" }"
+                if arg.init != null
+                    typ += " = {describe(arg.init)}"
+                idx++
+            typ += ")"
+    else
+        typ += "{expr.name}"
     // if firstArg |> starts_with("self.")
     //     return false
     if expr._type != null
-        typ += " : {describe([decl=expr._type,extra=true])}"
+        typ += ": {describe([decl=expr._type,extra=true])}"
     var res <- new [[AstToken
         name = "{expr.name}",
         desc = typ,
