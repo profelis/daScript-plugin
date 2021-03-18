@@ -20,7 +20,7 @@ struct Completion
   fullName : string        //
   impls : array<string>      // documentation
   kind : CompletionItemKind
-  funcFirstArg : string
+  funcFirstArg : array<string>
 
 typedef
   Completions = table<string; Completion>
@@ -72,6 +72,8 @@ def addItem(var item : Completion; var items : Completions; once = false)
     if !once
       for impl in item.impls
         (*it).impls |> emplace(impl)
+      for arg in item.funcFirstArg
+        (*it).funcFirstArg |> emplace(arg)
     delete item
   if !found
     items[key] <- item
@@ -237,7 +239,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
     //   continue
     let argType = getTypeName(it, items)
     if firstArg
-      res.funcFirstArg = argType
+      res.funcFirstArg |> push <| argType
     else
       impl += "; "
     firstArg = false
@@ -341,9 +343,9 @@ def isalnum_at(text : string; pos : int)
     return is_alpha(ch) || is_number(ch)
 
 [export]
-def contains(completions: Completions; name: string; kind: CompletionItemKind): bool
+def contains(completions: Completions; name: string): bool
   for it in values(completions)
-    if it.name == name && it.kind == kind
+    if it.name == name
       return true
   return false
 
@@ -431,14 +433,6 @@ def is_operator(str : string)
     delete temp
     info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
 
-  def getCompletion(items : Completions)
-    var list <- [{ for it in values(items); js(it) }]
-    for val in values(globalCompletion)
-      list |> emplace(js(val))
-    info("> merge program completion {length(items)} with global {length(globalCompletion)} => {length(list)}\n", get_line_info())
-    return js({{ "isIncomplete" => js(false); "items" => js(list)}})
-
-
   def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
@@ -455,18 +449,17 @@ def is_operator(str : string)
   def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
     n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part("<") |> first_part("-") |> first_part("(")
-    info("--- {n} / {name} ----", get_line_info())
-    let nLen = length(n)
-    for it in values(completions)
-      if (starts_with(it.funcFirstArg, n) &&
-          (length(it.funcFirstArg) == nLen || !isalnum_at(it.funcFirstArg, nLen))
-        )
-        // info(it, get_line_info())
-        invoke(blk, it)
+    info("{name} -> {n}", get_line_info())
+    completions |> with_func_arg(n, blk)
+    globalCompletion |> with_func_arg(n, blk)
 
-    for it in values(globalCompletion)
-      if (starts_with(it.funcFirstArg, n) &&
-          (length(it.funcFirstArg) == nLen || !isalnum_at(it.funcFirstArg, nLen))
+[private]
+def with_func_arg(completions : Completions; name: string; blk : block<(val : Completion):void>)
+  let nLen = length(name)
+  for it in values(completions)
+    for arg in it.funcFirstArg
+      if (arg |> starts_with(name) &&
+          (length(it.funcFirstArg) == nLen || !isalnum_at(arg, nLen))
         )
-        // info(it, get_line_info())
         invoke(blk, it)
+        break

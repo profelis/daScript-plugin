@@ -574,8 +574,8 @@ class TelnetServer : Server
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
                     if (token.kind == AstTokenKind Constant // ignore constants (strings for example)
-                        || data.completionData |> contains(token.name, token.kind)
-                        || completionData.globalCompletion |> contains(token.name, token.kind)
+                        || data.completionData |> contains(token.name)
+                        || completionData.globalCompletion |> contains(token.name)
                         || tokensList |> key_exists(token.name)
                     )
                         return
