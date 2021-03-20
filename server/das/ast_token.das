@@ -69,7 +69,7 @@ typedef
 def to_hover(val : AstToken?; verbose : bool)
     if !verbose
         return "```dascript\n{val.desc}\n```"
-    return "```dascript\n{val.desc}\n{val.typeDesc}\n```"
+    return "```dascript\n{val.desc} @ {to_string(val._range)}\n{val.typeDesc}\n```"
     // var res = "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
     // return <- res
 

@@ -422,26 +422,22 @@ class TelnetServer : Server
             self->validate(path, false)
         var found = false
         registry |> find_if_exists(path) <| $(var data)
-            var hoversData : array<tuple<float; string>>
-            var _range : Range
-            var first = true
+            var hoversData : array<tuple<float; Range; string>>
             collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
-                if first || it._range |> in_range(_range)
-                    _range = it._range
-                first = false
                 let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
-                hoversData |> emplace([[auto ratio, to_hover(it, verbose)]])
+                hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose)]])
                 completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
-                    hoversData |> emplace([[auto ratio + 0.5, "```dascript\n{join(val.impls, "\n")}\n```"]])
+                    hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
                 // TODO: filter huge tokens?
             if hoversData |> length() > 0
                 hoversData |> sort() <| $(a; b)
                     return a._0 < b._0
-                var hovers <- [{ for it in hoversData; it._1 }]
-                var h <- [[ Hover _range = _range, contents <- hovers ]]
+                var hovers <- [{ for it in hoversData; it._2 }]
+                var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
                 self->sendResponse(id, js(h))
-                found = true
                 delete h
+                found = true
+            delete hoversData
         if !found
             warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
             self->sendResponse(id, js())
