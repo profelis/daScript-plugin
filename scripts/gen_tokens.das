@@ -24,7 +24,7 @@ def buildString(data : array<string>; prefix, postfix, decorator, delimeter : st
     else
         var res = ""
         var line = prefix
-        for i in range(0, length(data))
+        for i in iter_range(data)
             let it = data[i]
             if length(line) + length(delimeter) + 2 * length(decorator) >= maxLen
                 res += (length(res) > 0 ? "\n" : "") + line

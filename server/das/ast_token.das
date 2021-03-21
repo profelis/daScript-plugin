@@ -70,8 +70,7 @@ def to_hover(val : AstToken?; verbose : bool)
     if !verbose
         return "```dascript\n{val.desc}\n```"
     return "```dascript\n{val.desc} @ {to_string(val._range)}\n{val.typeDesc}\n```"
-    // var res = "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
-    // return <- res
+    // return "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
 
 def add_unique_reference(var res : array<Location>; _range : Range; uri : string) : void
     for it in res
@@ -129,7 +128,7 @@ def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
         collect_diag(it, path, diag)
 
 def collect_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
-    invoke(blk, val)
+    blk |> invoke(val)
     for it in val.children
         collect_token(it, blk)
 
@@ -137,29 +136,28 @@ def collect_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
     for it in val
         collect_token(it, blk)
 
-def collect_token(val : AstToken?; path : string; blk : block<(token:AstToken?):void>)
-    if val.path == path
-        invoke(blk, val)
+def collect_token(val : AstToken?; blk : block<(token:AstToken?):void>)
+    blk |> invoke(val)
     for it in val.children
-        collect_token(it, path, blk)
+        collect_token(it, blk)
+
+def collect_token(val : AstTokens; blk : block<(token:AstToken?):void>)
+    for it in val
+        collect_token(it, blk)
 
 def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
-    for it in val
-        collect_token(it, path, blk)
-
-def collect_token(val : AstToken?; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    if val.path == path && pos |> in_range(val._range)
-        invoke(blk, val)
-    for it in val.children
-        collect_token(it, path, pos, blk)
+    collect_token(val) <| $(token: AstToken?)
+        if token.path == path
+            blk |> invoke(token)
 
 def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    for it in val
-        collect_token(it, path, pos, blk)
+    collect_token(val) <| $(token: AstToken?)
+        if token.path == path && pos |> in_range(token._range)
+            blk |> invoke(token)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
     if !empty(val.path) && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
-        invoke(blk, val)
+        blk |> invoke(val)
     for it in val.children
         collect_ref_token(it, path, _range, blk)
 
@@ -181,9 +179,10 @@ def set_token_def(var token : AstToken?; at: LineInfo)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
+let skipTypeDesc = [[auto[] Type none; Type autoinfer; Type fakeLineInfo; Type fakeContext; Type autoinfer; Type alias; Type anyArgument]]
+
 def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
-    if (typ != null && typ.baseType != Type fakeLineInfo && typ.baseType != Type fakeContext
-        && typ.baseType != Type none && typ.baseType != Type autoinfer && typ.baseType != Type alias && typ.baseType != Type anyArgument)
+    if typ != null && skipTypeDesc |> find_index(typ.baseType) == -1
         token.typeDesc = "isLocal:{typ.isLocal} isPod:{typ.isPod} isRawPod:{typ.isRawPod} canCopy:{typ.canCopy} canMove:{typ.canMove} canClone:{typ.canClone} canNew:{typ.canNew} needDelete:{typ.needDelete} canDelete:{typ.canDelete} canDeletePtr:{typ.canDeletePtr} hasNonTrivialCtor:{typ.hasNonTrivialCtor} hasNonTrivialDtor:{typ.hasNonTrivialDtor} hasNonTrivialCopy:{typ.hasNonTrivialCopy} canBePlacedInContainer:{typ.canBePlacedInContainer} isRefType:{typ.isRefType} isConst:{typ.isConst} sizeOf:{typ.sizeOf} countOf:{typ.countOf} alignOf:{typ.alignOf}"
 
 def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
@@ -360,8 +359,8 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
 
 [private]
 def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : array<Completion>)
-    let arr = [[auto "x"; "y"; "z"; "w"]]
-    for i in range(0, num)
+    let arr = [[auto[] "x"; "y"; "z"; "w"]]
+    for i in range(num)
         let desc = "{main_type}.{arr[i]} : {typ}"
         var comp <- [[Completion
             name = arr[i],
@@ -416,7 +415,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
     if t.argTypes.length > 0 || t.argNames.length > 0
         res.found = true
         res._type = describe(t)
-        for i in range(0, max(t.argTypes.length, t.argNames.length))
+        for i in range(max(t.argTypes.length, t.argNames.length))
             let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
             var desc = name
             if t.argTypes.length > i && t.argTypes[i] != null

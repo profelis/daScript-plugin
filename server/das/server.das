@@ -794,7 +794,7 @@ class TelnetServer : Server
             var i = 0
             var step = -1
             var currentNum : array<int>
-            for i, ch in range(0, length(data.text)), data.text
+            for i, ch in iter_range(data.text), data.text
                 if ch == '\n'
                     line++
                     charPos = 0
@@ -848,7 +848,7 @@ class TelnetServer : Server
         delete res
 
     def override onData(message:uint8?; size:int)
-        for i in range(0,size)
+        for i in range(size)
             var uch : uint8
             unsafe
                 uch = message[i]

@@ -375,22 +375,21 @@ def operator !=(a, b : Position)
 def pos_to_index(pos : Position; text : string)
     var line = 0
     var charPos = 0
-    unsafe
-        for i, ch in range(0, length(text)), text
-            if ch == '\n'
-                if line == pos.line
-                    return i // something wrong with char pos, return last char in line
-                line++
+    for i, ch in iter_range(text), text
+        if ch == '\n'
             if line == pos.line
-                if charPos == pos.character
-                    return i
-                charPos++
+                return i // something wrong with char pos, return last char in line
+            line++
+        if line == pos.line
+            if charPos == pos.character
+                return i
+            charPos++
     return -1
 
 def index_to_pos(index : int; text : string) : Position
     var line = 0
     var charPos = 0
-    for i in range(0, min(index, length(text)))
+    for i in range(min(index, length(text)))
         var ch : int
         unsafe
             ch = character_uat(text, i)
