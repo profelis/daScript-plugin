@@ -324,7 +324,7 @@ class TelnetServer : Server
                     // if err.at.fileInfo == null
                         // info(err)
                         // info("< error without file info\n")
-                    let localUri = resolve_path(err.at.fileInfo != null ? path_to_uri(string(err.at.fileInfo.name)) : uri, config)
+                    let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
                     let at = line_info_to_range(err.at)
                     var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
                     if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
