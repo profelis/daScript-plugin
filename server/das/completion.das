@@ -417,8 +417,8 @@ def is_operator(str : string)
             var key = "{item.desc}{int(item.kind)}"
             globalCompletion[key] := item
 
-        var dt = get_time_usec(t0)
-        var sec = double(dt)/1000000.0lf
+        let dt = get_time_usec(t0)
+        let sec = double(dt)/1000000.0lf
         info("completion: got {length(globalCompletion)} global items in {sec} s in {modsNum} jobs\n", get_line_info())
 
 
@@ -431,7 +431,7 @@ def is_operator(str : string)
       if !globalCompletion |> key_exists(key)
         items[key] <- value
     delete temp
-    info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
+    // info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
 
   def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
