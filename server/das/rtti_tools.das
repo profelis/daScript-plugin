@@ -15,4 +15,4 @@ def line_info_to_range(val : rtti::LineInfo)
     return <- res
 
 def to_string(val : rtti::LineInfo)
-    return "{val.fileInfo.name}:{int(val.line)}"
+    return val.fileInfo != null ? "{val.fileInfo.name}:{int(val.line)}" : "{int(val.line)}"
