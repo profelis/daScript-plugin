@@ -9,6 +9,7 @@ require lsp_types
 require logger
 require completion
 require lib
+require strings
 
 bitfield AstTokenWarn
     unused
@@ -125,25 +126,25 @@ def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
 
 def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
     for it in val
-        collect_diag(it, path, diag)
+        it |> collect_diag(path, diag)
 
 def collect_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
     blk |> invoke(val)
     for it in val.children
-        collect_token(it, blk)
+        it |> collect_token(blk)
 
 def collect_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
     for it in val
-        collect_token(it, blk)
+        it |> collect_token(blk)
 
 def collect_token(val : AstToken?; blk : block<(token:AstToken?):void>)
     blk |> invoke(val)
     for it in val.children
-        collect_token(it, blk)
+        it |> collect_token(blk)
 
 def collect_token(val : AstTokens; blk : block<(token:AstToken?):void>)
     for it in val
-        collect_token(it, blk)
+        it |> collect_token(blk)
 
 def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
     collect_token(val) <| $(token: AstToken?)
@@ -159,17 +160,14 @@ def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : bloc
     if !empty(val.path) && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         blk |> invoke(val)
     for it in val.children
-        collect_ref_token(it, path, _range, blk)
+        it |> collect_ref_token(path, _range, blk)
 
 def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : block<(token:AstToken?):void>)
     for it in val
-        collect_ref_token(it, path, _range, blk)
+        it |> collect_ref_token(path, _range, blk)
 
 def module_name(mod: Module?)
-    if mod == null
-        return ""
-    let name = "{mod.name}"
-    return length(name) == 0 ? "" : "{name}::"
+    return (mod == null || length(mod.name) == 0) ? "" : "::{mod.name}"
 
 def set_token_path(var token : AstToken?; at: LineInfo)
     token._range = line_info_to_range(at)
