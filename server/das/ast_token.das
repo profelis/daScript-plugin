@@ -167,7 +167,7 @@ def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : bloc
         it |> collect_ref_token(path, _range, blk)
 
 def module_name(mod: Module?)
-    return (mod == null || length(mod.name) == 0) ? "" : "::{mod.name}"
+    return (mod == null || length(mod.name) == 0) ? "" : "{mod.name}::"
 
 def set_token_path(var token : AstToken?; at: LineInfo)
     token._range = line_info_to_range(at)
@@ -177,7 +177,7 @@ def set_token_def(var token : AstToken?; at: LineInfo)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-let skipTypeDesc = [[auto[] Type none; Type autoinfer; Type fakeLineInfo; Type fakeContext; Type autoinfer; Type alias; Type anyArgument]]
+let skipTypeDesc = [[auto[] Type none; Type autoinfer; Type fakeLineInfo; Type fakeContext; Type alias; Type anyArgument]]
 
 def set_type_desc(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
     if typ != null && skipTypeDesc |> find_index(typ.baseType) == -1
