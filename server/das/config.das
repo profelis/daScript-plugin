@@ -5,7 +5,22 @@ require daslib/json
 require strings
 require json_tools
 require fio
-require lib
+require fs_tools
+
+struct PluginConfigPolicies
+    noGlobalVariables: bool = false
+    noUnusedBlockArguments: bool = false
+    noUnusedFunctionArguments: bool = false
+    failOnLackOfAotExport: bool = false
+
+def PluginConfigPolicies(val : JsonValue?)
+    return <- [[PluginConfigPolicies
+        noGlobalVariables = job(val, "noGlobalVariables"),
+        noUnusedBlockArguments = job(val, "noUnusedBlockArguments"),
+        noUnusedFunctionArguments = job(val, "noUnusedBlockArguments"),
+        failOnLackOfAotExport = job(val, "failOnLackOfAotExport")
+    ]]
+
 
 struct PluginConfigHovers
     verbose : bool
@@ -16,6 +31,7 @@ def PluginConfigHovers(val : JsonValue?)
 struct PluginConfigProject
     roots : array<string>
     file : string
+    scanWorkspace: bool
 
 def PluginConfigProject(val : JsonValue?)
     var roots = joj(val, "roots")
@@ -23,6 +39,7 @@ def PluginConfigProject(val : JsonValue?)
         return <- [[PluginConfigProject]]
     return <- [[PluginConfigProject
         file = jos(val, "file"),
+        scanWorkspace = job(val, "scanWorkspace"),
         roots <- [{ for it in roots.value as _array; j_s(it) }]
     ]]
 
@@ -31,12 +48,14 @@ struct PluginConfig
     // compiler : string // unused
     project : PluginConfigProject
     experimental: bool
+    policies: PluginConfigPolicies
     // server : { args : array<string> } // unused
 
 def PluginConfig(val : JsonValue?)
     return <- [[PluginConfig
         hovers <- PluginConfigHovers(joj(val, "hovers")),
         project <- PluginConfigProject(joj(val, "project")),
+        policies <- PluginConfigPolicies(joj(val, "policies")),
         experimental = job(val, "experimental")
     ]]
 
@@ -49,7 +68,7 @@ def resolve_path(path : string; config : PluginConfig) : string
     if path |> empty()
         return path
     if path |> is_valid()
-        return path
+        return path |> fix_path()
     for it in config.project.roots
         let newPath = it |> join_path(path)
         if newPath |> is_valid()

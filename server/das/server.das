@@ -22,11 +22,15 @@ require rtti_tools
 require completion
 require ast_token
 require config
+require debugapi
+require fs_tools
 
 
 def clone(var a: array<AstToken?>&; b: array<AstToken?> implicit)
-    resize(a) <| length(b)
+    a |> resize(length(b))
     for idx, bV in iter_range(b), b
+        unsafe
+            delete a[idx]
         a[idx] = new AstToken
         *(a[idx]) := *bV
 
@@ -39,34 +43,55 @@ struct Dascript
     text : string
     version : double
 
+    isOpen: bool
     validated : bool
 
     completionData : Completions
     ast : AstTokens
 
 struct ValidateResult
+    path: string
     completionData: Completions
     ast: AstTokens
     diag: table<string; array<Diagnostic>>
 
 def Dascript(txt : TextDocumentItem)
-    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = txt.text]]
+    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = txt.text, isOpen = true]]
 
 def Dascript(doc : DidChangeTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text = doc.contentChanges[0].text]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text = doc.contentChanges[0].text, isOpen = true]]
 
 def Dascript(doc : DidSaveTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = doc.text]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = doc.text, isOpen = true]]
 
 def Dascript(doc : HoverParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = ""]]
+    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = "", isOpen = true]]
 
 typedef
     ReqCb = lambda<(data, error : JsonValue?):void>
+    ValidDataCb = lambda<(data: Dascript const?):void>
 
 struct Req
     id : double
     cb : ReqCb
+
+struct ValidDataReq
+    path: string
+    cb: ValidDataCb
+
+def find_token(data: Dascript const?; path: string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
+    var token : AstToken?
+    if data == null
+        return token
+    var minRatio = FLT_MAX
+    collect_token(data.ast, path, pos) <| $(tok : AstToken?)
+        if !invoke(valid, tok)
+            return
+        let ratio = float(range_ratio(tok._range)) + (empty(tok.defPath) ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
+        if token == null || ratio < minRatio
+            minRatio = ratio
+            token = tok
+    return token
 
 class TelnetServer : Server
     port : int // port number, for debug
@@ -75,6 +100,8 @@ class TelnetServer : Server
     toRead : int = 0 // message length
     inited : bool = false // is LSP inited
 
+    channel: jobque::Channel?
+
     // client capabilities
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
@@ -82,6 +109,9 @@ class TelnetServer : Server
     completionData <- CompletionData() // global completion data
 
     workspaceFolders : array<WorkspaceFolder> // workspace data
+    workspaceFiles: table<string; void?>
+    workspaceFilesCursor: int = 0
+
     registry : table<string; Dascript> // path => Dascript
     // configurations
     configs : table<string; PluginConfig?> // path => configuration
@@ -91,6 +121,10 @@ class TelnetServer : Server
     requestCallbacks : array<Req> // active requests
 
     sendingError : bool = false
+
+    validateQueue: table<string; tuple<first: bool; withContent: bool>>
+    validDataReqs: array<ValidDataReq>
+    validating: bool = false
 
     def TelnetServer()
         Server`Server(cast<Server> self)
@@ -119,12 +153,10 @@ class TelnetServer : Server
             self->save(session)
             gc0_save_smart_ptr("telnet-session", session)
 
-    def updateGlobalCompletion(path: string)
-        if empty(path)
-            completionData->updateGlobalList(true, false)
-            return
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            completionData->updateGlobalList(false, config?.experimental ?? false)
+    def updateGlobalCompletion()
+        if completionData->updateGlobalList(/*force*/true)
+            for data in values(registry)
+                completionData->appendToGlobalList(data.completionData)
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendRawData(var data : JsonValue?)
@@ -169,8 +201,10 @@ class TelnetServer : Server
                 info("error: registerCapability\n", get_line_info())
                 info(error, get_line_info())
 
-    def getConfig(path : string; var cb : lambda<(config : PluginConfig?):void>)
-        var found = configs |> find_if_exists(path) <| $(config)
+    def getConfig(path : string; var cb : lambda<(var config : PluginConfig?):void>)
+        var found = false
+        configs |> find_for_edit_if_exists(path) <| $(config)
+            found = true
             invoke(cb, *config)
             delete cb
         if found
@@ -192,7 +226,8 @@ class TelnetServer : Server
             error("error: config for {path}\n", get_line_info())
             error(error, get_line_info())
             configs[path] = null
-            invoke(cb, null)
+            var dummy: PluginConfig?
+            invoke(cb, dummy)
             delete cb
 
         found = configReqs |> find_if_exists(path) <| $(reqId)
@@ -219,6 +254,7 @@ class TelnetServer : Server
         var ini <- InitializeParams(params)
         defer_delete(ini)
         workspaceFolders := ini.workspaceFolders
+        delete workspaceFiles
         hasConfigurationCapability = ini.capabilities.workspace.configuration
         hasDiagnosticRelatedInformationCapability = ini.capabilities.textDocument.publishDiagnostics.relatedInformation
         var workspace <- [[WorkspaceFoldersServerCapabilities supported = true, changeNotifications = true]]
@@ -244,7 +280,7 @@ class TelnetServer : Server
     def initialized()
         inited = true
         info("> initialized! port: {port}\n", get_line_info())
-        self->updateGlobalCompletion("")
+        self->updateGlobalCompletion()
 
         var capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
         if hasConfigurationCapability
@@ -253,31 +289,121 @@ class TelnetServer : Server
             self->registerCapability(capabilities)
         delete capabilities
 
-    def validate(path : string; withContent : bool = false)
+    def getValidData(path: string; var cb: ValidDataCb)
+        if !key_exists(registry, path) && !key_exists(validateQueue, path)
+            error("unknown file {path}, forcibly validate", get_line_info())
+            self->validate(path, false, true)
+
+        var found = false
+        registry |> find_for_edit_if_exists(path) <| $(data)
+            if data.validated
+                found = true
+                cb |> invoke(data)
+            else
+                validateQueue[path] = [[auto true, true]]
+        if found
+            return
+        if validateQueue |> key_exists(path)
+            info("wait for valid data {path}", get_line_info())
+            validDataReqs |> emplace([[ValidDataReq path = path, cb <- cb]])
+            return
+
+        error("unknown file data {path}", get_line_info())
+        var data: Dascript?
+        cb |> invoke(data) // unknown file
+
+    def invalidateQueue()
+        if !channel.isEmpty
+            info("channel is not empty", get_line_info())
+            for item in each(channel,type<ValidateResult>)
+                self->validationDone(item)
+            validating = false
+            channel |> append(1)
+            return
+
+        if validating
+            return
+
+        let n = length(validateQueue)
+        if n == 0
+            var scan = false
+            for it in values(configs)
+                scan = it.project.scanWorkspace
+                break
+            if !scan
+                return
+
+            if workspaceFiles |> length() == 0
+                workspaceFilesCursor = 0
+                for it in workspaceFolders
+                    it.uri |> uri_to_path() |> scan_dir(workspaceFiles)
+
+            if length(workspaceFiles) == 0 || workspaceFilesCursor > length(workspaceFiles)
+                return
+
+            for i, path in range(workspaceFilesCursor + 1), keys(workspaceFiles)
+                if i == workspaceFilesCursor
+                    if !registry |> key_exists(path)
+                        registry[path] <- [[Dascript uri = path_to_uri(path), path = path, version = -1lf]]
+                        validateQueue[path] = [[auto false, false]]
+            workspaceFilesCursor += 1
+
+            if validateQueue |> length() == 0
+                return
+
+        var toValidate = ""
+        for name, data in keys(validateQueue), values(validateQueue)
+            if data.first
+                toValidate = name
+                break
+        if toValidate |> empty()
+            for name in keys(validateQueue)
+                toValidate = name
+                break
+        if toValidate |> empty()
+            return
+
+        var data = validateQueue |> find(toValidate)
+        self->validate(toValidate, data.withContent, data.first)
+
+
+    def validate(path : string; withContent : bool = false; first: bool = false)
         info("> validate? '{path}'\n", get_line_info())
-        var valid = false
-        registry |> find_for_edit_if_exists(path) <| $(var data)
-            valid = data.validated
-            data.validated = true
+        let data = registry |> find(path)
+        let valid = data != null && data.validated
         if valid
             info("> validate? '{path}' file is valid. skip", get_line_info())
             return
-        self->getConfig(path) <| @(config : PluginConfig?)
+        if validating
+            var found = false
+            validateQueue |> find_for_edit_if_exists(path) <| $(var item)
+                found = true
+                item.withContent ||= withContent
+                item.first ||= first
+            if !found
+                validateQueue[path] = [[auto first, withContent]]
+            return
+        validating = true
+        if !validateQueue |> key_exists(path)
+            validateQueue[path] = [[auto first, withContent]]
+
+        self->getConfig(path) <| @(var config : PluginConfig?)
             if config == null
-                info("> validate? '{path}' config is null", get_line_info())
+                validating = false
+                error("> validate error: '{path}'. Config is null", get_line_info())
             else
-                var confCopy: PluginConfig := *config
-                self->validate_with_config(path, withContent, confCopy)
+                self->validate_with_config(path, withContent, *config)
 
     def validate_with_config(path : string; withContent : bool; var config : PluginConfig)
         if !config.experimental
             var t0 = ref_time_ticks()
             registry |> find_for_edit_if_exists(path) <| $(var data)
+                data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
                 let uri = path_to_uri(path)
                 var access <- make_file_access(config.project.file)
                 defer <| $()
-                    self->updateGlobalCompletion(path)
+                    self->updateGlobalCompletion()
                     unsafe
                         delete access
                 if withContent
@@ -285,6 +411,8 @@ class TelnetServer : Server
 
                 var cp = CodeOfPolicies()
                 cp.ignore_shared_modules = true
+                cp.no_global_variables = config.policies.noGlobalVariables
+                cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
                 compile_file(path, access, cp) <| $(ok, program, error)
                     info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
@@ -316,6 +444,7 @@ class TelnetServer : Server
                             for it in values(data.completionData)
                                 delete it
                             clear(data.completionData)
+                            // delete data.completionData
                             completionData->programCompletion(program, data.completionData)
 
                             collect_diag(data.ast, path, diags)
@@ -363,129 +492,163 @@ class TelnetServer : Server
             let dt = get_time_usec(t0)
             let sec = double(dt)/1000000.0lf
             info("validation in {sec} s\n", get_line_info())
+            validating = false
+            self->dispatchValidData(path)
             return // if !config.experimental
 
         var dataText = ""
         var found = false
         registry |> find_if_exists(path) <| $(var data)
-            dataText = data.text
             found = true
+            if withContent
+                dataText = data.text
         if !found
+            error("validation failed: unregistered file '{path}'\n", get_line_info())
             return
 
         let uri = path_to_uri(path)
 
-        with_job_que <| $()
-            var t0 = ref_time_ticks()
+        let jobsNum = 1
+        for i in range(jobsNum)
+            new_thread <| @[[:=config, :=dataText]]
+                var cloneData: ValidateResult
+                cloneData.path = path
+                // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
 
-            let jobsNum = 1
-            with_channel(jobsNum) <| $ (channel)
+                var access <- make_file_access(config.project.file)
+                if withContent
+                    set_file_source(access, path, dataText)
 
-                for i in range(jobsNum)
-                    unsafe
-                        new_job <| @[[&config, &dataText]]
-                            var cloneData: ValidateResult
-                            // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
+                var cp = CodeOfPolicies()
+                cp.ignore_shared_modules = true
+                cp.no_global_variables = config.policies.noGlobalVariables
+                cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
+                cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
+                cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
+                compile_file(path, access, cp) <| $(ok, program, error)
+                    // info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
-                            var access <- make_file_access(config.project.file)
-                            if withContent
-                                set_file_source(access, path, dataText)
+                    let compiled = ok && program != null
 
-                            var cp = CodeOfPolicies()
-                            cp.ignore_shared_modules = true
-                            compile_file(path, access, cp) <| $(ok, program, error)
-                                // info("< compiled {path} {ok}\n'{error}'", get_line_info())
+                    if compiled
+                        // info("< visit ast {path}", get_line_info())
+                        // if !ok
+                        //     info(program, get_line_info())
+                        unsafe
+                            var visitor <- AstData()
+                            visitor.tokens = addr(cloneData.ast)
+                            var adapter <- make_visitor(visitor)
+                            visit(program, adapter)
+                            visitor.tokens = null
+                            delete adapter
+                            delete visitor
 
-                                let compiled = ok && program != null
+                        // info("info collect tokens {path}", get_line_info())
+                        collect_token(cloneData.ast) <| $(var tok : AstToken?)
+                            tok.path = resolve_path(tok.path, config)
+                            if !empty(tok.defPath)
+                                tok.defPath = resolve_path(tok.defPath, config)
+                            if !empty(tok.typeDefPath)
+                                tok.typeDefPath = resolve_path(tok.typeDefPath, config)
 
-                                if compiled
-                                    // info("< visit ast {path}", get_line_info())
-                                    // if !ok
-                                    //     info(program, get_line_info())
-                                    unsafe
-                                        var visitor <- AstData()
-                                        visitor.tokens = addr(cloneData.ast)
-                                        var adapter <- make_visitor(visitor)
-                                        visit(program, adapter)
-                                        visitor.tokens = null
-                                        delete adapter
-                                        delete visitor
+                        completionData->programCompletion(program, cloneData.completionData)
 
-                                    // info("info collect tokens {path}", get_line_info())
-                                    collect_token(cloneData.ast) <| $(var tok : AstToken?)
-                                        tok.path = resolve_path(tok.path, config)
-                                        if !empty(tok.defPath)
-                                            tok.defPath = resolve_path(tok.defPath, config)
-                                        if !empty(tok.typeDefPath)
-                                            tok.typeDefPath = resolve_path(tok.typeDefPath, config)
+                        var diags : array<Diagnostic>
+                        collect_diag(cloneData.ast, path, diags)
 
-                                    completionData->programCompletion(program, cloneData.completionData)
+                        cloneData.diag[uri] <- diags
+                        return
 
-                                    var diags : array<Diagnostic>
-                                    collect_diag(cloneData.ast, path, diags)
+                    if program == null
+                        var diags : array<Diagnostic>
+                        diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
+                        cloneData.diag[uri] <- diags
+                        return
 
-                                    cloneData.diag[uri] <- diags
-                                    return
+                    for err in program.errors
+                        let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
+                        let at = line_info_to_range(err.at)
+                        var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
+                        if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
+                            var extra = "{err.extra}"
+                            if !empty(err.fixme)
+                                extra += "\n{err.fixme}"
+                            var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
+                            diag.relatedInformation <- [{ auto[] info }]
+                        unsafe
+                            var list = find_for_edit(cloneData.diag, localUri) // map is locked
+                            if list != null
+                                *list |> emplace(diag)
+                            else
+                                cloneData.diag[localUri] <- [{ auto[] diag }]
+                unsafe
+                    delete access
 
-                                if program == null
-                                    var diags : array<Diagnostic>
-                                    diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
-                                    cloneData.diag[uri] <- diags
-                                    return
+                channel |> push_clone(cloneData)
+                channel |> notify()
+                delete cloneData
+                delete config
 
-                                for err in program.errors
-                                    let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
-                                    let at = line_info_to_range(err.at)
-                                    var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-                                    if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
-                                        var extra = "{err.extra}"
-                                        if !empty(err.fixme)
-                                            extra += "\n{err.fixme}"
-                                        var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                                        diag.relatedInformation <- [{ auto[] info }]
-                                    unsafe
-                                        var list = find_for_edit(cloneData.diag, localUri) // map is locked
-                                        if list != null
-                                            *list |> emplace(diag)
-                                        else
-                                            cloneData.diag[localUri] <- [{ auto[] diag }]
-                            unsafe
-                                delete access
 
-                            channel |> push_clone(cloneData)
-                            channel |> notify()
+    def dispatchValidData(path: string)
+        if validateQueue |> key_exists(path)
+            delete validateQueue[path]
+            validateQueue |> erase(path)
+        if length(validDataReqs) == 0
+            return
+        var data = registry |> find(path)
+        var idx = 0
+        while idx < length(validDataReqs)
+            var req & = validDataReqs[idx]
+            if req.path == path
+                req.cb |> invoke(data)
+                delete validDataReqs[idx]
+                validDataReqs |> erase(idx)
+            else
+                idx += 1
 
-                channel |> join()
-                let dt = get_time_usec(t0)
-                let sec = double(dt)/1000000.0lf
-                info("validation in {sec} s in job\n", get_line_info())
+    def validationDone(item: ValidateResult#)
+        var path = clone_string(item.path)
+        info("validation done: {path}\n", get_line_info())
+        validating = false
+        var isOpen = false
+        unsafe
+            var data = registry |> find_for_edit(path)
+            if data != null
+                isOpen = data.isOpen
+                data.ast := item.ast
+                data.completionData := item.completionData
+                data.validated = true
 
-                for item in each(channel, type<ValidateResult>)
-                    registry |> find_for_edit_if_exists(path) <| $(var data)
-                        data.ast := item.ast
-                        data.completionData := item.completionData
+                completionData->appendToGlobalList(data.completionData)
 
-                    var diag: table<string; array<Diagnostic>> := item.diag
-                    for k, v in keys(diag), values(diag)
-                        let localPath = uri_to_path(k)
-                        registry |> find_if_exists(localPath) <| $(fileData)
-                            collect_diag(fileData.ast, localPath, v)
-                        var params <- [[PublishDiagnosticsParams uri = k, diagnostics := v ]]
-                        self->sendNotification("textDocument/publishDiagnostics", js(params))
-                        delete params
-                    delete diag
+        if isOpen
+            var diag: table<string; array<Diagnostic>> := item.diag
+            for k, v in keys(diag), values(diag)
+                let localPath = uri_to_path(k)
+                registry |> find_if_exists(localPath) <| $(fileData)
+                    collect_diag(fileData.ast, localPath, v)
+                var params <- [[PublishDiagnosticsParams uri = k, diagnostics := v ]]
+                self->sendNotification("textDocument/publishDiagnostics", js(params))
+                delete params
 
-                self->updateGlobalCompletion(path)
-
+        self->updateGlobalCompletion()
+        self->dispatchValidData(path)
 
 
     [unused_argument(id)] def didOpen(id : double; params : JsonValue?)
         var ini = DidOpenTextDocumentParams(params)
         defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        registry[path] <- Dascript(ini.textDocument)
-        info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
-        self->validate(path, false)
+        var found = false
+        registry |> find_for_edit_if_exists(path) <| $(var data)
+            found = true
+            data.isOpen = true
+            data.validated = false
+        if !found
+            registry[path] <- Dascript(ini.textDocument)
+            info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
+        self->validate(path, /*withContent*/false, /*first*/true)
 
     [unused_argument(id)] def didSave(id : double; params : JsonValue?)
         var doc = DidSaveTextDocumentParams(params)
@@ -497,10 +660,11 @@ class TelnetServer : Server
             if data != null
                 data.version = -1lf
                 data.text <- doc.text
+                data.validated = false
             else
                 registry[path] <- Dascript(doc)
                 info("> unknown? register again, total files {length(registry)}\n", get_line_info())
-        self->validate(path, false)
+        self->validate(path, /*withContent*/false, /*first*/true)
 
     [unused_argument(id)] def didChange(id : double; params : JsonValue?)
         var doc <- DidChangeTextDocumentParams(params)
@@ -510,21 +674,20 @@ class TelnetServer : Server
             unsafe
                 var data = registry |> find_for_edit(path) // registry is locked
                 if data != null
-                    data.validated = false
+                    // data.validated = false // TODO
                     data.text <- doc.contentChanges[0].text
                     data.version = doc.textDocument.version
                 else
                     info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
-                // self->validate(path, true) // TODO: validate every N sec
+        // self->validate(path, /*withContent*/true, /*first*/true)
 
     [unused_argument(id)] def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
         registry |> find_for_edit_if_exists(path) <| $(var data)
-            delete *data
-        registry |> erase(path)
+            data.isOpen = false
         info("> close file {path}, total files {length(registry)}\n", get_line_info())
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
@@ -534,61 +697,61 @@ class TelnetServer : Server
     def hover(id : double; params : JsonValue?)
         var ini = HoverParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            defer_delete(ini)
+        self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             let verbose = config?.hovers?.verbose ?? false
-            // if config != null
-            //     registry |> find_if_exists(path) <| $(data)
-            //         if !data.validated
-            //             self->validate_with_config(path, true, *config)
             self->hover_with_config(id, ini, verbose)
 
-    def hover_with_config(id : double; ini : HoverParams; verbose : bool)
+    def hover_with_config(id : double; var ini : HoverParams&; verbose : bool)
         let path = uri_to_path(ini.textDocument.uri)
         if !registry |> key_exists(path)
             registry[path] <- Dascript(ini)
             warning("> {path} unknown? register again, total files {length(registry)}\n", get_line_info())
-            self->validate(path, false)
-        var found = false
-        registry |> find_if_exists(path) <| $(var data)
-            var hoversData : array<tuple<float; Range; string>>
-            collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
-                let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
-                hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose)]])
-                completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
-                    hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
-                // TODO: filter huge tokens?
-            if hoversData |> length() > 0
-                hoversData |> sort() <| $(a; b)
-                    return a._0 < b._0
-                var hovers <- [{ for it in hoversData; it._2 }]
-                var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
-                self->sendResponse(id, js(h))
-                delete h
-                found = true
-            delete hoversData
-        if !found
-            warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
-            self->sendResponse(id, js())
+            self->validate(path, /*withContent*/false, /*first*/true)
+
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            defer_delete(ini)
+            var found = false
+            if data != null
+                var hoversData : array<tuple<float; Range; string>>
+                collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
+                    let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
+                    hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose)]])
+                    completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
+                        hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
+                    // TODO: filter huge tokens?
+                if hoversData |> length() > 0
+                    hoversData |> sort() <| $(a; b)
+                        return a._0 < b._0
+                    var hovers <- [{ for it in hoversData; it._2 }]
+                    var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
+                    self->sendResponse(id, js(h))
+                    delete h
+                    found = true
+                delete hoversData
+            if !found
+                warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
+                self->sendResponse(id, js())
 
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            defer_delete(ini)
+        self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
                 self->sendResponse(id, js(completionData.globalCompletion))
                 return
-            // registry |> find_if_exists(path) <| $(data)
-            //     if !data.validated
-            //         self->validate_with_config(path, true, *config)
             self->completion_with_config(id, ini, *config)
 
-    def completion_with_config(id : double; ini : CompletionParams; config : PluginConfig)
+    def completion_with_config(id : double; var ini : CompletionParams&; var config : PluginConfig)
         let path = uri_to_path(ini.textDocument.uri)
-        var found = find_if_exists(registry, path) <| $(data)
-            let startTime = get_clock()
+
+        self->getValidData(path) <| @[[<-ini, :=config]](data: Dascript const?)
+            defer_delete(ini)
+            if data == null
+                warning("< send global completion {length(completionData.globalCompletion)}\n", get_line_info())
+                self->sendResponse(id, js(completionData.globalCompletion))
+                return
+            let t0 = ref_time_ticks()
             var list : array<JsonValue?>
             let idx = pos_to_index(ini.position, data.text)
             if idx > 0
@@ -710,78 +873,55 @@ class TelnetServer : Server
 
             var res <- js({{ "isIncomplete" => js(false); "items" => js(list)}})
             self->sendResponse(id, res)
-            info("< completion time { get_clock() - startTime }", get_line_info())
+            let sec = double(get_time_usec(t0))/1000000.0lf
+            info("< completion time {sec}s", get_line_info())
 
-        if !found
-            warning("< send global completion {length(completionData.globalCompletion)}\n", get_line_info())
-            self->sendResponse(id, js(completionData.globalCompletion))
 
     def resolveCompletion(id : double; var params : JsonValue?)
         self->sendResponse(id, clone_to_move(params))
 
-    def find_token(path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
-        var token : AstToken?
-        registry |> find_if_exists(path) <| $(data)
-            var minRatio = FLT_MAX
-            collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-                if !invoke(valid, tok)
-                    return
-                let ratio = float(range_ratio(tok._range)) + (empty(tok.defPath) ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
-                if token == null || ratio < minRatio
-                    minRatio = ratio
-                    token = tok
-        return token
-
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_definition
     def definition(id : double; var params : JsonValue?)
         var ini <- DefinitionParams(params)
-        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        // registry |> find_if_exists(path) <| $(data)
-        //     if !data.validated
-        //         self->validate(path, true)
-        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return !empty(tok.defPath)
-        if token == null
-            self->sendResponse(id, js())
-            return
-        var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-        self->sendResponse(id, js(loc))
-        delete loc
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            defer_delete(ini)
+            var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
+                return !empty(tok.defPath)
+            if token == null
+                self->sendResponse(id, js())
+                return
+            var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
+            self->sendResponse(id, js(loc))
+            delete loc
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
     def typeDefinition(id : double; var params : JsonValue?)
         var ini <- TypeDefinitionParams(params)
-        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        // registry |> find_if_exists(path) <| $(data)
-        //     if !data.validated
-        //         self->validate(path, true)
-        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return !empty(tok.typeDefPath)
-        if token == null
-            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return !empty(tok.defPath)
-        if token == null
-            self->sendResponse(id, js())
-            return
-        let hasType = !empty(token.typeDefPath)
-        var defPath = hasType ? token.typeDefPath : token.defPath
-        let _range & = hasType ? token.typeDefRange : token.defRange
-        var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
-        self->sendResponse(id, js(loc))
-        delete loc
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            defer_delete(ini)
+            var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
+                return !empty(tok.typeDefPath)
+            if token == null
+                token = find_token(data, path, ini.position) <| $(tok : AstToken?)
+                    return !empty(tok.defPath)
+            if token == null
+                self->sendResponse(id, js())
+                return
+            let hasType = !empty(token.typeDefPath)
+            var defPath = hasType ? token.typeDefPath : token.defPath
+            let _range & = hasType ? token.typeDefRange : token.defRange
+            var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
+            self->sendResponse(id, js(loc))
+            delete loc
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
     def documentSymbol(id : double; var params : JsonValue?)
         var ini <- DocumentSymbolParams(params)
+        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        // registry |> find_if_exists(path) <| $(data)
-        //     if !data.validated
-        //         self->validate(path, true)
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?) // wait first validation
-            defer_delete(ini)
-            let data = registry |> find(path)
+        self->getValidData(path) <| @(data: Dascript const?)
             if data == null
                 self->sendResponse(id, js())
                 return
@@ -810,6 +950,7 @@ class TelnetServer : Server
                 workspaceFolders |> erase(idx)
         for it in ini.event.added
             workspaceFolders |> push(it)
+        delete workspaceFiles
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
@@ -818,153 +959,151 @@ class TelnetServer : Server
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
-        defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        // registry |> find_if_exists(path) <| $(data)
-        //     if !data.validated
-        //         self->validate(path, true)
-        var token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-            return !empty(tok.defPath) && !is_zero(tok.defRange)
-        if token == null
-            token = self->find_token(path, ini.position) <| $(tok : AstToken?)
-                return tok != null
-        if token == null
-            self->sendResponse(id, js())
-            return
-        var res : array<Location>
-        defer_delete(res)
-        for data in values(registry)
-            var addDef = false
-            if !empty(token.defPath)
-                // same references
-                collect_ref_token(data.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
-                    addDef = true
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            defer_delete(ini)
+            var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
+                return !empty(tok.defPath) && !is_zero(tok.defRange)
+            if token == null
+                token = find_token(data, path, ini.position) <| $(tok : AstToken?)
+                    return tok != null
+            if token == null
+                self->sendResponse(id, js())
+                return
+            var res : array<Location>
+            // defer_delete(res)
+            for dasItem in values(registry)
+                var addDef = false
+                if !empty(token.defPath)
+                    // same references
+                    collect_ref_token(dasItem.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
+                        addDef = true
+                        res |> add_unique_reference(tok._range, path_to_uri(tok.path))
+                    if addDef
+                        res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
+                // refs to this token
+                collect_ref_token(dasItem.ast, token.path, token._range) <| $(tok : AstToken?)
                     res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-                if addDef
-                    res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
-            // refs to this token
-            collect_ref_token(data.ast, token.path, token._range) <| $(tok : AstToken?)
-                res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-            if !addDef
-                res |> add_unique_reference(token._range, path_to_uri(token.path))
-        var jsRes <- [{ for it in res; js(it) }]
-        self->sendResponse(id, js(jsRes))
+                if !addDef
+                    res |> add_unique_reference(token._range, path_to_uri(token.path))
+            var jsRes <- [{ for it in res; js(it) }]
+            self->sendResponse(id, js(jsRes))
+            delete res
 
     def signatureHelp(id : double; var params : JsonValue?)
         var ini <- SignatureHelpParams(params)
         let path = uri_to_path(ini.textDocument.uri)
-        self->getConfig(path) <| @[[<-ini]](config : PluginConfig?)
-            defer_delete(ini)
+        self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
                 self->sendResponse(id, js(completionData.globalCompletion))
                 return
-            // registry |> find_if_exists(path) <| $(data)
-            //     if !data.validated
-            //         self->validate_with_config(path, true, *config)
             self->signatureHelp_with_config(id, ini, config)
 
     // TODO: config???
-    [unused_argument(config)] def signatureHelp_with_config(id : double; ini : SignatureHelpParams; config : PluginConfig?)
+    [unused_argument(config)] def signatureHelp_with_config(id : double; var ini : SignatureHelpParams; config : PluginConfig?)
         let path = uri_to_path(ini.textDocument.uri)
-        var found = false
-        find_if_exists(registry, path) <| $(data)
-            let idx = pos_to_index(ini.position, data.text)
-            if idx > 0
-                var list : array<SignatureInformation>
-                var searchToken = false
-                var i = 0
-                let maxI = min(idx, ini.position.character)
-                while i < maxI
-                    var insideO = 0
-                    unsafe
-                        while i < maxI
-                            let ch = character_uat(data.text, idx - i)
-                            if ch == ')'
-                                insideO ++
-                            elif ch == '('
-                                if insideO > 0
-                                    insideO --
-                                else
-                                    i ++
-                                    searchToken = true
-                                    break
-                            i++
-                        while i < maxI && is_white_space(character_uat(data.text, idx - i))
-                            i++
-                    if searchToken
-                        var pos = Position(ini.position.line, ini.position.character - i)
-                        var token = self->find_token(path, pos) <| $(tok : AstToken?)
-                            return tok != null
-                        if token != null && (token.kind == AstTokenKind Function || token.kind == AstTokenKind Method || token.kind == AstTokenKind Operator)
-                            completionData->findCompletion(data.completionData, token._type) <| $(val : Completion)
-                                for it in val.impls
-                                    list |> emplace([[SignatureInformation _label = it]])
-                            if list |> length() == 0
-                                list |> emplace([[SignatureInformation _label = token.desc]])
-                        if list |> length() > 0
-                            self->sendResponse(id, js([[SignatureHelp signatures <- list ]]))
-                            found = true
-                            break
-        if !found
-            self->sendResponse(id, js())
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const ?)
+            defer_delete(ini)
+            var found = false
+            if data != null
+                let idx = pos_to_index(ini.position, data.text)
+                if idx > 0
+                    var list : array<SignatureInformation>
+                    var searchToken = false
+                    var i = 0
+                    let maxI = min(idx, ini.position.character)
+                    while i < maxI
+                        var insideO = 0
+                        unsafe
+                            while i < maxI
+                                let ch = character_uat(data.text, idx - i)
+                                if ch == ')'
+                                    insideO ++
+                                elif ch == '('
+                                    if insideO > 0
+                                        insideO --
+                                    else
+                                        i ++
+                                        searchToken = true
+                                        break
+                                i++
+                            while i < maxI && is_white_space(character_uat(data.text, idx - i))
+                                i++
+                        if searchToken
+                            var pos = Position(ini.position.line, ini.position.character - i)
+                            var token = find_token(data, path, pos) <| $(tok : AstToken?)
+                                return tok != null
+                            if token != null && (token.kind == AstTokenKind Function || token.kind == AstTokenKind Method || token.kind == AstTokenKind Operator)
+                                completionData->findCompletion(data.completionData, token._type) <| $(val : Completion)
+                                    for it in val.impls
+                                        list |> emplace([[SignatureInformation _label = it]])
+                                if list |> length() == 0
+                                    list |> emplace([[SignatureInformation _label = token.desc]])
+                            if list |> length() > 0
+                                self->sendResponse(id, js([[SignatureHelp signatures <- list ]]))
+                                found = true
+                                break
+            if !found
+                self->sendResponse(id, js())
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
     def documentColor(id : double; var params : JsonValue?)
         var ini <- DocumentColorParams(params)
         defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
-        var found = false
-        registry |> find_if_exists(path) <| $(data)
-            var res : array<ColorInformation>
-            defer_delete(res)
-            var line = 0
-            var charPos = 0
-            var i = 0
-            var step = -1
-            var currentNum : array<int>
-            for i, ch in iter_range(data.text), data.text
-                if ch == '\n'
-                    line++
-                    charPos = 0
-                    step = -1
-                    clear(currentNum)
-                    continue
-                if step == -1
-                    step = ch == '0' ? 0 : -1
-                elif step == 0
-                    step = ch == 'x' || ch == 'X' ? 1 : -1
-                elif step == 1
-                    let isLowH = ch >= 'a' && ch <= 'f'
-                    let isHighH = ch >= 'A' && ch <= 'F'
-                    if is_number(ch) || isLowH || isHighH
-                        currentNum |> push(isLowH ? ch - 'a' + 10 : isHighH ? ch - 'A' + 10 : ch - '0')
-                    else
-                        let len = length(currentNum)
-                        if len == 6 || len == 8
-                            var color : array<double>
-                            if len == 6
-                                color |> push(1lf)
-                            var k = 0
-                            while k < len
-                                let h = currentNum[k++]
-                                let l = currentNum[k++]
-                                color |> push(double(h * 16 + l) / 255lf)
-                            res |> emplace([[ColorInformation
-                                _range = Range(line, charPos - len - 2, line, charPos),
-                                color = [[Color alpha=color[0], red=color[1], green=color[2], blue=color[3]]]
-                            ]])
-                            delete color
+        self->getValidData(path) <| @(data: Dascript const?)
+            var found = false
+            if data != null
+                var res : array<ColorInformation>
+                defer_delete(res)
+                var line = 0
+                var charPos = 0
+                var i = 0
+                var step = -1
+                var currentNum : array<int>
+                for i, ch in iter_range(data.text), data.text
+                    if ch == '\n'
+                        line++
+                        charPos = 0
                         step = -1
                         clear(currentNum)
-                charPos++
-            delete currentNum
-            if length(res) > 0
-                found = true
-                var arr <- [{ for it in res; js(it)}]
-                self->sendResponse(id, js(arr))
-        if !found
-            self->sendResponse(id, js())
+                        continue
+                    if step == -1
+                        step = ch == '0' ? 0 : -1
+                    elif step == 0
+                        step = ch == 'x' || ch == 'X' ? 1 : -1
+                    elif step == 1
+                        let isLowH = ch >= 'a' && ch <= 'f'
+                        let isHighH = ch >= 'A' && ch <= 'F'
+                        if is_number(ch) || isLowH || isHighH
+                            currentNum |> push(isLowH ? ch - 'a' + 10 : isHighH ? ch - 'A' + 10 : ch - '0')
+                        else
+                            let len = length(currentNum)
+                            if len == 6 || len == 8
+                                var color : array<double>
+                                if len == 6
+                                    color |> push(1lf)
+                                var k = 0
+                                while k < len
+                                    let h = currentNum[k++]
+                                    let l = currentNum[k++]
+                                    color |> push(double(h * 16 + l) / 255lf)
+                                res |> emplace([[ColorInformation
+                                    _range = Range(line, charPos - len - 2, line, charPos),
+                                    color = [[Color alpha=color[0], red=color[1], green=color[2], blue=color[3]]]
+                                ]])
+                                delete color
+                            step = -1
+                            clear(currentNum)
+                    charPos++
+                delete currentNum
+                if length(res) > 0
+                    found = true
+                    var arr <- [{ for it in res; js(it)}]
+                    self->sendResponse(id, js(arr))
+            if !found
+                self->sendResponse(id, js())
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
     def colorPresentation(id : double; var params : JsonValue?)
@@ -1131,69 +1270,73 @@ def mainLoop(fn : string)
     let port = get_int_arg(args, "--port", 9000)
     let main_time = stat(fn).mtime
     info("server start: port: {port} file:{fn} ts:{main_time}\n", get_line_info())
+
     telnet = new TelnetServer()
     telnet.port = port
 
-    var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
-    if session != null
-        info("restoring server after restart\n", get_line_info())
-        telnet->restore(session)
-        telnet->initialized()
-    elif telnet->init(port)
-        info("server at port {port}\n", get_line_info())
-    else
-        info("server failed to initialize\n", get_line_info())
-        return false
+    var res = false
+    with_job_que <| $()
+        with_channel(1) <| $(channel)
 
-    logger::onLog <- @ <| (msg : string; level : LogLevel)
-        if telnet != null
-            telnet->log(msg, level)
+            telnet.channel = channel
 
-    let initialstrLimit = uint64(2 * 1024 * 1024)
-    var strLimit = initialstrLimit
-    var step = 1u
-    while !telnet.done
-        telnet->tick()
+            var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
+            if session != null
+                info("restoring server after restart\n", get_line_info())
+                telnet->restore(session)
+                telnet->initialized()
+            elif telnet->init(port)
+                info("server at port {port}\n", get_line_info())
+            else
+                info("server failed to initialize\n", get_line_info())
+                return
 
-        var alloc = string_heap_bytes_allocated()
-        if alloc > strLimit
-            // string_heap_report()
-            var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
+            logger::onLog <- @ <| (msg : string; level : LogLevel)
+                if telnet != null
+                    telnet->log(msg, level)
+
+            let initialstrLimit = uint64(2 * 1024 * 1024)
+            var strLimit = initialstrLimit
+            var step = 1u
+            while !telnet.done
+                telnet->tick()
+
+                telnet->invalidateQueue()
+
+                var alloc = string_heap_bytes_allocated()
+                if alloc > strLimit
+                    // string_heap_report()
+                    var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
+                    unsafe
+                        string_heap_collect()
+                    alloc = string_heap_bytes_allocated()
+                    info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
+                    if alloc > strLimit
+                        strLimit *= uint64(2)
+                        warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
+                    elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
+                        strLimit = strLimit / uint64(2)
+                        warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
+
+                step --
+                if step == 0u
+                    let h = heap_bytes_allocated()
+                    let hd = heap_depth()
+                    var shd = string_heap_depth()
+
+                    step = 2000u
+
+                    info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
+
+                sleep(0u)
+                let new_time = stat(fn).mtime
+                if new_time != main_time
+                    info("restarting via source change {new_time}\n", get_line_info())
+                    telnet->restart()
+                    break
             unsafe
-                string_heap_collect()
-            alloc = string_heap_bytes_allocated()
-            info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
-            if alloc > strLimit
-                strLimit *= uint64(2)
-                warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
-            elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
-                strLimit = strLimit / uint64(2)
-                warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
+                delete telnet
 
-        step --
-        if step == 0u
-            let h = heap_bytes_allocated()
-            let hd = heap_depth()
-            var shd = string_heap_depth()
+            res = true
 
-            step = 500u
-            // if h > 15000u
-            // info("------------------\n")
-            // heap_report()
-            // info("------------------\n")
-            // string_heap_report()
-            // info("------------------\n")
-            // step = 100u
-
-            info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
-
-        sleep(0u)
-        let new_time = stat(fn).mtime
-        if new_time != main_time
-            info("restarting via source change {new_time}\n", get_line_info())
-            telnet->restart()
-            break
-    unsafe
-        delete telnet
-
-    return true
+    return res

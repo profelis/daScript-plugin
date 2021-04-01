@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.3.4",
+	"version": "0.3.8",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -60,6 +60,12 @@
 					"default": "",
 					"description": "Dascript project file - *.das_project"
 				},
+				"dascript.project.scanWorkspace": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "scan/compile all files in workspace"
+				},
 				"dascript.project.roots": {
 					"scope": "resource",
 					"type": "array",
@@ -83,6 +89,30 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Experimental (beta) features"
+				},
+				"dascript.policies.noGlobalVariables": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "no_global_variables policy"
+				},
+				"dascript.policies.noUnusedBlockArguments": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "no_unused_block_arguments policy"
+				},
+				"dascript.policies.noUnusedFunctionArguments": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "no_unused_function_arguments policy"
+				},
+				"dascript.policies.failOnLackOfAotExport": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": false,
+					"description": "fail_on_lack_of_aot_export policy"
 				}
 			}
 		},

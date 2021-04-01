@@ -4,7 +4,6 @@ options no_aot = true
 require math
 require daslib/json
 require json_tools
-require uriparser
 require strings
 require daslib/strings_boost
 require js public
@@ -12,27 +11,6 @@ require js public
 typedef
     JSTab = table<string; JsonValue?>
     DocumentUri = string
-
-// def urlDecode(str : string) : string
-//     return join(split(str, "%3A"), ":")
-
-// def urlEncode(str : string) : string
-//     return join(split(str, ":"), "%3A")
-
-// def uri_to_path(str : string)
-//     let path = urlDecode(str)
-//     unsafe
-//         return path |> character_at(9) == ':' ? chop(path, 8, length(path) - 8) : chop(path, 7, length(path) - 7)
-
-// def path_to_uri(str : string)
-//     let prefix = str |> character_at(1) == ':' ? "file:///" : "file://"
-//     return "{prefix}{urlEncode(str)}"
-
-def uri_to_path(str : string)
-    return uri_to_file_name(str)
-
-def path_to_uri(str : string)
-    return file_name_to_uri(str)
 
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -423,7 +401,7 @@ def in_range(pos : Position; r : Range)
     return r.start <= pos && pos <= r.end
 
 def in_range(b, a : Range)
-    return b.start |> in_range(a) || b.end |> in_range(a)
+    return b.start |> in_range(a) && b.end |> in_range(a)
 
 def range_oneline(a : Range)
     return a.start.line == a.end.line

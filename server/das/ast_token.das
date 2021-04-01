@@ -10,6 +10,7 @@ require logger
 require completion
 require lib
 require strings
+require fs_tools
 
 bitfield AstTokenWarn
     unused
@@ -175,7 +176,7 @@ def set_token_path(var token : AstToken?; at: LineInfo)
 
 def set_token_def(var token : AstToken?; at: LineInfo)
     token.defRange = line_info_to_range(at)
-    token.defPath = at.fileInfo != null ? "{at.fileInfo.name}" : ""
+    token.defPath = at.fileInfo != null ? fix_path("{at.fileInfo.name}") : ""
 
 let skipTypeDesc = [[auto[] Type none; Type autoinfer; Type fakeLineInfo; Type fakeContext; Type alias; Type anyArgument]]
 
@@ -188,10 +189,10 @@ def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
         return
     if typ.structType != null
         token.typeDefRange = line_info_to_range(typ.structType.at)
-        token.typeDefPath = typ.structType.at.fileInfo != null ? "{typ.structType.at.fileInfo.name}" : ""
+        token.typeDefPath = typ.structType.at.fileInfo != null ? fix_path("{typ.structType.at.fileInfo.name}") : ""
     elif typ.enumType != null
         token.typeDefRange = line_info_to_range(typ.enumType.at)
-        token.typeDefPath = typ.enumType.at.fileInfo != null ? "{typ.enumType.at.fileInfo.name}" : ""
+        token.typeDefPath = typ.enumType.at.fileInfo != null ? fix_path("{typ.enumType.at.fileInfo.name}") : ""
     elif typ.firstType != null
         set_token_type_def(token, typ.firstType)
     elif typ.secondType != null
@@ -1109,7 +1110,7 @@ class AstData : AstVisitor
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var_to_token(expr.variable) <| $(var token)
-            token.defPath = token.path
+            token.defPath = fix_path(token.path)
             token.defRange = token._range
             set_token_path(token, expr.at)
             *tokens |> emplace(token)
