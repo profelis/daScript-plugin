@@ -413,6 +413,8 @@ class TelnetServer : Server
                 cp.ignore_shared_modules = true
                 cp.no_global_variables = config.policies.noGlobalVariables
                 cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
+                cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
+                cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
                 compile_file(path, access, cp) <| $(ok, program, error)
                     info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
