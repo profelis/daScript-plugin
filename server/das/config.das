@@ -15,10 +15,10 @@ struct PluginConfigPolicies
 
 def PluginConfigPolicies(val : JsonValue?)
     return <- [[PluginConfigPolicies
-        noGlobalVariables = job(val, "noGlobalVariables"),
-        noUnusedBlockArguments = job(val, "noUnusedBlockArguments"),
-        noUnusedFunctionArguments = job(val, "noUnusedBlockArguments"),
-        failOnLackOfAotExport = job(val, "failOnLackOfAotExport")
+        noGlobalVariables = job(val, "no_global_variables"),
+        noUnusedBlockArguments = job(val, "no_unused_block_arguments"),
+        noUnusedFunctionArguments = job(val, "no_unused_function_arguments"),
+        failOnLackOfAotExport = job(val, "fail_on_lack_of_aot_export")
     ]]
 
 
