@@ -153,8 +153,8 @@ class TelnetServer : Server
             self->save(session)
             gc0_save_smart_ptr("telnet-session", session)
 
-    def updateGlobalCompletion()
-        if completionData->updateGlobalList(/*force*/true)
+    def updateGlobalCompletion(force: bool = false)
+        if completionData->updateGlobalList(force)
             for data in values(registry)
                 completionData->appendToGlobalList(data.completionData)
 
@@ -280,7 +280,7 @@ class TelnetServer : Server
     def initialized()
         inited = true
         info("> initialized! port: {port}\n", get_line_info())
-        self->updateGlobalCompletion()
+        self->updateGlobalCompletion(true)
 
         var capabilities <- [{ string[] "workspace/didChangeWorkspaceFolders" }]
         if hasConfigurationCapability
@@ -314,7 +314,6 @@ class TelnetServer : Server
 
     def invalidateQueue()
         if !channel.isEmpty
-            info("channel is not empty", get_line_info())
             for item in each(channel,type<ValidateResult>)
                 self->validationDone(item)
             validating = false
@@ -344,6 +343,7 @@ class TelnetServer : Server
             for i, path in range(workspaceFilesCursor + 1), keys(workspaceFiles)
                 if i == workspaceFilesCursor
                     if !registry |> key_exists(path)
+                        info("> {workspaceFilesCursor + 1}/{length(workspaceFiles)} enqueue '{path}'\n", get_line_info())
                         registry[path] <- [[Dascript uri = path_to_uri(path), path = path, version = -1lf]]
                         validateQueue[path] = [[auto false, false]]
             workspaceFilesCursor += 1
@@ -368,11 +368,10 @@ class TelnetServer : Server
 
 
     def validate(path : string; withContent : bool = false; first: bool = false)
-        info("> validate? '{path}'\n", get_line_info())
         let data = registry |> find(path)
         let valid = data != null && data.validated
         if valid
-            info("> validate? '{path}' file is valid. skip", get_line_info())
+            info("> '{path}' file is valid. skip", get_line_info())
             return
         if validating
             var found = false
@@ -403,7 +402,7 @@ class TelnetServer : Server
                 let uri = path_to_uri(path)
                 var access <- make_file_access(config.project.file)
                 defer <| $()
-                    self->updateGlobalCompletion()
+                    self->updateGlobalCompletion(false)
                     unsafe
                         delete access
                 if withContent
@@ -634,7 +633,7 @@ class TelnetServer : Server
                 self->sendNotification("textDocument/publishDiagnostics", js(params))
                 delete params
 
-        self->updateGlobalCompletion()
+        self->updateGlobalCompletion(false)
         self->dispatchValidData(path)
 
 
