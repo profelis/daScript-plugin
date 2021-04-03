@@ -629,9 +629,10 @@ class TelnetServer : Server
                 let localPath = uri_to_path(k)
                 registry |> find_if_exists(localPath) <| $(fileData)
                     collect_diag(fileData.ast, localPath, v)
-                var params <- [[PublishDiagnosticsParams uri = k, diagnostics := v ]]
+                var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                 self->sendNotification("textDocument/publishDiagnostics", js(params))
                 delete params
+            delete diag
 
         self->updateGlobalCompletion(false)
         self->dispatchValidData(path)
