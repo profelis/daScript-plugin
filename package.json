@@ -64,7 +64,7 @@
 					"scope": "resource",
 					"type": "boolean",
 					"default": false,
-					"description": "scan/compile all files in workspace"
+					"description": "Scan/compile all files in workspace"
 				},
 				"dascript.project.roots": {
 					"scope": "resource",

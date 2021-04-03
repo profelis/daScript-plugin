@@ -25,13 +25,14 @@ require config
 require debugapi
 require fs_tools
 
+// rebuild all files from defPaths - references
 
+// requires - options multiple_contexts = true
 def clone(var a: array<AstToken?>&; b: array<AstToken?> implicit)
     a |> resize(length(b))
     for idx, bV in iter_range(b), b
-        unsafe
-            delete a[idx]
-        a[idx] = new AstToken
+        if a[idx] == null
+            a[idx] = new AstToken
         *(a[idx]) := *bV
 
 var
@@ -85,7 +86,7 @@ def find_token(data: Dascript const?; path: string; pos : Position; valid : bloc
         return token
     var minRatio = FLT_MAX
     collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-        if !invoke(valid, tok)
+        if !valid |> invoke(tok)
             return
         let ratio = float(range_ratio(tok._range)) + (empty(tok.defPath) ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
         if token == null || ratio < minRatio
@@ -131,7 +132,7 @@ class TelnetServer : Server
 
     def override onError(msg:string; code:int)
         if sendingError
-            print("server recursive error: {msg} - {code}")
+            print("server recursive error: {msg} - {code}\n")
             return
         sendingError = true
         info("server error:{code} - {msg}\n", get_line_info())
@@ -176,7 +177,7 @@ class TelnetServer : Server
         let reqId = requestId
         self->onRequest(reqId, cb)
         self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(reqId); "method" => js(method); "params" => data }}))
-        requestId = requestId + 1lf
+        requestId += 1lf
         return reqId
 
     def onRequest(id : double; var cb : ReqCb)
@@ -198,7 +199,7 @@ class TelnetServer : Server
         defer_delete(registrationParams)
         self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
-                info("error: registerCapability\n", get_line_info())
+                info("error: registerCapability", get_line_info())
                 info(error, get_line_info())
 
     def getConfig(path : string; var cb : lambda<(var config : PluginConfig?):void>)
@@ -314,41 +315,40 @@ class TelnetServer : Server
 
     def invalidateQueue()
         if !channel.isEmpty
-            for item in each(channel,type<ValidateResult>)
+            for item in each(channel, type<ValidateResult>)
                 self->validationDone(item)
             validating = false
             channel |> append(1)
-            return
 
         if validating
             return
 
-        let n = length(validateQueue)
-        if n == 0
-            var scan = false
+        if validateQueue |> length == 0 // equeue workspace files
             for it in values(configs)
-                scan = it.project.scanWorkspace
-                break
-            if !scan
-                return
+                if !it.project.scanWorkspace
+                    return
 
-            if workspaceFiles |> length() == 0
+            if workspaceFiles |> length == 0
                 workspaceFilesCursor = 0
                 for it in workspaceFolders
                     it.uri |> uri_to_path() |> scan_dir(workspaceFiles)
 
-            if length(workspaceFiles) == 0 || workspaceFilesCursor > length(workspaceFiles)
+            if workspaceFiles |> length == 0 || workspaceFilesCursor > workspaceFiles |> length
                 return
 
-            for i, path in range(workspaceFilesCursor + 1), keys(workspaceFiles)
+            for i, path in range(length(workspaceFiles)), keys(workspaceFiles)
                 if i == workspaceFilesCursor
-                    if !registry |> key_exists(path)
-                        info("> {workspaceFilesCursor + 1}/{length(workspaceFiles)} enqueue '{path}'\n", get_line_info())
+                    if registry |> key_exists(path)
+                        workspaceFilesCursor += 1
+                        info("> {workspaceFilesCursor + 1}/{length(workspaceFiles)} skip '{path}'. Already registered", get_line_info())
+                    else
+                        info("> {workspaceFilesCursor + 1}/{length(workspaceFiles)} enqueue '{path}'", get_line_info())
                         registry[path] <- [[Dascript uri = path_to_uri(path), path = path, version = -1lf]]
                         validateQueue[path] = [[auto false, false]]
+                        break
             workspaceFilesCursor += 1
 
-            if validateQueue |> length() == 0
+            if validateQueue |> length == 0
                 return
 
         var toValidate = ""
@@ -356,11 +356,11 @@ class TelnetServer : Server
             if data.first
                 toValidate = name
                 break
-        if toValidate |> empty()
+        if toValidate |> empty
             for name in keys(validateQueue)
                 toValidate = name
                 break
-        if toValidate |> empty()
+        if toValidate |> empty
             return
 
         var data = validateQueue |> find(toValidate)
@@ -371,7 +371,7 @@ class TelnetServer : Server
         let data = registry |> find(path)
         let valid = data != null && data.validated
         if valid
-            info("> '{path}' file is valid. skip", get_line_info())
+            info("> '{path}' is valid. skip validation", get_line_info())
             return
         if validating
             var found = false
@@ -982,7 +982,7 @@ class TelnetServer : Server
                         addDef = true
                         if !resTokens |> key_exists(tok)
                             resTokens[tok] = null
-                        res |> add_unique_reference(tok._range, path_to_uri(tok.path))
+                            res |> add_unique_reference(tok._range, path_to_uri(tok.path))
                     if addDef && !resTokens |> key_exists(token)
                         resTokens[token] = null
                         res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
@@ -990,7 +990,7 @@ class TelnetServer : Server
                 collect_ref_token(dasItem.ast, token.path, token._range) <| $(tok : AstToken?)
                     if !resTokens |> key_exists(tok)
                         resTokens[token] = null
-                    res |> add_unique_reference(tok._range, path_to_uri(tok.path))
+                        res |> add_unique_reference(tok._range, path_to_uri(tok.path))
                 if !addDef && !resTokens |> key_exists(token)
                     resTokens[token] = null
                     res |> add_unique_reference(token._range, path_to_uri(token.path))
