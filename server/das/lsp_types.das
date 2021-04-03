@@ -403,6 +403,9 @@ def in_range(pos : Position; r : Range)
 def in_range(b, a : Range)
     return b.start |> in_range(a) && b.end |> in_range(a)
 
+def overlaps(b, a: Range)
+    return b.start |> in_range(a) || b.end |> in_range(a) || a |> in_range(b)
+
 def range_oneline(a : Range)
     return a.start.line == a.end.line
 

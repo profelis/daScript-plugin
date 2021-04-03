@@ -159,7 +159,7 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
             blk |> invoke(token)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
-    if !empty(val.path) && val.defPath == path && val.defRange |> in_range(_range) && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
+    if !empty(val.path) && val.defPath == path && val.defRange == _range// && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         blk |> invoke(val)
     for it in val.children
         it |> collect_ref_token(path, _range, blk)

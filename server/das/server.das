@@ -972,6 +972,7 @@ class TelnetServer : Server
                 self->sendResponse(id, js())
                 return
             var res : array<Location>
+            var resTokens: table<AstToken?; void?>
             // defer_delete(res)
             for dasItem in values(registry)
                 var addDef = false
@@ -979,17 +980,24 @@ class TelnetServer : Server
                     // same references
                     collect_ref_token(dasItem.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
                         addDef = true
+                        if !resTokens |> key_exists(tok)
+                            resTokens[tok] = null
                         res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-                    if addDef
+                    if addDef && !resTokens |> key_exists(token)
+                        resTokens[token] = null
                         res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
                 // refs to this token
                 collect_ref_token(dasItem.ast, token.path, token._range) <| $(tok : AstToken?)
+                    if !resTokens |> key_exists(tok)
+                        resTokens[token] = null
                     res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-                if !addDef
+                if !addDef && !resTokens |> key_exists(token)
+                    resTokens[token] = null
                     res |> add_unique_reference(token._range, path_to_uri(token.path))
             var jsRes <- [{ for it in res; js(it) }]
             self->sendResponse(id, js(jsRes))
             delete res
+            delete resTokens
 
     def signatureHelp(id : double; var params : JsonValue?)
         var ini <- SignatureHelpParams(params)
