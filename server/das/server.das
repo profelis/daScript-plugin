@@ -394,7 +394,7 @@ class TelnetServer : Server
                 self->validate_with_config(path, withContent, *config)
 
     def validate_with_config(path : string; withContent : bool; var config : PluginConfig)
-        if !config.experimental
+        if !config.project.scanWorkspace
             var t0 = ref_time_ticks()
             registry |> find_for_edit_if_exists(path) <| $(var data)
                 data.validated = true
