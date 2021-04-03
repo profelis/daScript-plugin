@@ -2,6 +2,7 @@ options indenting = 4
 options no_aot = true
 
 require ast
+require daslib/ast_boost
 require math
 require rtti_tools
 require strings
@@ -1073,7 +1074,27 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
 // @@
-    // def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
+    def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
+        if skipExprs || expr == null || expr.genFlags.generated
+            return
+        var name = "{expr.target}"
+        var desc = name
+        if expr.func != null
+            unsafe
+                desc = "def {describe_function_short(reinterpret<smart_ptr<Function>> expr.func)}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Function,
+            _type = desc
+        ]]
+        set_token_path(token, expr.at)
+        token._range.end.character += length(name)
+        if expr.func != null
+            set_token_def(token, expr.func.atDecl)
+        info("deep:", get_line_info())
+        info(token, get_line_info())
+        *tokens |> emplace(token)
     // def override visitExprAddr(expr:smart_ptr<ExprAddr>) : ExpressionPtr
 // assert / verify
     // def override preVisitExprAssert(expr:smart_ptr<ExprAssert>) : void
