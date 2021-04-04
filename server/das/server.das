@@ -94,7 +94,85 @@ def find_token(data: Dascript const?; path: string; pos : Position; valid : bloc
             token = tok
     return token
 
+def compile(path, dataText: string; withContent: bool; config: PluginConfig; var globalCompletion: Completions): ValidateResult
+    var cloneData: ValidateResult
+    cloneData.path = path
+
+    let uri = path_to_uri(path)
+    // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
+
+    var access <- make_file_access(config.project.file)
+    if withContent
+        set_file_source(access, path, dataText)
+
+    var cp = CodeOfPolicies()
+    cp.ignore_shared_modules = true
+    cp.no_global_variables = config.policies.noGlobalVariables
+    cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
+    cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
+    cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
+    compile_file(path, access, cp) <| $(ok, program, error)
+        // info("< compiled {path} {ok}\n'{error}'", get_line_info())
+
+        let compiled = ok && program != null
+
+        if compiled
+            // info("< visit ast {path}", get_line_info())
+            // if !ok
+            //     info(program, get_line_info())
+            unsafe
+                var visitor <- AstData()
+                visitor.tokens = addr(cloneData.ast)
+                var adapter <- make_visitor(visitor)
+                visit(program, adapter)
+                visitor.tokens = null
+                delete adapter
+                delete visitor
+
+            // info("info collect tokens {path}", get_line_info())
+            collect_token(cloneData.ast) <| $(var tok : AstToken?)
+                tok.path = resolve_path(tok.path, config)
+                if !empty(tok.defPath)
+                    tok.defPath = resolve_path(tok.defPath, config)
+                if !empty(tok.typeDefPath)
+                    tok.typeDefPath = resolve_path(tok.typeDefPath, config)
+
+            completion::programCompletion(program, globalCompletion, cloneData.completionData)
+
+            var diags : array<Diagnostic>
+            collect_diag(cloneData.ast, path, diags)
+
+            cloneData.diag[uri] <- diags
+            return
+
+        if program == null
+            var diags : array<Diagnostic>
+            diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
+            cloneData.diag[uri] <- diags
+            return
+
+        for err in program.errors
+            let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
+            let at = line_info_to_range(err.at)
+            var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
+            if !empty(err.extra) || !empty(err.fixme)
+                var extra = "{err.extra}"
+                if !empty(err.fixme)
+                    extra += "\n{err.fixme}"
+                var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
+                diag.relatedInformation <- [{ auto[] info }]
+            unsafe
+                var list = find_for_edit(cloneData.diag, localUri) // map is locked
+                if list != null
+                    *list |> emplace(diag)
+                else
+                    cloneData.diag[localUri] <- [{ auto[] diag }]
+    unsafe
+        delete access
+    return <- cloneData
+
 class TelnetServer : Server
+    jobsNum = 1
     port : int // port number, for debug
     done : bool = false // server is done
     current_string : array<uint8> // raw input
@@ -316,9 +394,15 @@ class TelnetServer : Server
     def invalidateQueue()
         if !channel.isEmpty
             for item in each(channel, type<ValidateResult>)
-                self->validationDone(item)
+                var cloneData: ValidateResult
+                cloneData.path = clone_string(item.path)
+                cloneData.ast := item.ast
+                cloneData.completionData := item.completionData
+                cloneData.diag := item.diag
+                self->validationDone(cloneData)
             validating = false
-            channel |> append(1)
+            if channel.size == 0
+                channel |> append(jobsNum)
 
         if validating
             return
@@ -399,103 +483,15 @@ class TelnetServer : Server
             registry |> find_for_edit_if_exists(path) <| $(var data)
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
-                let uri = path_to_uri(path)
-                var access <- make_file_access(config.project.file)
-                defer <| $()
-                    self->updateGlobalCompletion(false)
-                    unsafe
-                        delete access
-                if withContent
-                    set_file_source(access, path, data.text)
-
-                var cp = CodeOfPolicies()
-                cp.ignore_shared_modules = true
-                cp.no_global_variables = config.policies.noGlobalVariables
-                cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
-                cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
-                cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-                compile_file(path, access, cp) <| $(ok, program, error)
-                    info("< compiled {path} {ok}\n'{error}'", get_line_info())
-
-                    if program != null
-                        for it in data.ast
-                            unsafe
-                                delete it
-                        clear(data.ast)
-                        if ok
-                            unsafe
-                                var visitor <- AstData()
-                                visitor.tokens = addr(data.ast)
-                                var adapter <- make_visitor(visitor)
-                                visit(program, adapter)
-                                visitor.tokens = null
-                                delete adapter
-                                delete visitor
-
-                            collect_token(data.ast) <| $(var tok : AstToken?)
-                                tok.path = resolve_path(tok.path, config)
-                                if !empty(tok.defPath)
-                                    tok.defPath = resolve_path(tok.defPath, config)
-                                if !empty(tok.typeDefPath)
-                                    tok.typeDefPath = resolve_path(tok.typeDefPath, config)
-
-                    if ok
-                        var diags : array<Diagnostic>
-                        if program != null
-                            for it in values(data.completionData)
-                                delete it
-                            clear(data.completionData)
-                            // delete data.completionData
-                            completionData->programCompletion(program, data.completionData)
-
-                            collect_diag(data.ast, path, diags)
-
-                        var params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
-                        self->sendNotification("textDocument/publishDiagnostics", js(params))
-                        delete params
-                        return
-
-                    if program == null
-                        var diags : array<Diagnostic>
-                        diags |> emplace([[Diagnostic message = "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
-                        var params <- [[PublishDiagnosticsParams uri = uri, diagnostics <- diags ]]
-                        self->sendNotification("textDocument/publishDiagnostics", js(params))
-                        delete params
-                        return
-                    var map : table<string; array<Diagnostic>>
-                    for err in program.errors
-                        let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
-                        let at = line_info_to_range(err.at)
-                        var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-                        if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
-                            var extra = "{err.extra}"
-                            if !empty(err.fixme)
-                                extra += "\n{err.fixme}"
-                            var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                            diag.relatedInformation <- [{ auto[] info }]
-                        unsafe
-                            var list = find_for_edit(map, localUri) // map is locked
-                            if list != null
-                                *list |> emplace(diag)
-                            else
-                                map[localUri] <- [{ auto[] diag }]
-
-                    for k, v in keys(map), values(map)
-                        let localPath = uri_to_path(k)
-                        if ok || localPath != path
-                            registry |> find_if_exists(localPath) <| $(fileData)
-                                collect_diag(fileData.ast, localPath, v)
-                        var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
-                        self->sendNotification("textDocument/publishDiagnostics", js(params))
-                        delete params
-                    delete map
+                var cloneData <- compile(path, data.text, withContent, config, completionData.globalCompletion)
+                self->validationDone(cloneData)
 
             let dt = get_time_usec(t0)
             let sec = double(dt)/1000000.0lf
             info("validation in {sec} s\n", get_line_info())
             validating = false
             self->dispatchValidData(path)
-            return // if !config.experimental
+            return // if !config.project.scanWorkspace
 
         var dataText = ""
         var found = false
@@ -507,88 +503,41 @@ class TelnetServer : Server
             error("validation failed: unregistered file '{path}'\n", get_line_info())
             return
 
-        let uri = path_to_uri(path)
-
-        let jobsNum = 1
         for i in range(jobsNum)
             new_thread <| @[[:=config, :=dataText]]
-                var cloneData: ValidateResult
-                cloneData.path = path
-                // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
-
-                var access <- make_file_access(config.project.file)
-                if withContent
-                    set_file_source(access, path, dataText)
-
-                var cp = CodeOfPolicies()
-                cp.ignore_shared_modules = true
-                cp.no_global_variables = config.policies.noGlobalVariables
-                cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
-                cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
-                cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-                compile_file(path, access, cp) <| $(ok, program, error)
-                    // info("< compiled {path} {ok}\n'{error}'", get_line_info())
-
-                    let compiled = ok && program != null
-
-                    if compiled
-                        // info("< visit ast {path}", get_line_info())
-                        // if !ok
-                        //     info(program, get_line_info())
-                        unsafe
-                            var visitor <- AstData()
-                            visitor.tokens = addr(cloneData.ast)
-                            var adapter <- make_visitor(visitor)
-                            visit(program, adapter)
-                            visitor.tokens = null
-                            delete adapter
-                            delete visitor
-
-                        // info("info collect tokens {path}", get_line_info())
-                        collect_token(cloneData.ast) <| $(var tok : AstToken?)
-                            tok.path = resolve_path(tok.path, config)
-                            if !empty(tok.defPath)
-                                tok.defPath = resolve_path(tok.defPath, config)
-                            if !empty(tok.typeDefPath)
-                                tok.typeDefPath = resolve_path(tok.typeDefPath, config)
-
-                        completionData->programCompletion(program, cloneData.completionData)
-
-                        var diags : array<Diagnostic>
-                        collect_diag(cloneData.ast, path, diags)
-
-                        cloneData.diag[uri] <- diags
-                        return
-
-                    if program == null
-                        var diags : array<Diagnostic>
-                        diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
-                        cloneData.diag[uri] <- diags
-                        return
-
-                    for err in program.errors
-                        let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
-                        let at = line_info_to_range(err.at)
-                        var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-                        if hasDiagnosticRelatedInformationCapability && (!empty(err.extra) || !empty(err.fixme))
-                            var extra = "{err.extra}"
-                            if !empty(err.fixme)
-                                extra += "\n{err.fixme}"
-                            var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                            diag.relatedInformation <- [{ auto[] info }]
-                        unsafe
-                            var list = find_for_edit(cloneData.diag, localUri) // map is locked
-                            if list != null
-                                *list |> emplace(diag)
-                            else
-                                cloneData.diag[localUri] <- [{ auto[] diag }]
-                unsafe
-                    delete access
-
+                var cloneData <- compile(path, dataText, withContent, config, completionData.globalCompletion)
                 channel |> push_clone(cloneData)
                 channel |> notify()
                 delete cloneData
                 delete config
+
+    def validationDone(var item: ValidateResult)
+        var path = item.path
+        info("validation done: {path}\n", get_line_info())
+        validating = false
+        var isOpen = false
+        unsafe
+            var data = registry |> find_for_edit(path)
+            if data != null
+                isOpen = data.isOpen
+                data.ast <- item.ast
+                data.completionData <- item.completionData
+                data.validated = true
+
+                completionData->appendToGlobalList(data.completionData)
+
+        if isOpen
+            for k, v in keys(item.diag), values(item.diag)
+                let localPath = uri_to_path(k)
+                registry |> find_if_exists(localPath) <| $(fileData)
+                    collect_diag(fileData.ast, localPath, v)
+                var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
+                self->sendNotification("textDocument/publishDiagnostics", js(params))
+                delete params
+
+        delete item
+        self->updateGlobalCompletion(false)
+        self->dispatchValidData(path)
 
 
     def dispatchValidData(path: string)
@@ -607,36 +556,6 @@ class TelnetServer : Server
                 validDataReqs |> erase(idx)
             else
                 idx += 1
-
-    def validationDone(item: ValidateResult#)
-        var path = clone_string(item.path)
-        info("validation done: {path}\n", get_line_info())
-        validating = false
-        var isOpen = false
-        unsafe
-            var data = registry |> find_for_edit(path)
-            if data != null
-                isOpen = data.isOpen
-                data.ast := item.ast
-                data.completionData := item.completionData
-                data.validated = true
-
-                completionData->appendToGlobalList(data.completionData)
-
-        if isOpen
-            var diag: table<string; array<Diagnostic>> := item.diag
-            for k, v in keys(diag), values(diag)
-                let localPath = uri_to_path(k)
-                registry |> find_if_exists(localPath) <| $(fileData)
-                    collect_diag(fileData.ast, localPath, v)
-                var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
-                self->sendNotification("textDocument/publishDiagnostics", js(params))
-                delete params
-            delete diag
-
-        self->updateGlobalCompletion(false)
-        self->dispatchValidData(path)
-
 
     [unused_argument(id)] def didOpen(id : double; params : JsonValue?)
         var ini = DidOpenTextDocumentParams(params)
@@ -1286,7 +1205,7 @@ def mainLoop(fn : string)
 
     var res = false
     with_job_que <| $()
-        with_channel(1) <| $(channel)
+        with_channel(telnet.jobsNum) <| $(channel)
 
             telnet.channel = channel
 

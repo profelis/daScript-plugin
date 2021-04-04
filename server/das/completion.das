@@ -340,6 +340,19 @@ def isalnum_at(text : string; pos : int)
     return is_alpha(ch) || is_number(ch)
 
 [export]
+def programCompletion(program : smart_ptr<Program>; globalCompletion: Completions; var items : Completions)
+  var temp : Completions
+  program_for_each_module(program) <| $(var mod)
+    parseModule(mod, temp)
+  let was = length(items)
+  for key, value in keys(temp), values(temp)
+    if !globalCompletion |> key_exists(key)
+      items[key] <- value
+  delete temp
+  // info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
+
+
+[export]
 def contains(completions: Completions; name: string): bool
   for it in values(completions)
     if it.name == name
@@ -387,17 +400,6 @@ def is_operator(str : string)
     for name, val in keys(comp), values(comp)
       if !globalCompletion |> key_exists(name)
         globalCompletion[name] := val
-
-  def programCompletion(program : smart_ptr<Program>; var items : Completions)
-    var temp : Completions
-    program_for_each_module(program) <| $(var mod)
-      parseModule(mod, temp)
-    let was = length(items)
-    for key, value in keys(temp), values(temp)
-      if !globalCompletion |> key_exists(key)
-        items[key] <- value
-    delete temp
-    // info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
 
   def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
     var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
