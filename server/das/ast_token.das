@@ -1092,8 +1092,6 @@ class AstData : AstVisitor
         token._range.end.character += length(name)
         if expr.func != null
             set_token_def(token, expr.func.atDecl)
-        info("deep:", get_line_info())
-        info(token, get_line_info())
         *tokens |> emplace(token)
     // def override visitExprAddr(expr:smart_ptr<ExprAddr>) : ExpressionPtr
 // assert / verify
