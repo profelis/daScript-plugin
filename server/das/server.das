@@ -595,13 +595,19 @@ class TelnetServer : Server
             unsafe
                 var data = registry |> find_for_edit(path) // registry is locked
                 if data != null
-                    // data.validated = false // TODO
                     data.text <- doc.contentChanges[0].text
                     data.version = doc.textDocument.version
                 else
                     info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
                     registry[path] <- Dascript(doc)
-        // self->validate(path, /*withContent*/true, /*first*/true)
+
+            self->getConfig(path) <| @(var config : PluginConfig?)
+                if !(config?.experimental ?? false) || validateQueue |> key_exists(path)
+                    return
+                registry |> find_for_edit_if_exists(path) <| $(var data)
+                    if data.validated
+                        data.validated = false
+                        self->validate(path, /*withContent*/true, /*first*/true)
 
     [unused_argument(id)] def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
