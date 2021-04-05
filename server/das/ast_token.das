@@ -246,6 +246,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
         set_token_type_def(res, expr.field._type)
     if range_oneline(res._range) && typ |> starts_with("function<")
         res.kind = AstTokenKind Method
+        res._range.start.character += 2
         res._range.end.character += length(res.name)
     invoke(blk, res)
     return true
