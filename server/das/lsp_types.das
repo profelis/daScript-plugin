@@ -283,6 +283,9 @@ struct SignatureHelpOptions
     triggerCharacters : array<string>
     // retriggerCharacters : array<string>
 
+struct RenameOptions
+    prepareProvider: bool
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
     textDocumentSync : TextDocumentSyncKind // TextDocumentSyncOptions | number; number == TextDocumentSyncKind
@@ -303,7 +306,7 @@ struct ServerCapabilities
     // documentFormattingProvider : DocumentFormattingOptions
     // documentRangeFormattingProvider : DocumentRangeFormattingOptions
     // documentOnTypeFormattingProvider : DocumentOnTypeFormattingOptions
-    // renameProvider : RenameOptions
+    renameProvider : RenameOptions
     // foldingRangeProvider : FoldingRangeOptions
     // executeCommandProvider : ExecuteCommandOptions
     // selectionRangeProvider : SelectionRangeOptions
@@ -834,3 +837,27 @@ struct TextEdit
 
 def js(val : TextEdit)
     return js({{ "range" => js(val._range); "newText" => js(val.newText) }})
+
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_rename
+struct RenameParams : TextDocumentPositionParams
+    newName: string
+
+def RemaneParams(val: JsonValue?)
+    return <- [[RenameParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+        position <- Position(joj(val, "position")),
+        newName = jos(val, "newName")
+    ]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
+struct PrepareRenameParams : TextDocumentPositionParams {}
+
+def PrepareRenameParams(val: JsonValue?)
+    return <- [[PrepareRenameParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+        position <- Position(joj(val, "position"))
+    ]]
+
+struct WorkspaceEdit
+    changes: table<string; array<TextEdit>>

@@ -348,6 +348,7 @@ class TelnetServer : Server
             documentSymbolProvider = true,
             colorProvider = true,
             workspaceSymbolProvider = true,
+            renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
         ]]
@@ -883,34 +884,43 @@ class TelnetServer : Server
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue?)
         delete configs
 
+    def getToken(data: Dascript const?; path: string; position: Position): AstToken?
+        var token = find_token(data, path, position) <| $(tok : AstToken?)
+            return !empty(tok.defPath) && !is_zero(tok.defRange)
+        if token == null
+            token = find_token(data, path, position) <| $(tok : AstToken?)
+                return tok != null
+        return token
+
+    def getRefs(token: AstToken?): array<Location>
+        var res : array<Location>
+        if token == null
+            return <- res
+        // defer_delete(res)
+        for dasItem in values(registry)
+            var addDef = false
+            if !empty(token.defPath)
+                // same references
+                collect_ref_token(dasItem.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
+                    addDef = true
+                    res |> add_unique_reference(tok._range, path_to_uri(tok.path))
+                if addDef
+                    res |> add_unique_reference(token.defRange, path_to_uri(token.defPath))
+            // refs to this token
+            collect_ref_token(dasItem.ast, token.path, token._range) <| $(tok : AstToken?)
+                res |> add_unique_reference(tok._range, path_to_uri(tok.path))
+            if !addDef
+                res |> add_unique_reference(token._range, path_to_uri(token.path))
+        return <- res
+
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
     def references(id : double; var params : JsonValue?)
         var ini <- ReferenceParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
             defer_delete(ini)
-            var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
-                return !empty(tok.defPath) && !is_zero(tok.defRange)
-            if token == null
-                token = find_token(data, path, ini.position) <| $(tok : AstToken?)
-                    return tok != null
-            if token == null
-                self->sendResponse(id, js())
-                return
-            var res : array<Location>
-            // defer_delete(res)
-            for dasItem in values(registry)
-                var addDef = false
-                if !empty(token.defPath)
-                    // same references
-                    collect_ref_token(dasItem.ast, token.defPath, token.defRange) <| $(tok : AstToken?)
-                        addDef = true
-                        res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-                // refs to this token
-                collect_ref_token(dasItem.ast, token.path, token._range) <| $(tok : AstToken?)
-                    res |> add_unique_reference(tok._range, path_to_uri(tok.path))
-                if !addDef
-                    res |> add_unique_reference(token._range, path_to_uri(token.path))
+            var token = self->getToken(data, path, ini.position)
+            var res <- self->getRefs(token)
             var jsRes <- [{ for it in res; js(it) }]
             self->sendResponse(id, js(jsRes))
             delete res
@@ -1040,6 +1050,55 @@ class TelnetServer : Server
         self->sendResponse(id, js([{ auto[] js(res) }]))
         delete res
 
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_rename
+    [unused_argument(id)] def prepareRename(id : double; var params : JsonValue?)
+        var ini <- PrepareRenameParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            var token = self->getToken(data, path, ini.position)
+            if token == null || !token._range |> range_oneline()
+                self->sendResponse(id, js())
+            else
+                self->sendResponse(id, js(token._range))
+                // self->sendResponse(id, js({{ "defaultBehavior" => js(true) }}))
+            delete ini
+
+    // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
+    [unused_argument(id)] def rename(id : double; var params : JsonValue?)
+        var ini <- RemaneParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            var token = self->getToken(data, path, ini.position)
+            // info("rename token", get_line_info())
+            // info(token, get_line_info())
+            if token == null || !token._range |> range_oneline()
+                self->sendResponse(id, js())
+                delete ini
+                return
+            var res <- self->getRefs(token)
+            if length(res) == 0
+                delete res
+                self->sendResponse(id, js())
+                delete ini
+                return
+            let tokenLength = length(token._range)
+            var edit: WorkspaceEdit
+            for it in res
+                // info(it, get_line_info())
+                // info("{length(it._range)} != {tokenLength}", get_line_info())
+                if length(it._range) != tokenLength
+                    continue
+                var found = false
+                edit.changes |> find_for_edit_if_exists(it.uri) <| $(edits)
+                    found = true
+                    *edits |> emplace <| [[TextEdit _range = it._range, newText = ini.newName]]
+                if !found
+                    edit.changes[it.uri] <- [{auto[] [[TextEdit _range = it._range, newText = ini.newName]] }]
+            // info(edit, get_line_info())
+            self->sendResponse(id, js(edit))
+            delete ini
+            delete res
+
     def override onData(message:uint8?; size:int)
         for i in range(size)
             var uch : uint8
@@ -1158,6 +1217,12 @@ class TelnetServer : Server
 
                     elif method == "textDocument/colorPresentation"
                         self->colorPresentation(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/rename"
+                        self->rename(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/prepareRename"
+                        self->prepareRename(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true
