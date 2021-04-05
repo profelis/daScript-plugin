@@ -1065,7 +1065,7 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
     [unused_argument(id)] def rename(id : double; var params : JsonValue?)
-        var ini <- RemaneParams(params)
+        var ini <- RenameParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
             var token = self->getToken(data, path, ini.position)

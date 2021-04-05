@@ -843,7 +843,7 @@ def js(val : TextEdit)
 struct RenameParams : TextDocumentPositionParams
     newName: string
 
-def RemaneParams(val: JsonValue?)
+def RenameParams(val: JsonValue?)
     return <- [[RenameParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         position <- Position(joj(val, "position")),
