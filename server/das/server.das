@@ -102,7 +102,7 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
 
     var access <- make_file_access(config.project.file)
-    if withContent
+    if withContent && !empty(dataText)
         set_file_source(access, path, dataText)
 
     var cp = CodeOfPolicies()
@@ -1075,6 +1075,8 @@ class TelnetServer : Server
                 self->sendResponse(id, js())
                 delete ini
                 return
+            // split module::name
+            // split Struct : Parent
             var res <- self->getRefs(token)
             if length(res) == 0
                 delete res
