@@ -627,9 +627,10 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             let verbose = config?.hovers?.verbose ?? false
-            self->hover_with_config(id, ini, verbose)
+            let experimental = config?.experimental ?? false
+            self->hover_with_config(id, ini, verbose, experimental)
 
-    def hover_with_config(id : double; var ini : HoverParams&; verbose : bool)
+    def hover_with_config(id : double; var ini : HoverParams&; verbose, experimental : bool)
         let path = uri_to_path(ini.textDocument.uri)
         if !registry |> key_exists(path)
             registry[path] <- Dascript(ini)
@@ -643,7 +644,7 @@ class TelnetServer : Server
                 var hoversData : array<tuple<float; Range; string>>
                 collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
                     let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
-                    hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose)]])
+                    hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose, experimental)]])
                     completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
                         hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
                     // TODO: filter huge tokens?

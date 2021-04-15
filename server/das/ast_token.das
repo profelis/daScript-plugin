@@ -69,11 +69,12 @@ typedef
     AstTokens = array<AstToken?>
 
 
-def to_hover(val : AstToken?; verbose : bool)
+def to_hover(val : AstToken?; verbose, experimental : bool)
+    if experimental
+        return "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
     if !verbose
         return "```dascript\n{val.desc}\n```"
     return "```dascript\n{val.desc} @ {to_string(val._range)}\n{val.typeDesc}\n```"
-    // return "```dascript\n{val.desc}\n{val.typeDesc}\nname: {val.name}\ntype: {val._type}\nkind: {val.kind}\n{val.path} @ {to_string(val._range)}\n{val.defPath} @ {to_string(val.defRange)}\n{val.typeDefPath} @ {to_string(val.typeDefRange)}\n```"
 
 def add_unique_reference(var res : array<Location>; _range : Range; uri : string) : void
     for it in res
