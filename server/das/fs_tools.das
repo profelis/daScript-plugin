@@ -59,6 +59,8 @@ def fix_path(path: string)
   for c in "\\/"
     res = res |> replace(to_char(c), "/")
     break
+  res = res |> replace("/./", "/")
+  res = res |> replace("/.", "/")
   return res
 
 def scan_dir(path: string; var res: table<string; void?>; suffix = ".das")
