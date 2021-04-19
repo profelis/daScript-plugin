@@ -21,10 +21,10 @@ require strings
 //     return "{prefix}{urlEncode(str)}"
 
 def uri_to_path(str : string)
-  return str |> uri_to_file_name() |> fix_path()
+  return str |> normalize_uri() |> uri_to_file_name()
 
 def path_to_uri(str : string)
-  return file_name_to_uri(str)
+  return file_name_to_uri(str) |> normalize_uri()
 
 [private]
 def ends_with_separator(str : string)
@@ -55,13 +55,7 @@ def join_path(a, b : string)
   return fix_path(res)
 
 def fix_path(path: string)
-  var res = path
-  for c in "\\/"
-    res = res |> replace(to_char(c), "/")
-    break
-  res = res |> replace("/./", "/")
-  res = res |> replace("/.", "/")
-  return res
+  return path |> path_to_uri() |> normalize_uri() |> uri_to_path()
 
 def scan_dir(path: string; var res: table<string; void?>; suffix = ".das")
   fio::dir(path) <| $(n)
