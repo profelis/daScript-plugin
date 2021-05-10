@@ -55,10 +55,15 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 		log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
 
+		const waitTime = Date.now()
+		while (!child.connected && Date.now() - waitTime < 4000) {
+			// log("waiting child...")
+		}
+
 		if (child)
 			child.on('error', (err) => {
-				log(`Failed to spawn server ${err.message}`);
-			});
+				log(`Failed to spawn server ${err.message}`)
+			})
 
 		const socket = net.connect({ port: port }, () => {
 			socket.setNoDelay()
@@ -119,7 +124,7 @@ export function activate(context: ExtensionContext) {
 
 	const cmd = settings.get<string>("dascript.compiler")
 	let args = settings.get<string[]>("dascript.server.args")
-	let port = settings.get("dascript.debug.port", -1)
+	const port: number = settings.get("dascript.debug.port", -1)
 	if (port != 0) {
 		SPAWN_SERVER = port > 0
 		DEFAULT_PORT = Math.abs(port)
