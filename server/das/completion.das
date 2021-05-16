@@ -363,10 +363,10 @@ def contains(completions: Completions; name: string): bool
 def js(it : Completion) : JsonValue?
   var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(it.kind) }}
   if !empty(it.fullName)
-    tab["filterName"] <- js(it.fullName)
-    tab["sortText"] <- js(it.fullName)
+    tab["filterName"] = js(it.fullName)
+    tab["sortText"] = js(it.fullName)
   if length(it.impls) > 0
-    tab["documentation"] <- js <| {{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }}
+    tab["documentation"] = js <| {{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }}
   return js(tab)
 
 [export]

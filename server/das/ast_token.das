@@ -97,7 +97,7 @@ def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonVa
         for it in ast.children
             it |> build_document_symbol(path, children)
         if children |> length() > 0
-            data["children"] <- js(children)
+            data["children"] = js(children)
     res |> emplace(js(data))
 
 def build_symbol_information(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
