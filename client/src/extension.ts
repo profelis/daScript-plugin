@@ -55,9 +55,11 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 		log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
 
-		const waitTime = Date.now()
-		while (!child.connected && Date.now() - waitTime < 4000) {
-			// log("waiting child...")
+		if (child) {
+			const waitTime = Date.now()
+			while (!child.connected && Date.now() - waitTime < 4000) {
+				// log("waiting child...")
+			}
 		}
 
 		if (child)
