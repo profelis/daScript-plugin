@@ -11,7 +11,7 @@ def line_info_to_range(val : rtti::LineInfo)
         max(0, int(val.last_line) - 1), int(val.last_column)
     )
     if res.end.character > 0 && range_oneline(res)
-        res.end.character ++
+        res.end.character += 1
     return <- res
 
 def to_string(val : rtti::LineInfo)

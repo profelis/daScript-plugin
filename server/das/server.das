@@ -49,12 +49,20 @@ struct Dascript
 
     completionData : Completions
     ast : AstTokens
+    program: smart_ptr<rtti::Program>
+    fs: smart_ptr<rtti::FileAccess>
+    [[do_not_delete]] mg: ModuleGroup?
+
 
 struct ValidateResult
     path: string
     completionData: Completions
     ast: AstTokens
     diag: table<string; array<Diagnostic>>
+    program: smart_ptr<rtti::Program>
+    fs: smart_ptr<rtti::FileAccess>
+    [[do_not_delete]] mg: ModuleGroup?
+
 
 def Dascript(txt : TextDocumentItem)
     return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = txt.text, isOpen = true]]
@@ -105,31 +113,33 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
     if withContent && !empty(dataText)
         set_file_source(access, path, dataText)
 
+    var mg = new [[ModuleGroup()]]
     var cp = CodeOfPolicies()
     cp.ignore_shared_modules = true
     cp.no_global_variables = config.policies.noGlobalVariables
     cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
     cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-    compile_file(path, access, cp) <| $(ok, program, error)
+    compile_file(path, access, mg, cp) <| $(ok, program, error)
         // info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
+        if program != null
+            cloneData.program := program
+            cloneData.fs := access
+            cloneData.mg = mg
         let compiled = ok && program != null
 
         if compiled
-            // info("< visit ast {path}", get_line_info())
-            // if !ok
-            //     info(program, get_line_info())
+            var visitor <- new AstData()
             unsafe
-                var visitor <- AstData()
                 visitor.tokens = addr(cloneData.ast)
-                var adapter <- make_visitor(visitor)
-                visit(program, adapter)
-                visitor.tokens = null
-                delete adapter
+            var adapter <- make_visitor(*visitor)
+            visit(program, adapter)
+            visitor.tokens = null
+            unsafe
                 delete visitor
+            adapter := null
 
-            // info("info collect tokens {path}", get_line_info())
             collect_token(cloneData.ast) <| $(var tok : AstToken?)
                 tok.path = resolve_path(tok.path, config)
                 if !empty(tok.defPath)
@@ -167,8 +177,11 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
                     *list |> emplace(diag)
                 else
                     cloneData.diag[localUri] <- [{ auto[] diag }]
-    unsafe
-        delete access
+
+    access := null
+    if cloneData.program == null
+        unsafe
+            delete mg
     return <- cloneData
 
 class TelnetServer : Server
@@ -204,6 +217,7 @@ class TelnetServer : Server
     validateQueue: table<string; tuple<first: bool; withContent: bool>>
     validDataReqs: array<ValidDataReq>
     validating: bool = false
+    lazyQueue: table<string; tuple<first: bool; withContent: bool>>
 
     def TelnetServer()
         Server`Server(cast<Server> self)
@@ -400,6 +414,16 @@ class TelnetServer : Server
                 cloneData.ast := item.ast
                 cloneData.completionData := item.completionData
                 cloneData.diag := item.diag
+                cloneData.program := item.program
+                cloneData.fs := item.fs
+                unsafe
+                    var rwItem & = reinterpret<ValidateResult -const&> item
+                    delete rwItem.ast
+                    delete rwItem.completionData
+                    delete rwItem.diag
+                    rwItem.program := null
+                    rwItem.fs := null
+                    cloneData.mg <- rwItem.mg
                 self->validationDone(cloneData)
             validating = false
             if channel.size == 0
@@ -466,7 +490,10 @@ class TelnetServer : Server
                 item.first ||= first
             if !found
                 validateQueue[path] = [[auto first, withContent]]
+            elif !lazyQueue |> key_exists(path)
+                lazyQueue[path] = [[auto first, withContent]]
             return
+
         validating = true
         if !validateQueue |> key_exists(path)
             validateQueue[path] = [[auto first, withContent]]
@@ -515,17 +542,27 @@ class TelnetServer : Server
     def validationDone(var item: ValidateResult)
         var path = item.path
         info("validation done: {path}\n", get_line_info())
+
         validating = false
         var isOpen = false
+        var data: Dascript?
         unsafe
-            var data = registry |> find_for_edit(path)
-            if data != null
-                isOpen = data.isOpen
-                data.ast <- item.ast
-                data.completionData <- item.completionData
-                data.validated = true
+            data = registry |> find_for_edit(path) // registry is locked
+        if data != null
+            isOpen = data.isOpen
+            data.ast <- item.ast
+            data.completionData <- item.completionData
 
-                completionData->appendToGlobalList(data.completionData)
+            data.program := item.program
+            data.fs := item.fs
+            unsafe
+                delete data.mg
+            data.mg <- item.mg
+            item.mg = null
+
+            data.validated = true
+
+            completionData->appendToGlobalList(data.completionData)
 
         if isOpen
             for k, v in keys(item.diag), values(item.diag)
@@ -536,7 +573,28 @@ class TelnetServer : Server
                 self->sendNotification("textDocument/publishDiagnostics", js(params))
                 delete params
 
+        item.program := null
+        item.fs := null
+        unsafe
+            delete item.mg
+        item.mg = null
         delete item
+
+        var revalidate = false
+        lazyQueue |> find_for_edit_if_exists(path) <| $(var lazyData)
+            unsafe
+                data = registry |> find_for_edit(path) // registry is locked
+            if data != null
+                info("re validate file {path}", get_line_info())
+                revalidate = true
+                data.validated = false
+                // self->validate(path, lazyData.first, lazyData.withContent)
+                validateQueue[path] <- *lazyData
+        lazyQueue |> erase(path)
+
+        if revalidate
+            return
+
         self->updateGlobalCompletion(false)
         self->dispatchValidData(path)
 
@@ -567,6 +625,8 @@ class TelnetServer : Server
             found = true
             data.isOpen = true
             data.validated = false
+            data.text = ini.textDocument.text
+            data.version = ini.textDocument.version
         if !found
             registry[path] <- Dascript(ini.textDocument)
             info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n", get_line_info())
@@ -576,39 +636,46 @@ class TelnetServer : Server
         var doc = DidSaveTextDocumentParams(params)
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
-        info("> save file {path} len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
+        info("> save file {path} {doc}. len {length(doc.text)}, total files {length(registry)}\n", get_line_info())
+        var data: Dascript?
         unsafe
-            var data = registry |> find_for_edit(path) // registry is locked
-            if data != null
-                data.version = -1lf
-                data.text <- doc.text
-                data.validated = false
-            else
-                registry[path] <- Dascript(doc)
-                info("> unknown? register again, total files {length(registry)}\n", get_line_info())
+            data = registry |> find_for_edit(path) // registry is locked
+        if data != null
+            data.validated = false
+        else
+            registry[path] <- Dascript(doc)
+            info("> unknown? register again, total files {length(registry)}\n", get_line_info())
         self->validate(path, /*withContent*/false, /*first*/true)
 
     [unused_argument(id)] def didChange(id : double; params : JsonValue?)
         var doc <- DidChangeTextDocumentParams(params)
         defer_delete(doc)
-        let path = uri_to_path(doc.textDocument.uri)
-        if length(doc.contentChanges) > 0
-            unsafe
-                var data = registry |> find_for_edit(path) // registry is locked
-                if data != null
-                    data.text <- doc.contentChanges[0].text
-                    data.version = doc.textDocument.version
-                else
-                    info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
-                    registry[path] <- Dascript(doc)
+        if length(doc.contentChanges) == 0
+            return
 
-            self->getConfig(path) <| @(var config : PluginConfig?)
-                if !(config?.experimental ?? false) || validateQueue |> key_exists(path)
-                    return
-                registry |> find_for_edit_if_exists(path) <| $(var data)
-                    if data.validated
-                        data.validated = false
-                        self->validate(path, /*withContent*/true, /*first*/true)
+        let path = uri_to_path(doc.textDocument.uri)
+        var data: Dascript?
+        unsafe
+            data = registry |> find_for_edit(path) // registry is locked
+        if data != null
+            data.text <- doc.contentChanges[0].text
+            data.version = doc.textDocument.version
+        else
+            info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n", get_line_info())
+            registry[path] <- Dascript(doc)
+
+        self->getConfig(path) <| @(var config : PluginConfig?)
+            if !(config?.project?.scanWorkspace ?? false)
+                return
+            var data2: Dascript?
+            unsafe
+                data2 = registry |> find_for_edit(path) // registry is locked
+            if data2 != null
+                if data2.validated
+                    data2.validated = false
+                    self->validate(path, /*withContent*/true, /*first*/true)
+                elif validateQueue |> key_exists(path) && !lazyQueue |> key_exists(path)
+                    lazyQueue[path] = [[auto /*withContent*/true, /*first*/true]]
 
     [unused_argument(id)] def didClose(id : double; params : JsonValue?)
         var doc = DidCloseTextDocumentParams(params)
@@ -616,6 +683,11 @@ class TelnetServer : Server
         let path = uri_to_path(doc.textDocument.uri)
         registry |> find_for_edit_if_exists(path) <| $(var data)
             data.isOpen = false
+            data.program := null
+            data.fs := null
+            data.validated = false
+            unsafe
+                delete data.mg
         info("> close file {path}, total files {length(registry)}\n", get_line_info())
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
@@ -682,6 +754,7 @@ class TelnetServer : Server
                 return
             let t0 = ref_time_ticks()
             var list : array<JsonValue?>
+            // info(data.text, get_line_info())
             let idx = pos_to_index(ini.position, data.text)
             if idx > 0
                 var searchToken = false
@@ -741,46 +814,58 @@ class TelnetServer : Server
                     // info("@@@@ search '{search}' {pos}", get_line_info())
                     // info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
                     // info(pos, get_line_info())
-                    let uri = path_to_uri(path)
-                    var access <- make_file_access(config.project.file)
+                    var prog: smart_ptr<rtti::Program>
+                    var access: smart_ptr<rtti::FileAccess>
+                    var mg: ModuleGroup?
                     defer <| $()
+                        access := null
                         unsafe
-                            delete access
-                    set_file_source(access, path, data.text)
+                            delete mg
+                    if config.project.scanWorkspace
+                        prog := data.program
+                    else
+                        let uri = path_to_uri(path)
+                        unsafe
+                            access <- make_file_access(config.project.file)
+                        set_file_source(access, path, data.text)
 
-                    var cp = CodeOfPolicies()
-                    cp.ignore_shared_modules = true
-                    compile_file(path, access, cp) <| $[unused_argument(ok, error)](ok, program, error)
-                        if program != null
-                            unsafe
-                                var visitor <- AstCompletionData()
-                                visitor.path = path
-                                visitor.pos = pos
-                                var adapter <- make_visitor(visitor)
-                                visit(program, adapter)
+                        mg = new [[ModuleGroup()]]
+                        var cp = CodeOfPolicies()
+                        cp.ignore_shared_modules = true
+                        compile_file(path, access, mg, cp) <| $[unused_argument(ok, error)](ok, program, error)
+                            prog := program
 
-                                for it in visitor.res
-                                    list |> emplace(js(it))
+                    if prog != null
+                        var visitor <- new AstCompletionData()
+                        visitor.path = path
+                        visitor.pos = pos
+                        var adapter <- make_visitor(*visitor)
+                        visit(prog, adapter)
 
-                                if visitor.found && !empty(visitor._type)
-                                    completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
-                                        var comp = js(val)
-                                        let isOperator = is_operator(val.name)
-                                        var obj & = comp.value as _object
-                                        var addEdit <- [[TextEdit
-                                            _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
-                                            newText = " "
-                                        ]]
-                                        obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
-                                        var edit <- [[TextEdit
-                                            _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
-                                            newText = isOperator ? "{val.name} " : "|> {val.name}("
-                                        ]]
-                                        obj["textEdit"] = js(edit)
-                                        list |> emplace(comp)
+                        for it in visitor.res
+                            list |> emplace(js(it))
 
-                                delete adapter
-                                delete visitor
+                        if visitor.found && !empty(visitor._type)
+                            completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
+                                var comp = js(val)
+                                let isOperator = is_operator(val.name)
+                                var obj & = comp.value as _object
+                                var addEdit <- [[TextEdit
+                                    _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
+                                    newText = " "
+                                ]]
+                                obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
+                                var edit <- [[TextEdit
+                                    _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
+                                    newText = isOperator ? "{val.name} " : "|> {val.name}("
+                                ]]
+                                obj["textEdit"] = js(edit)
+                                list |> emplace(comp)
+
+                        unsafe
+                            delete visitor
+                        adapter := null
+                    prog := null
 
             if list |> length() == 0
                 for it in values(data.completionData)
