@@ -1227,6 +1227,8 @@ class TelnetServer : Server
             line += newLine
             ch = newChar
         if newLine == 0 && newChar == 0
+            // error("same token {newLine} {newChar} {length(ast._range)} {idx}", get_line_info())
+            // error(ast, get_line_info())
             return // multiple tokens at one pos
         res.data |> push(newLine)
         res.data |> push(newChar)
@@ -1274,9 +1276,6 @@ class TelnetServer : Server
             // else
                 self->add_semantic_token(9, ast, line, ch, res)
 
-        for t in ast.children
-            self->collect_semantic_tokens(t, line, ch, res)
-
 
     [unused_argument(id)] def semanticTokensFull(id : double; var params : JsonValue?)
         var ini <- SemanticTokensParams(params)
@@ -1289,6 +1288,18 @@ class TelnetServer : Server
             var line, ch: int
             tokens |> sort <| $(a, b)
                 return a._range.start < b._range.start
+            var i = length(tokens) - 1
+            while i > 0
+                // remove 1 line types, temporary workaround to hide autoinferred return types
+                if (length(tokens[i]._range) == 1
+                    && (tokens[i].kind == AstTokenKind Struct || tokens[i].kind == AstTokenKind Class || tokens[i].kind == AstTokenKind Enum))
+                    tokens |> erase(i)
+                // remove type with variable in same pos
+                elif (tokens[i].kind == AstTokenKind Variable
+                    && (tokens[i - 1].kind == AstTokenKind Struct || tokens[i - 1].kind == AstTokenKind Class || tokens[i - 1].kind == AstTokenKind Enum)
+                    && tokens[i]._range == tokens[i - 1]._range)
+                    tokens |> erase(i - 1)
+                i -= 1
             for t in tokens
                 self->collect_semantic_tokens(t, line, ch, res)
 
