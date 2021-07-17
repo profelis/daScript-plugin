@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -138,6 +138,7 @@
 		"typescript": "^3.9.7"
 	},
 	"dependencies": {
-		"semver": "^7.3.2"
+		"semver": "^7.3.2",
+		"minimatch": "^3.0.4"
 	}
 }

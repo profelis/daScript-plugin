@@ -179,7 +179,7 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
                     cloneData.diag[localUri] <- [{ auto[] diag }]
 
     access := null
-    if cloneData.program == null
+    if cloneData.mg == null
         unsafe
             delete mg
     return <- cloneData
@@ -364,7 +364,22 @@ class TelnetServer : Server
             workspaceSymbolProvider = true,
             renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
-            workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]
+            workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]//,
+            // semanticTokensProvider <- [[SemanticTokensOptions
+            //     legend <- [[SemanticTokensLegend
+            //         tokenTypes <- [{ auto[]
+            //             SemanticToken_class;
+            //             SemanticToken_enum;
+            //             SemanticToken_struct;
+            //             SemanticToken_variable;
+            //             SemanticToken_enumMember;
+            //             SemanticToken_function;
+            //             SemanticToken_string;
+            //             SemanticToken_number
+            //         }]
+            //     ]],
+            //     full = true
+            // ]]
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
@@ -414,15 +429,10 @@ class TelnetServer : Server
                 cloneData.ast := item.ast
                 cloneData.completionData := item.completionData
                 cloneData.diag := item.diag
-                cloneData.program := item.program
-                cloneData.fs := item.fs
                 unsafe
                     var rwItem & = reinterpret<ValidateResult -const&> item
-                    delete rwItem.ast
-                    delete rwItem.completionData
-                    delete rwItem.diag
-                    rwItem.program := null
-                    rwItem.fs := null
+                    cloneData.program <- rwItem.program
+                    cloneData.fs <- rwItem.fs
                     cloneData.mg <- rwItem.mg
                 self->validationDone(cloneData)
             validating = false
@@ -536,6 +546,8 @@ class TelnetServer : Server
                 var cloneData <- compile(path, dataText, withContent, config, completionData.globalCompletion)
                 channel |> push_clone(cloneData)
                 channel |> notify()
+                cloneData.program := null
+                cloneData.fs := null
                 delete cloneData
                 delete config
 
@@ -550,15 +562,20 @@ class TelnetServer : Server
             data = registry |> find_for_edit(path) // registry is locked
         if data != null
             isOpen = data.isOpen
+            delete data.ast
+            delete data.completionData
             data.ast <- item.ast
             data.completionData <- item.completionData
 
-            data.program := item.program
-            data.fs := item.fs
             unsafe
                 delete data.mg
-            data.mg <- item.mg
-            item.mg = null
+            data.program := null
+            data.fs := null
+            if isOpen
+                data.program := item.program
+                data.fs := item.fs
+                data.mg <- item.mg
+                item.mg = null
 
             data.validated = true
 
@@ -577,7 +594,6 @@ class TelnetServer : Server
         item.fs := null
         unsafe
             delete item.mg
-        item.mg = null
         delete item
 
         var revalidate = false

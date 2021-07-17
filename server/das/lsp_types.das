@@ -286,6 +286,38 @@ struct SignatureHelpOptions
 struct RenameOptions
     prepareProvider: bool
 
+struct SemanticTokensLegend
+    tokenTypes: array<string>
+    tokenModifiers: array<string>
+
+struct SemanticTokensOptions
+    legend: SemanticTokensLegend
+    full: bool
+    // range: bool
+
+let
+    SemanticToken_type = "type"
+    SemanticToken_class = "class"
+    SemanticToken_enum = "enum"
+    SemanticToken_interface = "interface"
+    SemanticToken_struct = "struct"
+    SemanticToken_typeParameter = "typeParameter"
+    SemanticToken_parameter = "parameter"
+    SemanticToken_variable = "variable"
+    SemanticToken_property = "property"
+    SemanticToken_enumMember = "enumMember"
+    SemanticToken_event = "event"
+    SemanticToken_function = "function"
+    SemanticToken_method = "method"
+    SemanticToken_macro = "macro"
+    SemanticToken_keyword = "keyword"
+    SemanticToken_modifier = "modifier"
+    SemanticToken_comment = "comment"
+    SemanticToken_string = "string"
+    SemanticToken_number = "number"
+    SemanticToken_regexp = "regexp"
+    SemanticToken_operator = "operator"
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct ServerCapabilities
     textDocumentSync : TextDocumentSyncKind // TextDocumentSyncOptions | number; number == TextDocumentSyncKind
@@ -310,6 +342,7 @@ struct ServerCapabilities
     // foldingRangeProvider : FoldingRangeOptions
     // executeCommandProvider : ExecuteCommandOptions
     // selectionRangeProvider : SelectionRangeOptions
+    semanticTokensProvider : SemanticTokensOptions
     workspaceSymbolProvider : bool
     workspace : ServerCapabilitiesWorkspace
     // experimental : void?
