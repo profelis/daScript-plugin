@@ -894,3 +894,16 @@ def PrepareRenameParams(val: JsonValue?)
 
 struct WorkspaceEdit
     changes: table<string; array<TextEdit>>
+
+// https://microsoft.github.io/language-server-protocol/specifications/specification-3-17/#semanticTokensParams
+struct SemanticTokensParams
+    textDocument: TextDocumentIdentifier
+
+
+def SemanticTokensParams(val : JsonValue?)
+    return <- [[SemanticTokensParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument"))
+    ]]
+
+struct SemanticTokens
+    data: array<int>

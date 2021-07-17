@@ -364,22 +364,24 @@ class TelnetServer : Server
             workspaceSymbolProvider = true,
             renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
-            workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]]//,
-            // semanticTokensProvider <- [[SemanticTokensOptions
-            //     legend <- [[SemanticTokensLegend
-            //         tokenTypes <- [{ auto[]
-            //             SemanticToken_class;
-            //             SemanticToken_enum;
-            //             SemanticToken_struct;
-            //             SemanticToken_variable;
-            //             SemanticToken_enumMember;
-            //             SemanticToken_function;
-            //             SemanticToken_string;
-            //             SemanticToken_number
-            //         }]
-            //     ]],
-            //     full = true
-            // ]]
+            workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]],
+            semanticTokensProvider <- [[SemanticTokensOptions
+                legend <- [[SemanticTokensLegend
+                    tokenTypes <- [{ auto[]
+                        SemanticToken_class;
+                        SemanticToken_enum;
+                        SemanticToken_struct;
+                        SemanticToken_variable;
+                        SemanticToken_property;
+                        SemanticToken_enumMember;
+                        SemanticToken_function;
+                        SemanticToken_method;
+                        SemanticToken_string;
+                        SemanticToken_number
+                    }]
+                ]],
+                full = true
+            ]]
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
@@ -596,6 +598,9 @@ class TelnetServer : Server
             delete item.mg
         delete item
 
+        self->updateGlobalCompletion(false)
+        self->dispatchValidData(path)
+
         var revalidate = false
         lazyQueue |> find_for_edit_if_exists(path) <| $(var lazyData)
             unsafe
@@ -608,12 +613,8 @@ class TelnetServer : Server
                 validateQueue[path] <- *lazyData
         lazyQueue |> erase(path)
 
-        if revalidate
-            return
-
-        self->updateGlobalCompletion(false)
-        self->dispatchValidData(path)
-
+        // if revalidate
+        //     return
 
     def dispatchValidData(path: string)
         if validateQueue |> key_exists(path)
@@ -1203,6 +1204,98 @@ class TelnetServer : Server
             delete ini
             delete res
 
+
+    def add_semantic_token(idx: int; ast: AstToken?; var line, ch: int&; var res: SemanticTokens)
+        if !range_oneline(ast._range) || length(ast._range) == 0
+            return // TODO: multiline tokens
+        var newLine = ast._range.start.line
+        var newChar = ast._range.start.character
+        if newLine == line
+            newLine = 0
+            newChar -= ch
+            // if newChar < 0
+            //     error("remove token. wrong char", get_line_info())
+            //     error(ast, get_line_info())
+            //     return
+            ch += newChar
+        else
+            newLine -= line
+            // if newLine < 0
+            //     error("remove token. wrong line", get_line_info())
+            //     error(ast, get_line_info())
+            //     return
+            line += newLine
+            ch = newChar
+        if newLine == 0 && newChar == 0
+            return // multiple tokens at one pos
+        res.data |> push(newLine)
+        res.data |> push(newChar)
+        res.data |> push(length(ast._range))
+        res.data |> push(idx)
+        res.data |> push(0) // no tokens modifiers
+        // info("{newLine} {newChar} {length(ast._range)} {idx}", get_line_info())
+        // info(ast, get_line_info())
+
+// kenTypes <- [{ auto[]
+//                         SemanticToken_class;
+//                         SemanticToken_enum;
+//                         SemanticToken_struct;
+//                         SemanticToken_variable;
+                        // SemanticToken_property
+//                         SemanticToken_enumMember;
+//                         SemanticToken_function;
+//                         SemanticToken_method
+//                         SemanticToken_string;
+//                         SemanticToken_number
+//                     }]
+
+
+    def collect_semantic_tokens(ast: AstToken?; var line, ch: int&; var res: SemanticTokens)
+        if ast.kind == AstTokenKind Class
+            self->add_semantic_token(0, ast, line, ch, res)
+        if ast.kind == AstTokenKind Enum
+            self->add_semantic_token(1, ast, line, ch, res)
+        if ast.kind == AstTokenKind Struct
+            self->add_semantic_token(2, ast, line, ch, res)
+        if ast.kind == AstTokenKind Variable
+            self->add_semantic_token(3, ast, line, ch, res)
+        if ast.kind == AstTokenKind Field // property
+            self->add_semantic_token(4, ast, line, ch, res)
+        if ast.kind == AstTokenKind EnumMember
+            self->add_semantic_token(5, ast, line, ch, res)
+        if ast.kind == AstTokenKind Function
+            self->add_semantic_token(6, ast, line, ch, res)
+        if ast.kind == AstTokenKind Method
+            self->add_semantic_token(7, ast, line, ch, res)
+        if ast.kind == AstTokenKind Constant
+            if !ast._type |> starts_with("string")
+            // all string consts with 1 char length (
+            //     self->add_semantic_token(8, ast, line, ch, res)
+            // else
+                self->add_semantic_token(9, ast, line, ch, res)
+
+        for t in ast.children
+            self->collect_semantic_tokens(t, line, ch, res)
+
+
+    [unused_argument(id)] def semanticTokensFull(id : double; var params : JsonValue?)
+        var ini <- SemanticTokensParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            var tokens: array<AstToken?>
+            data.ast |> collect_token <| $(tok)
+                tokens |> push(tok)
+            var res: SemanticTokens
+            var line, ch: int
+            tokens |> sort <| $(a, b)
+                return a._range.start < b._range.start
+            for t in tokens
+                self->collect_semantic_tokens(t, line, ch, res)
+
+            self->sendResponse(id, js(res))
+            delete ini
+
+
     def override onData(message:uint8?; size:int)
         for i in range(size)
             var uch : uint8
@@ -1328,6 +1421,9 @@ class TelnetServer : Server
                     elif method == "textDocument/prepareRename"
                         self->prepareRename(jon(msg, "id"), joj(msg, "params"))
 
+                    elif method == "textDocument/semanticTokens/full"
+                        self->semanticTokensFull(jon(msg, "id"), joj(msg, "params"))
+
                     elif method == "exit"
                         done = true
 
@@ -1337,7 +1433,7 @@ class TelnetServer : Server
                     elif method == "$/cancelRequest"
                         pass // ignore???
 
-                    elif method == "$/setTraceNotification"
+                    elif method == "$/setTraceNotification" || method == "$/setTrace"
                         info(write_json(msg), get_line_info())
                         pass // ignore
 
