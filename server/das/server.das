@@ -1282,7 +1282,7 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
             var tokens: array<AstToken?>
-            data.ast |> collect_token <| $(tok)
+            data.ast |> collect_token(path) <| $(tok)
                 tokens |> push(tok)
             var res: SemanticTokens
             var line, ch: int
