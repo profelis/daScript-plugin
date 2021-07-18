@@ -131,31 +131,31 @@ def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
     for it in val
         it |> collect_diag(path, diag)
 
-def collect_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
+def collect_all_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
     blk |> invoke(val)
     for it in val.children
-        it |> collect_token(blk)
+        it |> collect_all_token(blk)
 
-def collect_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
+def collect_all_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
     for it in val
-        it |> collect_token(blk)
+        it |> collect_all_token(blk)
 
-def collect_token(val : AstToken?; blk : block<(token:AstToken?):void>)
+def collect_all_token(val : AstToken?; blk : block<(token:AstToken?):void>)
     blk |> invoke(val)
     for it in val.children
-        it |> collect_token(blk)
+        it |> collect_all_token(blk)
 
-def collect_token(val : AstTokens; blk : block<(token:AstToken?):void>)
+def collect_all_token(val : AstTokens; blk : block<(token:AstToken?):void>)
     for it in val
-        it |> collect_token(blk)
+        it |> collect_all_token(blk)
 
 def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
-    collect_token(val) <| $(token: AstToken?)
+    collect_all_token(val) <| $(token: AstToken?)
         if token.path == path
             blk |> invoke(token)
 
 def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    collect_token(val) <| $(token: AstToken?)
+    collect_all_token(val) <| $(token: AstToken?)
         if token.path == path && pos |> in_range(token._range)
             blk |> invoke(token)
 
