@@ -1304,6 +1304,9 @@ class TelnetServer : Server
                 self->collect_semantic_tokens(t, line, ch, res)
 
             self->sendResponse(id, js(res))
+            tokens |> clear()
+            delete tokens
+            delete res
             delete ini
 
 
