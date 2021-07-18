@@ -376,6 +376,8 @@ class TelnetServer : Server
                         SemanticToken_enumMember;
                         SemanticToken_function;
                         SemanticToken_method;
+                        SemanticToken_macro;
+                        SemanticToken_modifier;
                         SemanticToken_string;
                         SemanticToken_number
                     }]
@@ -1247,6 +1249,8 @@ class TelnetServer : Server
 //                         SemanticToken_enumMember;
 //                         SemanticToken_function;
 //                         SemanticToken_method
+//                         SemanticToken_macro;
+//                         SemanticToken_modifier
 //                         SemanticToken_string;
 //                         SemanticToken_number
 //                     }]
@@ -1255,26 +1259,30 @@ class TelnetServer : Server
     def collect_semantic_tokens(ast: AstToken?; var line, ch: int&; var res: SemanticTokens)
         if ast.kind == AstTokenKind Class
             self->add_semantic_token(0, ast, line, ch, res)
-        if ast.kind == AstTokenKind Enum
+        elif ast.kind == AstTokenKind Enum
             self->add_semantic_token(1, ast, line, ch, res)
-        if ast.kind == AstTokenKind Struct
+        elif ast.kind == AstTokenKind Struct
             self->add_semantic_token(2, ast, line, ch, res)
-        if ast.kind == AstTokenKind Variable
+        elif ast.kind == AstTokenKind Variable
             self->add_semantic_token(3, ast, line, ch, res)
-        if ast.kind == AstTokenKind Field // property
+        elif ast.kind == AstTokenKind Field // property
             self->add_semantic_token(4, ast, line, ch, res)
-        if ast.kind == AstTokenKind EnumMember
+        elif ast.kind == AstTokenKind EnumMember
             self->add_semantic_token(5, ast, line, ch, res)
-        if ast.kind == AstTokenKind Function
+        elif ast.kind == AstTokenKind Function
             self->add_semantic_token(6, ast, line, ch, res)
-        if ast.kind == AstTokenKind Method
+        elif ast.kind == AstTokenKind Method
             self->add_semantic_token(7, ast, line, ch, res)
+        elif ast.kind == AstTokenKind Annotation
+            self->add_semantic_token(8, ast, line, ch, res)
+        elif ast.kind == AstTokenKind AnnotationArgument
+            self->add_semantic_token(9, ast, line, ch, res)
         if ast.kind == AstTokenKind Constant
             if !ast._type |> starts_with("string")
             // all string consts with 1 char length (
-            //     self->add_semantic_token(8, ast, line, ch, res)
+            //     self->add_semantic_token(10, ast, line, ch, res)
             // else
-                self->add_semantic_token(9, ast, line, ch, res)
+                self->add_semantic_token(11, ast, line, ch, res)
 
 
     [unused_argument(id)] def semanticTokensFull(id : double; var params : JsonValue?)

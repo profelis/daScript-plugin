@@ -45,6 +45,9 @@ enum AstTokenKind
     Event = 24
     Operator = 25
     TypeParameter = 26
+    // user defined
+    Annotation = 27
+    AnnotationArgument = 28
 
 struct AstToken
     topLevel : bool
@@ -359,6 +362,53 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     invoke(blk, tok)
     return true
 
+def arguments_to_tokens(arguments: AnnotationArgumentList; var tokens : AstTokens)
+    for arg in arguments
+        var argType = ""
+        var argValue = ""
+        if arg.basicType == Type tString
+            argType = "string"
+            argValue = "\"{arg.sValue}\""
+        elif arg.basicType == Type tFloat
+            argType = "float"
+            argValue = "{arg.fValue}"
+        elif arg.basicType == Type tInt
+            argType = "int"
+            argValue = "{arg.iValue}"
+        else
+            argType = "bool"
+            argValue = "{arg.bValue}"
+        let argDesc = "{arg.name} = {argValue}"
+        var argTok <- new [[AstToken
+            topLevel = true,
+            name = "{arg.name}",
+            desc = argDesc,
+            kind = AstTokenKind AnnotationArgument,
+            _type = argType
+        ]]
+        set_token_path(argTok, arg.at)
+        tokens |> emplace(argTok)
+
+def annotations_to_tokens(annotations; var tokens : AstTokens)
+    for ann in annotations
+        let annType = (ann.annotation.isBasicStructureAnnotation ? "BasicStructureAnnotation" :
+                    ann.annotation.isFunctionAnnotation ? "FunctionAnnotation" :
+                    ann.annotation.isStructureTypeAnnotation ? "StructureTypeAnnotation" :
+                    ann.annotation.isStructureAnnotation ? "StructureAnnotation" :
+                    ann.annotation.isTypeAnnotation ? "TypeAnnotation" :
+                    "Annotation")
+        let annDesc = "{(*ann) |> describe()} : {annType}"
+        var annTok <- new [[AstToken
+            topLevel = true,
+            name = "{ann.annotation.name}",
+            desc = annDesc,
+            kind = AstTokenKind Annotation,
+            _type = annType
+        ]]
+        ann.arguments |> arguments_to_tokens(annTok.children)
+        set_token_path(annTok, ann.at)
+        tokens |> emplace(annTok)
+
 [private]
 def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : array<Completion>)
     let arr = [[auto[] "x"; "y"; "z"; "w"]]
@@ -613,6 +663,7 @@ class AstData : AstVisitor
             return
         if str.flags.generated || str.flags.isLambda
             return
+        str.annotations |> annotations_to_tokens(*tokens)
         var name = "{module_name(str._module)}{str.name}"
         var desc = "struct {name}"
         if str.parent != null
@@ -640,6 +691,7 @@ class AstData : AstVisitor
                 kind = AstTokenKind Field,
                 _type = typ
             ]]
+            decl.annotation |> arguments_to_tokens(*tokens)
             set_type_desc(tok, decl._type)
             set_token_path(tok, decl.at)
             token.children |> emplace(tok)
@@ -656,11 +708,13 @@ class AstData : AstVisitor
             return
         if fun.flags._lambda
             return
+        fun.annotations |> annotations_to_tokens(*tokens)
         var desc = "def {module_name(fun._module)}{fun.name}"
         if fun.arguments.length >= 0
             desc += "("
             var first = true
             for arg in fun.arguments
+                arg.annotation |> arguments_to_tokens(*tokens)
                 if !first
                     desc += "; "
                 first = false
