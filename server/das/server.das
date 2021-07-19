@@ -1298,8 +1298,12 @@ class TelnetServer : Server
                 return a._range.start < b._range.start
             var i = length(tokens) - 1
             while i > 0
+                // remove 1 line types, temporary workaround to hide autoinferred return types
+                if (length(tokens[i]._range) == 1
+                    && (tokens[i].kind == AstTokenKind Struct || tokens[i].kind == AstTokenKind Class || tokens[i].kind == AstTokenKind Enum))
+                    tokens |> erase(i)
                 // remove type with variable in same pos
-                if ((tokens[i].kind == AstTokenKind Variable || tokens[i].kind == AstTokenKind Constant)
+                elif ((tokens[i].kind == AstTokenKind Variable || tokens[i].kind == AstTokenKind Constant)
                     && (tokens[i - 1].kind == AstTokenKind Struct || tokens[i - 1].kind == AstTokenKind Class || tokens[i - 1].kind == AstTokenKind EnumMember)
                     && tokens[i]._range == tokens[i - 1]._range)
                     tokens |> erase(i - 1)
