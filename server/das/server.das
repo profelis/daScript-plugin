@@ -1299,8 +1299,8 @@ class TelnetServer : Server
             var i = length(tokens) - 1
             while i > 0
                 // remove type with variable in same pos
-                if (tokens[i].kind == AstTokenKind Variable
-                    && (tokens[i - 1].kind == AstTokenKind Struct || tokens[i - 1].kind == AstTokenKind Class || tokens[i - 1].kind == AstTokenKind Enum)
+                if ((tokens[i].kind == AstTokenKind Variable || tokens[i].kind == AstTokenKind Constant)
+                    && (tokens[i - 1].kind == AstTokenKind Struct || tokens[i - 1].kind == AstTokenKind Class || tokens[i - 1].kind == AstTokenKind EnumMember)
                     && tokens[i]._range == tokens[i - 1]._range)
                     tokens |> erase(i - 1)
                 i -= 1
