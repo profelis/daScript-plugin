@@ -86,7 +86,7 @@ def add_unique_reference(var res : array<Location>; _range : Range; uri : string
     res |> emplace([[Location _range = _range, uri = uri ]])
 
 def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonValue?>) : void
-    if !ast.topLevel || ast.path != path
+    if !ast.topLevel || ast.path != path || int(ast.kind) >= int(AstTokenKind Annotation)
         return
     var data <- {{
         "name" => js(ast.name |> strip_left("`"));
@@ -104,7 +104,7 @@ def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonVa
     res |> emplace(js(data))
 
 def build_symbol_information(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
-    if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`")
+    if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`") || int(ast.kind) >= int(AstTokenKind Annotation)
         return
     if !empty(ast.path) && (empty(query) || find(ast.name, query) != -1)
         var data <- {{
