@@ -16,6 +16,7 @@ Plugin for scripting language [daScript](https://dascript.org/)
 - Go to definition
 - Go to type definition
 - Snippets
+- Semantic highlighting
 
 ## Development
 
