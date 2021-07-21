@@ -1278,10 +1278,9 @@ class TelnetServer : Server
         elif ast.kind == AstTokenKind AnnotationArgument
             self->add_semantic_token(9, ast, line, ch, res)
         if ast.kind == AstTokenKind Constant
-            if !ast._type |> starts_with("string")
-            // all string consts with 1 char length (
-            //     self->add_semantic_token(10, ast, line, ch, res)
-            // else
+            if ast._type |> starts_with("string")
+                self->add_semantic_token(10, ast, line, ch, res)
+            else
                 self->add_semantic_token(11, ast, line, ch, res)
 
 
@@ -1298,12 +1297,8 @@ class TelnetServer : Server
                 return a._range.start < b._range.start
             var i = length(tokens) - 1
             while i > 0
-                // remove 1 line types, temporary workaround to hide autoinferred return types
-                if (length(tokens[i]._range) == 1
-                    && (tokens[i].kind == AstTokenKind Struct || tokens[i].kind == AstTokenKind Class || tokens[i].kind == AstTokenKind Enum))
-                    tokens |> erase(i)
-                // remove type with variable in same pos
-                elif ((tokens[i].kind == AstTokenKind Variable || tokens[i].kind == AstTokenKind Constant)
+                // remove type with variable/const in same pos
+                if ((tokens[i].kind == AstTokenKind Variable || tokens[i].kind == AstTokenKind Constant)
                     && (tokens[i - 1].kind == AstTokenKind Struct || tokens[i - 1].kind == AstTokenKind Class || tokens[i - 1].kind == AstTokenKind EnumMember)
                     && tokens[i]._range == tokens[i - 1]._range)
                     tokens |> erase(i - 1)
