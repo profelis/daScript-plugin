@@ -25,4 +25,3 @@ def bytes_hr(value : uint64)
     if value > uint64(1024)
         return "{float(value) / 1024f}kb ({int(value)})"
     return "{int(value)} b"
-

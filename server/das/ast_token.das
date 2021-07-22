@@ -756,7 +756,10 @@ class AstData : AstVisitor
     // def override preVisitExpression(expr:ExpressionPtr) : void
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
 // block
-    // def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
+    def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
+        if skipExprs || fun == null
+            return
+        fun.annotations |> annotations_to_tokens(*tokens)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
     [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool): void
         if skipExprs || blk == null || blk.genFlags.generated
