@@ -59,7 +59,7 @@ def PluginConfig(val : JsonValue?)
         experimental = job(val, "experimental")
     ]]
 
-[private]
+
 def is_valid(path: string)
     let st = stat(path)
     return st.is_valid

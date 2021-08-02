@@ -409,7 +409,7 @@ def annotations_to_tokens(annotations; var tokens : AstTokens)
         set_token_path(annTok, ann.at)
         tokens |> emplace(annTok)
 
-[private]
+
 def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : array<Completion>)
     let arr = [[auto[] "x"; "y"; "z"; "w"]]
     for i in range(num)

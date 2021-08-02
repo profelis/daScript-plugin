@@ -12,7 +12,7 @@ enum LogLevel
 var
     onLog : lambda<(msg : string; level : LogLevel) : void>
 
-[private]
+
 def log(data; li: LineInfo; level: LogLevel)
     var msg : string
     static_if typeinfo(is_string data)

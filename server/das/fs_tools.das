@@ -26,14 +26,14 @@ def uri_to_path(str : string)
 def path_to_uri(str : string)
   return file_name_to_uri(str) |> normalize_uri()
 
-[private]
+
 def ends_with_separator(str : string)
   for c in "\\/"
     if ends_with(str, to_char(c))
       return true
   return false
 
-[private]
+
 def starts_with_separator(str : string)
   for c in "\\/"
     if starts_with(str, to_char(c))

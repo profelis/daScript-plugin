@@ -60,7 +60,7 @@ let
                        "*"; "/"; "%"; "<"; ">"; "=="; "!="; "<="; ">="; "&"; "|"; "^"; "++"; "--"; "+++"; "---"; "<<"; ">>"; "<<=";
                        ">>="; "<<<"; ">>>"; "<<<="; ">>>="]]
 
-[private]
+
 def addItem(var item : Completion; var items : Completions; once = false)
   var found = false
   let key = "{item.desc}{int(item.kind)}"
@@ -75,14 +75,14 @@ def addItem(var item : Completion; var items : Completions; once = false)
   if !found
     items[key] <- item
 
-[private]
+
 def module_name(mod)
   if mod == null
     return ""
   let name = "{mod.name}"
   return length(name) == 0 ? "" : "{name}::"
 
-[private]
+
 def getTypeName(info; var items : Completions)
   var res: string
   if info.basicType == Type tHandle
@@ -157,7 +157,7 @@ def getTypeName(info; var items : Completions)
     res += " implicit"
   return res
 
-[private]
+
 def getValue(value)
   if value is nothing
     return ""
@@ -225,7 +225,7 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items: Comple
       let fullName = "{fullModuleName}{structName}"
       addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
 
-[private]
+
 def parseFunction(info; fullModuleName : string; var items : Completions)
   var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
   res.fullName = "{fullModuleName}{info.name}"
@@ -249,7 +249,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
   res.impls |> emplace(impl)
   addItem(res, items)
 
-[private]
+
 def parseModule(pMod; var items : Completions)
   let hugeStructDescSize = 500
   let fullModuleName = "{pMod.name}{length(string(pMod.name)) > 0 ? "::" : ""}"
@@ -316,7 +316,7 @@ def parseModule(pMod; var items : Completions)
   module_for_each_annotation(pMod) <| $(ann)
     parseAnnotation(ann, fullModuleName, items)
 
-[private]
+
 def addKeywords(var items : Completions)
   for it in keywords
     addItem([[Completion name = it, fullName = it, desc = "keyword {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)
@@ -327,13 +327,13 @@ def addKeywords(var items : Completions)
   for it in langOptions
     addItem([[Completion name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
-[private]
+
 def first_part(str : string; del : string)
   var parts <- split(str, del)
   defer_delete(parts)
   return parts[0]
 
-[private]
+
 def isalnum_at(text : string; pos : int)
   unsafe
     let ch = character_uat(text, pos)
@@ -421,7 +421,7 @@ def is_operator(str : string)
     completions |> with_func_arg(n, blk)
     globalCompletion |> with_func_arg(n, blk)
 
-[private]
+
 def with_func_arg(completions : Completions; name: string; blk : block<(val : Completion):void>)
   let nLen = length(name)
   for it in values(completions)
