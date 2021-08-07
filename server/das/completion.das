@@ -46,8 +46,8 @@ let
               "invoke", [{ auto[] "def invoke(block_or_function_or_lambda)"; "def invoke(block_or_function_or_lambda, ...)" }]
             }]
 
-  // src\ast\ast_lint.cpp:312
-  langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_unused_function_arguments";
+  // src\ast\ast_lint.cpp:426
+  langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_global_variables_at_all"; "no_unused_function_arguments";
                        "no_unused_block_arguments"; "stack"; "intern_strings"; "multiple_contexts"; "persistent_heap"; "persistent_string_heap";
                        "heap_size_hint"; "string_heap_size_hint"; "no_aot"; "aot_prologue";
                        "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_nodes_aot_hash"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
