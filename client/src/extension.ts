@@ -259,6 +259,14 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 	child: cp.ChildProcess
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
+		const outputChannel: OutputChannel = Window.createOutputChannel("daScript debug output")
+		outputChannel.show(true)
+
+		const log = function (data: string) {
+			console.log(data)
+			outputChannel.append(data)
+		}
+
 		if (this.child) {
 			console.log(`da kill prev child`)
 			this.child.kill()
@@ -276,19 +284,19 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			// 	console.log(`da spawned`)
 			// })
 			this.child.on('error', (err) => {
-				console.log(`da server error ${err.message}`)
+				log(`da server error ${err.message}`)
 				this.child.kill()
 				this.child = null
 			})
 			this.child.on('close', (code) => {
-				console.log(`da server: child process exited with code ${code}`)
+				log(`da server: child process exited with code ${code}`)
 				this.child = null
 			})
 			this.child.stdout.on('data', (data) => {
-				console.log(`da stdout: ${data}`)
+				log(`${data}`)
 			})
 			this.child.stderr.on('data', (data) => {
-				console.log(`da stderr: ${data}`)
+				log(`[stderr] ${data}`)
 			})
 		}
 
