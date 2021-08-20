@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.7.8",
+	"version": "0.7.9",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -54,8 +54,32 @@
 						"properties": {
 							"program": {
 								"type": "string",
-								"description": "daScript compiler with run arguments",
+								"description": "daScript compiler with arguments",
 								"default": "${config:dascript.compiler} ${file}"
+							},
+							"console": {
+								"type": "string",
+								"description": "Where to launch the debug target. Defaults to 'internalOutput' if not defined.",
+								"default": "internalOutput",
+								"enum": [
+									"internalOutput",
+									"externalTerminal"
+								]
+							},
+							"cwd": {
+								"type": "string",
+								"description": "Working directory",
+								"default": ""
+							}
+						}
+					},
+					"attach": {
+						"required": [],
+						"properties": {
+							"cwd": {
+								"type": "string",
+								"description": "Working directory",
+								"default": ""
 							}
 						}
 					}
@@ -64,19 +88,33 @@
 					{
 						"type": "dascript",
 						"request": "launch",
-						"name": "Launch daScript file",
+						"name": "daScript: launch",
 						"program": "${config:dascript.compiler} ${file}"
+					},
+					{
+						"type": "dascript",
+						"request": "attach",
+						"name": "daScript: attach"
 					}
 				],
 				"configurationSnippets": [
 					{
-						"label": "dascript: Launch",
-						"description": "A new configuration for 'debugging' a daScript file",
+						"label": "daScript: Launch",
+						"description": "Debug daScript file",
 						"body": {
 							"type": "dascript",
 							"request": "launch",
-							"name": "Launch daScript file",
+							"name": "daScript: Launch",
 							"program": "^\"\\${config:dascript.compiler} \\${file}\""
+						}
+					},
+					{
+						"label": "daScript: Attach",
+						"description": "Attach to running application",
+						"body": {
+							"type": "dascript",
+							"request": "attach",
+							"name": "daScript: Attach"
 						}
 					}
 				]

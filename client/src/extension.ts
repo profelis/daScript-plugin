@@ -234,13 +234,10 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 		if (!config.type && !config.request && !config.name) {
 			const editor = vscode.window.activeTextEditor
 			if (editor?.document?.languageId === 'dascript') {
-				// const settings = Workspace.getConfiguration()
-				// const cmd = settings.get<string>("dascript.compiler")
 				config.type = 'dascript'
 				config.name = 'dascript'
 				config.request = 'launch'
 				config.program = '${config:dascript.compiler} ${file}'
-				config.stopOnEntry = true
 			}
 		}
 
@@ -260,6 +257,10 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 	outputChannel: OutputChannel
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
+		const port = 9000
+		if (_session.configuration.request != "launch")
+			return new vscode.DebugAdapterServer(port)
+
 		if (this.outputChannel)
 			this.outputChannel.dispose() // always recreate output
 		const outputChannel: OutputChannel = Window.createOutputChannel("daScript debug output")
@@ -278,10 +279,11 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
 		const args = cmdAndArgs
-		const cwd = _session.workspaceFolder.uri.fsPath
-		const port = 9000
+		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
+		const externalConsole = _session.configuration.console == "externalTerminal"
+
 		console.log(`> spawn da server ${cmd} ${args.join(' ')} cwd: ${cwd}`)
-		this.child = cp.spawn(cmd, args, { cwd: cwd })
+		this.child = cp.spawn(cmd, args, { cwd: cwd, detached: externalConsole, shell: externalConsole })
 
 		if (this.child) {
 			// this.child.on('spawn', () => {
