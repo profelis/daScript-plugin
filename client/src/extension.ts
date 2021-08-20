@@ -2,12 +2,14 @@ import * as net from 'net'
 import * as path from 'path'
 import * as cp from 'child_process'
 import {
-	workspace as Workspace, window as Window, ExtensionContext, TextDocument, OutputChannel, WorkspaceFolder, Uri
+	workspace as Workspace, window as Window, ExtensionContext, TextDocument, OutputChannel, WorkspaceFolder, Uri, DebugConfigurationProvider, DebugConfiguration, ProviderResult, CancellationToken
 } from 'vscode'
+
+import * as vscode from 'vscode'
 
 import {
 	LanguageClient, LanguageClientOptions, StreamInfo
-} from 'vscode-languageclient'
+} from 'vscode-languageclient/node'
 
 let SPAWN_SERVER = true
 let DEFAULT_PORT = 7999 + Math.round(Math.random() * 3000)
@@ -57,7 +59,7 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 
 		if (child) {
 			const waitTime = Date.now()
-			while (!child.connected && Date.now() - waitTime < 4000) {
+			while (Date.now() - waitTime < 4000) {
 				// log("waiting child...")
 			}
 		}
@@ -208,6 +210,10 @@ export function activate(context: ExtensionContext) {
 			}
 		}
 	})
+
+	const provider = new DascriptLaunchConfigurationProvider()
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('dascript', provider))
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('dascript', new DascriptLaunchDebugAdapterFactory()))
 }
 
 export function deactivate(): Thenable<void> {
@@ -217,4 +223,82 @@ export function deactivate(): Thenable<void> {
 	for (const client of clients.values())
 		promises.push(client.stop())
 	return Promise.all(promises).then(() => undefined)
+}
+
+
+class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider {
+
+	resolveDebugConfiguration(folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration> {
+
+		// if launch.json is missing or empty
+		if (!config.type && !config.request && !config.name) {
+			const editor = vscode.window.activeTextEditor
+			if (editor?.document?.languageId === 'dascript') {
+				// const settings = Workspace.getConfiguration()
+				// const cmd = settings.get<string>("dascript.compiler")
+				config.type = 'dascript'
+				config.name = 'dascript'
+				config.request = 'launch'
+				config.program = '${config:dascript.compiler} ${file}'
+				config.stopOnEntry = true
+			}
+		}
+
+		// if (!config.program) {
+		// 	return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
+		// 		return undefined;	// abort launch
+		// 	});
+		// }
+
+		return config
+	}
+}
+
+class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
+
+	child: cp.ChildProcess
+	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
+
+		if (this.child) {
+			console.log(`da kill prev child`)
+			this.child.kill()
+		}
+		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
+		const cmd = cmdAndArgs.shift()
+		const args = cmdAndArgs
+		const cwd = _session.workspaceFolder.uri.fsPath
+		const port = 9000
+		console.log(`> spawn da server ${cmd} ${args.join(' ')} cwd: ${cwd}`)
+		this.child = cp.spawn(cmd, args, { cwd: cwd })
+
+		if (this.child) {
+			// this.child.on('spawn', () => {
+			// 	console.log(`da spawned`)
+			// })
+			this.child.on('error', (err) => {
+				console.log(`da server error ${err.message}`)
+				this.child.kill()
+				this.child = null
+			})
+			this.child.on('close', (code) => {
+				console.log(`da server: child process exited with code ${code}`)
+				this.child = null
+			})
+			this.child.stdout.on('data', (data) => {
+				console.log(`da stdout: ${data}`)
+			})
+			this.child.stderr.on('data', (data) => {
+				console.log(`da stderr: ${data}`)
+			})
+		}
+
+		if (this.child) {
+			const waitTime = Date.now()
+			while (Date.now() - waitTime < 4000) {
+				// log("waiting child...")
+			}
+		}
+
+		return new vscode.DebugAdapterServer(port)
+	}
 }
