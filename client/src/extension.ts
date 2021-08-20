@@ -257,10 +257,14 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 
 	child: cp.ChildProcess
+	outputChannel: OutputChannel
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
+		if (this.outputChannel)
+			this.outputChannel.dispose() // always recreate output
 		const outputChannel: OutputChannel = Window.createOutputChannel("daScript debug output")
 		outputChannel.show(true)
+		this.outputChannel = outputChannel
 
 		const log = function (data: string) {
 			console.log(data)
