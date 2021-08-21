@@ -257,7 +257,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 	outputChannel: OutputChannel
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
-		const port = _session.configuration.port ? parseInt(_session.configuration.port) : 9000
+		const port = "port" in _session.configuration ? _session.configuration.port : 9000
 		if (_session.configuration.request != "launch")
 			return new vscode.DebugAdapterServer(port)
 
@@ -291,12 +291,12 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			// 	console.log(`da spawned`)
 			// })
 			this.child.on('error', (err) => {
-				log(`da server error ${err.message}`)
+				log(`da: server error ${err.message}`)
 				this.child.kill()
 				this.child = null
 			})
 			this.child.on('close', (code) => {
-				log(`da server: child process exited with code ${code}`)
+				log(`\nda: child process exited with code ${code}`)
 				this.child = null
 			})
 			this.child.stdout.on('data', (data) => {
@@ -308,8 +308,9 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 
 		if (this.child) {
+			const launchTimeout = "launchTimeout" in _session.configuration ? _session.configuration.launchTimeout : 1
 			const waitTime = Date.now()
-			while (Date.now() - waitTime < 4000) {
+			while (Date.now() - waitTime < launchTimeout * 1000) {
 				// log("waiting child...")
 			}
 		}
