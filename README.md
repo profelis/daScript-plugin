@@ -10,6 +10,7 @@ Plugin for scripting language [daScript](https://dascript.org/)
 
 ## Features
 
+- Debugger
 - Code diagnostics
 - Code completion
 - Hover hints
