@@ -1,3 +1,4 @@
+options indenting = 4
 require fio
 require strings
 require daslib/strings_boost
