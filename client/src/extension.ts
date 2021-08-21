@@ -278,7 +278,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
-		const extraArgs = ["--port", `${port}`]
+		const extraArgs = ["--das-debug-port", `${port}`]
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
 		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const externalConsole = _session.configuration.console == "externalTerminal"
