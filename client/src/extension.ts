@@ -58,26 +58,13 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
 
 		if (child) {
+			const settings = Workspace.getConfiguration()
+			const timeout = settings.get<number>("dascript.server.connectTimeout", 2)
 			const waitTime = Date.now()
-			while (Date.now() - waitTime < 4000) {
-				// log("waiting child...")
+			while (Date.now() - waitTime < timeout * 1000) {
+				// log("waiting child... " + timeout)
 			}
-		}
 
-		if (child)
-			child.on('error', (err) => {
-				log(`Failed to spawn server ${err.message}`)
-			})
-
-		const socket = net.connect({ port: port }, () => {
-			socket.setNoDelay()
-			log(`> ${port} connected - '${folder_uri}'`)
-			childProcesses.set(folder_uri, child)
-			sockets.set(folder_uri, socket)
-			resolve([child, socket])
-		})
-
-		if (child) {
 			child.stdout.on('data', (data) => {
 				log(`stdout: ${data}`)
 			})
@@ -93,7 +80,18 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 				else
 					resolve([child, socket])
 			})
+			child.on('error', (err) => {
+				log(`Failed to spawn server ${err.message}`)
+			})
 		}
+
+		const socket = net.connect({ port: port }, () => {
+			socket.setNoDelay()
+			log(`> ${port} connected - '${folder_uri}'`)
+			childProcesses.set(folder_uri, child)
+			sockets.set(folder_uri, socket)
+			resolve([child, socket])
+		})
 
 		// socket.on('data', (data) => {
 		// 	const msg = data.toString()
@@ -308,9 +306,9 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 
 		if (this.child) {
-			const launchTimeout = "launchTimeout" in _session.configuration ? _session.configuration.launchTimeout : 1
+			const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : 1
 			const waitTime = Date.now()
-			while (Date.now() - waitTime < launchTimeout * 1000) {
+			while (Date.now() - waitTime < connectTimeout * 1000) {
 				// log("waiting child...")
 			}
 		}
