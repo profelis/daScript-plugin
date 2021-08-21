@@ -77,10 +77,7 @@ def addItem(var item : Completion; var items : Completions; once = false)
 
 
 def module_name(mod)
-  if mod == null
-    return ""
-  let name = "{mod.name}"
-  return length(name) == 0 ? "" : "{name}::"
+  return mod == null || length(mod.name) == 0 ? "" : "{mod.name}::"
 
 
 def getTypeName(info; var items : Completions)
