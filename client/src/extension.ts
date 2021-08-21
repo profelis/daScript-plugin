@@ -257,7 +257,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 	outputChannel: OutputChannel
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
-		const port = 9000
+		const port = _session.configuration.port ? parseInt(_session.configuration.port) : 9000
 		if (_session.configuration.request != "launch")
 			return new vscode.DebugAdapterServer(port)
 
@@ -278,7 +278,8 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
-		const args = cmdAndArgs
+		const extraArgs = ["--port", `${port}`]
+		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
 		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const externalConsole = _session.configuration.console == "externalTerminal"
 
