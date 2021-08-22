@@ -236,15 +236,9 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 				config.name = 'dascript'
 				config.request = 'launch'
 				config.program = '${config:dascript.compiler} ${file}'
+				config.waitDebugger = true
 			}
 		}
-
-		// if (!config.program) {
-		// 	return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
-		// 		return undefined;	// abort launch
-		// 	});
-		// }
-
 		return config
 	}
 }
@@ -271,17 +265,24 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 
 		if (this.child) {
-			console.log(`da kill prev child`)
 			this.child.kill()
 		}
+
+		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
 		const extraArgs = ["--das-debug-port", `${port}`]
+		if ("waitDebugger" in _session.configuration ? _session.configuration.waitDebugger : true)
+			extraArgs.push("--das-wait-debugger")
+		extraArgs.push("--das-debug-path", cwd)
+		if ("paths" in _session.configuration)
+			for (const path of _session.configuration.paths)
+				extraArgs.push("--das-debug-path", path)
+
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
-		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const externalConsole = _session.configuration.console == "externalTerminal"
 
-		console.log(`> spawn da server ${cmd} ${args.join(' ')} cwd: ${cwd}`)
+		log(`> ${cmd} ${args.join(' ')}\n`)
 		this.child = cp.spawn(cmd, args, { cwd: cwd, detached: externalConsole, shell: externalConsole })
 
 		if (this.child) {

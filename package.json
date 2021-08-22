@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.7.13",
+	"version": "0.7.15",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -57,9 +57,14 @@
 								"description": "daScript compiler with arguments",
 								"default": "${config:dascript.compiler} ${file}"
 							},
+							"waitDebugger": {
+								"type": "boolean",
+								"description": "Pause the application on startup, wait for the debugger",
+								"default": true
+							},
 							"console": {
 								"type": "string",
-								"description": "Where to launch the debug target. Defaults to 'internalOutput' if not defined.",
+								"description": "Where to launch the debug target. Defaults to 'internalOutput' if not defined",
 								"default": "internalOutput",
 								"enum": [
 									"internalOutput",
@@ -80,6 +85,11 @@
 								"type": "number",
 								"description": "Socket connection delay in seconds",
 								"default": 1
+							},
+							"paths": {
+								"type": "array",
+								"default": [],
+								"description": "Absolute folder paths to resolve relative file paths"
 							}
 						}
 					},
@@ -99,7 +109,9 @@
 						"type": "dascript",
 						"request": "launch",
 						"name": "daScript: launch",
-						"program": "${config:dascript.compiler} ${file}"
+						"program": "${config:dascript.compiler} ${file}",
+						"port": 9000,
+						"waitDebugger": true
 					},
 					{
 						"type": "dascript",
