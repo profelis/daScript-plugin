@@ -249,7 +249,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 	outputChannel: OutputChannel
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
-		const port = "port" in _session.configuration ? _session.configuration.port : 9000
+		const port = "port" in _session.configuration ? _session.configuration.port : 10000
 		if (_session.configuration.request != "launch")
 			return new vscode.DebugAdapterServer(port)
 

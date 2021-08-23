@@ -79,7 +79,7 @@
 							"port": {
 								"type": "number",
 								"description": "Debug port used to connect",
-								"default": 9000
+								"default": 10000
 							},
 							"connectTimeout": {
 								"type": "number",
@@ -99,7 +99,7 @@
 							"port": {
 								"type": "number",
 								"description": "Debug port used to connect",
-								"default": 9000
+								"default": 10000
 							}
 						}
 					}
@@ -110,7 +110,7 @@
 						"request": "launch",
 						"name": "daScript: launch",
 						"program": "${config:dascript.compiler} ${file}",
-						"port": 9000,
+						"port": 10000,
 						"waitDebugger": true
 					},
 					{
