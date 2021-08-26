@@ -1536,7 +1536,7 @@ def mainLoop(fn : string)
 
                     info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
 
-                sleep(0u)
+                sleep(1u)
                 let new_time = stat(fn).mtime
                 if new_time != main_time
                     info("restarting via source change {new_time}\n", get_line_info())
