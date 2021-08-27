@@ -1482,69 +1482,68 @@ def mainLoop(fn : string)
     telnet.port = port
 
     var res = false
-    with_job_que <| $()
-        with_channel(telnet.jobsNum) <| $(channel)
+    with_channel(telnet.jobsNum) <| $(channel)
 
-            telnet.channel = channel
+        telnet.channel = channel
 
-            var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
-            if session != null
-                info("restoring server after restart\n", get_line_info())
-                telnet->restore(session)
-                telnet->initialized()
-            elif telnet->init(port)
-                info("server at port {port}\n", get_line_info())
-            else
-                info("server failed to initialize\n", get_line_info())
-                return
+        var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
+        if session != null
+            info("restoring server after restart\n", get_line_info())
+            telnet->restore(session)
+            telnet->initialized()
+        elif telnet->init(port)
+            info("server at port {port}\n", get_line_info())
+        else
+            info("server failed to initialize\n", get_line_info())
+            return
 
-            var loggerFn <- @ <| (msg : string; level : LogLevel)
-                if telnet != null
-                    telnet->log(msg, level)
-            logger::onLog <- loggerFn
+        var loggerFn <- @ <| (msg : string; level : LogLevel)
+            if telnet != null
+                telnet->log(msg, level)
+        logger::onLog <- loggerFn
 
-            let initialstrLimit = uint64(2 * 1024 * 1024)
-            var strLimit = initialstrLimit
-            var step = 1u
-            while !telnet.done
-                telnet->tick()
+        let initialstrLimit = uint64(2 * 1024 * 1024)
+        var strLimit = initialstrLimit
+        var step = 1u
+        while !telnet.done
+            telnet->tick()
 
-                telnet->invalidateQueue()
+            telnet->invalidateQueue()
 
-                var alloc = string_heap_bytes_allocated()
+            var alloc = string_heap_bytes_allocated()
+            if alloc > strLimit
+                // string_heap_report()
+                var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
+                unsafe
+                    string_heap_collect()
+                alloc = string_heap_bytes_allocated()
+                info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
                 if alloc > strLimit
-                    // string_heap_report()
-                    var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
-                    unsafe
-                        string_heap_collect()
-                    alloc = string_heap_bytes_allocated()
-                    info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
-                    if alloc > strLimit
-                        strLimit *= uint64(2)
-                        warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
-                    elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
-                        strLimit = strLimit / uint64(2)
-                        warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
+                    strLimit *= uint64(2)
+                    warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
+                elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
+                    strLimit = strLimit / uint64(2)
+                    warning("DOWN string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
 
-                step --
-                if step == 0u
-                    let h = heap_bytes_allocated()
-                    let hd = heap_depth()
-                    var shd = string_heap_depth()
+            step --
+            if step == 0u
+                let h = heap_bytes_allocated()
+                let hd = heap_depth()
+                var shd = string_heap_depth()
 
-                    step = 2000u
+                step = 2000u
 
-                    info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
+                info("string heap ({shd}): {bytes_hr(alloc)}. heap ({hd}): {bytes_hr(h)}\n", get_line_info())
 
-                sleep(1u)
-                let new_time = stat(fn).mtime
-                if new_time != main_time
-                    info("restarting via source change {new_time}\n", get_line_info())
-                    telnet->restart()
-                    break
-            unsafe
-                delete telnet
+            sleep(10u)
+            let new_time = stat(fn).mtime
+            if new_time != main_time
+                info("restarting via source change {new_time}\n", get_line_info())
+                telnet->restart()
+                break
+        unsafe
+            delete telnet
 
-            res = true
+        res = true
 
     return res
