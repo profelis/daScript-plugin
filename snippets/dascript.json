@@ -126,5 +126,9 @@
 	"smart_ptr": {
 		"prefix": "smart_ptr",
 		"body": "smart_ptr<$0>"
+	},
+	"debug": {
+		"prefix": "debug",
+		"body": "options debugger\nrequire daslib/debug"
 	}
 }
