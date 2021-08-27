@@ -6,7 +6,7 @@ require daslib/json
 require json_tools
 require strings
 require daslib/strings_boost
-require js public
+require daslib/json_boost public
 
 typedef
     JSTab = table<string; JsonValue?>
@@ -266,6 +266,9 @@ enum TextDocumentSyncKind
     Full = 1
     Incremental = 2
 
+def JV(val: TextDocumentSyncKind)
+    return JV(int(val))
+
 struct CompletionOptions
     triggerCharacters : array<string> // ?
     allCommitCharacters : array<string> // ?
@@ -469,8 +472,8 @@ struct Location
     uri : DocumentUri
     _range : Range
 
-def js(val : Location)
-    return js({{ "uri" => js(val.uri); "range" => js(val._range)}})
+def JV(val : Location)
+    return JV({{ "uri" => JV(val.uri); "range" => JV(val._range)}})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#locationLink
 struct LocaltionLink
@@ -565,10 +568,16 @@ enum DiagnosticSeverity
     Information = 3
     Hint = 4
 
+def JV(val: DiagnosticSeverity)
+    return JV(int(val))
+
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 enum DiagnosticTag
     Unnecessary = 1
     Deprecated = 2
+
+def JV(val: DiagnosticTag)
+    return JV(int(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
 struct DiagnosticRelatedInformation
@@ -590,13 +599,13 @@ struct Diagnostic
     tags : array<DiagnosticTag> // TODO:
     relatedInformation : array<DiagnosticRelatedInformation>
 
-def js(val : Diagnostic)
-    var res <- {{ "range" => js(val._range); "message" => js(val.message); "code" => js(val.code); "severity" => js(val.severity) }}
+def JV(val : Diagnostic)
+    var res <- {{ "range" => JV(val._range); "message" => JV(val.message); "code" => JV(val.code); "severity" => JV(val.severity) }}
     if !empty(val.source)
-        res["source"] = js(val.source)
+        res["source"] = JV(val.source)
     if length(val.relatedInformation) > 0
-        res["relatedInformation"] = js([{ for it in val.relatedInformation; js(it) }])
-    return js(res)
+        res["relatedInformation"] = JV([{ for it in val.relatedInformation; JV(it) }])
+    return JV(res)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_publishDiagnostics
 struct PublishDiagnosticsParams
@@ -637,6 +646,9 @@ enum CompletionItemKind
     Operator = 24
     TypeParameter = 25
 
+def JV(val: CompletionItemKind)
+    return JV(int(val))
+
 struct CompletionItem
     _label : string
     kind : CompletionItemKind // ?
@@ -672,8 +684,8 @@ struct Hover
     contents : array<string>
     _range : Range
 
-def js(val : Hover)
-    return js({{ "contents" => js([{ for it in val.contents; js(it) }]); "range" => js(val._range) }})
+def JV(val : Hover)
+    return JV({{ "contents" => JV([{ for it in val.contents; JV(it) }]); "range" => JV(val._range) }})
 
 
 struct DefinitionParams : TextDocumentPositionParams {}
@@ -710,14 +722,16 @@ enum MessageType
     Info = 3
     Log = 4
 
+def JV(val: MessageType)
+    return JV(int(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#window_logMessage
 struct LogMessageParams
     _type : MessageType
     message : string
 
-def js(val : LogMessageParams)
-    return js({{ "type" => js(val._type); "message" => js(val.message) }})
+def JV(val : LogMessageParams)
+    return JV({{ "type" => JV(val._type); "message" => JV(val.message) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
 struct WorkspaceFoldersChangeEvent
@@ -793,9 +807,9 @@ struct SignatureInformation
     // documentation : string // string | MarkupContent;
     // parameters?: ParameterInformation[];
 
-def js(val : SignatureInformation)
-    return js({{
-        "label" => js(val._label)//; "documentation" => js(val.documentation)
+def JV(val : SignatureInformation)
+    return JV({{
+        "label" => JV(val._label)//; "documentation" => JV(val.documentation)
     }})
 
 struct SignatureHelp
@@ -838,8 +852,8 @@ struct ColorInformation
     _range : Range
     color : Color
 
-def js(val : ColorInformation)
-    return js({{"range" => js(val._range); "color" => js(val.color) }})
+def JV(val : ColorInformation)
+    return JV({{"range" => JV(val._range); "color" => JV(val.color) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
 struct ColorPresentationParams
@@ -860,16 +874,16 @@ struct ColorPresentation
     // textEdit?: TextEdit;
     // additionalTextEdits?: TextEdit[];
 
-def js(val : ColorPresentation)
-    return js({{ "label" => js(val._label) }})
+def JV(val : ColorPresentation)
+    return JV({{ "label" => JV(val._label) }})
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textEdit
 struct TextEdit
     _range : Range
     newText : string
 
-def js(val : TextEdit)
-    return js({{ "range" => js(val._range); "newText" => js(val.newText) }})
+def JV(val : TextEdit)
+    return JV({{ "range" => JV(val._range); "newText" => JV(val.newText) }})
 
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_rename

@@ -263,12 +263,12 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
     def sendResponse(id : double; var data : JsonValue?)
-        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "result" => data }}))
+        self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(id); "result" => data }}))
 
     def sendRequest(method : string; var data : JsonValue?; var cb : ReqCb) : double
         let reqId = requestId
         self->onRequest(reqId, cb)
-        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(reqId); "method" => js(method); "params" => data }}))
+        self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(reqId); "method" => JV(method); "params" => data }}))
         requestId += 1lf
         return reqId
 
@@ -276,12 +276,12 @@ class TelnetServer : Server
         requestCallbacks |> emplace([[Req id = id, cb <- cb]])
 
     def sendError(id : double; var data : ResponseError)
-        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "id" => js(id); "error" => js(data) }}))
+        self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(id); "error" => JV(data) }}))
         delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#notificationMessage
     def sendNotification(method : string; var data : JsonValue?)
-        self->sendRawData(js({{ "jsonrpc" => js("2.0"); "method" => js(method); "params" => data }}))
+        self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "method" => JV(method); "params" => data }}))
 
     def registerCapability(methods : array<string>)
         var registrations : array<Registration>
@@ -289,7 +289,7 @@ class TelnetServer : Server
             registrations |> emplace([[Registration method = it, id = it]])
         var registrationParams <- [[RegistrationParams registrations <- registrations]]
         defer_delete(registrationParams)
-        self->sendRequest("client/registerCapability", js(registrationParams)) <| @(data, error : JsonValue?)
+        self->sendRequest("client/registerCapability", JV(registrationParams)) <| @(data, error : JsonValue?)
             if error != null
                 info("error: registerCapability", get_line_info())
                 info(error, get_line_info())
@@ -329,7 +329,7 @@ class TelnetServer : Server
             return
         var item <- [[ConfigurationItem section = "dascript", scopeUri = path_to_uri(path) ]]
         var configParams <- [[ConfigurationParams items <- [{auto[] item }] ]]
-        var reqId = self->sendRequest("workspace/configuration", js(configParams), localCb)
+        var reqId = self->sendRequest("workspace/configuration", JV(configParams), localCb)
         configReqs[path] = reqId
 
     def log(msg : string; level : LogLevel)
@@ -339,7 +339,7 @@ class TelnetServer : Server
         var res = [[LogMessageParams message = msg]]
         unsafe
             res._type = reinterpret<MessageType>(level)
-        self->sendNotification("window/logMessage", js(res))
+        self->sendNotification("window/logMessage", JV(res))
         delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
@@ -387,7 +387,7 @@ class TelnetServer : Server
         ]]
 
         var res <- [[InitializeResult capabilities <- cap, serverInfo = [[ServerInfo name = "das_server"]] ]]
-        self->sendResponse(id, js(res))
+        self->sendResponse(id, JV(res))
         delete res
 
     def initialized()
@@ -591,7 +591,7 @@ class TelnetServer : Server
                 registry |> find_if_exists(localPath) <| $(fileData)
                     collect_diag(fileData.ast, localPath, v)
                 var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
-                self->sendNotification("textDocument/publishDiagnostics", js(params))
+                self->sendNotification("textDocument/publishDiagnostics", JV(params))
                 delete params
 
         item.program := null
@@ -710,7 +710,7 @@ class TelnetServer : Server
         info("> close file {path}, total files {length(registry)}\n", get_line_info())
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
-        self->sendNotification("textDocument/publishDiagnostics", js(res))
+        self->sendNotification("textDocument/publishDiagnostics", JV(res))
         delete res
 
     def hover(id : double; params : JsonValue?)
@@ -744,13 +744,13 @@ class TelnetServer : Server
                         return a._0 < b._0
                     var hovers <- [{ for it in hoversData; it._2 }]
                     var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
-                    self->sendResponse(id, js(h))
+                    self->sendResponse(id, JV(h))
                     delete h
                     found = true
                 delete hoversData
             if !found
                 warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
 
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
@@ -758,7 +758,7 @@ class TelnetServer : Server
         self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
-                self->sendResponse(id, js(completionData.globalCompletion))
+                self->sendResponse(id, JV(completionData.globalCompletion))
                 return
             self->completion_with_config(id, ini, *config)
 
@@ -769,7 +769,7 @@ class TelnetServer : Server
             defer_delete(ini)
             if data == null
                 warning("< send global completion {length(completionData.globalCompletion)}\n", get_line_info())
-                self->sendResponse(id, js(completionData.globalCompletion))
+                self->sendResponse(id, JV(completionData.globalCompletion))
                 return
             let t0 = ref_time_ticks()
             var list : array<JsonValue?>
@@ -862,23 +862,23 @@ class TelnetServer : Server
                         visit(prog, adapter)
 
                         for it in visitor.res
-                            list |> emplace(js(it))
+                            list |> emplace(JV(it))
 
                         if visitor.found && !empty(visitor._type)
                             completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
-                                var comp = js(val)
+                                var comp = JV(val)
                                 let isOperator = is_operator(val.name)
                                 var obj & = comp.value as _object
                                 var addEdit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
                                     newText = " "
                                 ]]
-                                obj["additionalTextEdits"] = js([{ auto[] js(addEdit) }])
+                                obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
                                 var edit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
                                     newText = isOperator ? "{val.name} " : "|> {val.name}("
                                 ]]
-                                obj["textEdit"] = js(edit)
+                                obj["textEdit"] = JV(edit)
                                 list |> emplace(comp)
 
                         unsafe
@@ -888,9 +888,9 @@ class TelnetServer : Server
 
             if list |> length() == 0
                 for it in values(data.completionData)
-                    list |> emplace <| js(it)
+                    list |> emplace <| JV(it)
                 for val in values(completionData.globalCompletion)
-                    list |> emplace <| js(val)
+                    list |> emplace <| JV(val)
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n", get_line_info())
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
@@ -901,10 +901,10 @@ class TelnetServer : Server
                     )
                         return
                     tokensList[token.name] = null
-                    list |> emplace(js({{ "label" => js(token.name); "kind" => js(CompletionItemKind Text) }}))
+                    list |> emplace(JV({{ "label" => JV(token.name); "kind" => JV(CompletionItemKind Text) }}))
                 delete tokensList
 
-            var res <- js({{ "isIncomplete" => js(false); "items" => js(list)}})
+            var res <- JV({{ "isIncomplete" => JV(false); "items" => JV(list)}})
             self->sendResponse(id, res)
             let sec = double(get_time_usec(t0))/1000000.0lf
             info("< completion time {sec}s", get_line_info())
@@ -922,10 +922,10 @@ class TelnetServer : Server
             var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
                 return !empty(tok.defPath)
             if token == null
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
                 return
             var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
-            self->sendResponse(id, js(loc))
+            self->sendResponse(id, JV(loc))
             delete loc
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
@@ -940,13 +940,13 @@ class TelnetServer : Server
                 token = find_token(data, path, ini.position) <| $(tok : AstToken?)
                     return !empty(tok.defPath)
             if token == null
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
                 return
             let hasType = !empty(token.typeDefPath)
             var defPath = hasType ? token.typeDefPath : token.defPath
             let _range & = hasType ? token.typeDefRange : token.defRange
             var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
-            self->sendResponse(id, js(loc))
+            self->sendResponse(id, JV(loc))
             delete loc
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
@@ -956,12 +956,12 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @(data: Dascript const?)
             if data == null
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
                 return
             var res : array<JsonValue?>
             for it in data.ast
                 it |> build_document_symbol(path, res)
-            self->sendResponse(id, js(res))
+            self->sendResponse(id, JV(res))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_symbol
     def workspaceSymbol(id : double; var params : JsonValue?)
@@ -971,7 +971,7 @@ class TelnetServer : Server
         for data in values(registry)
             for it in data.ast
                 it |> build_symbol_information(ini.query, 300, res)
-        self->sendResponse(id, js(res))
+        self->sendResponse(id, JV(res))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWorkspaceFolders
     [unused_argument(id)] def didChangeWorkspaceFolders(id : double; var params : JsonValue?)
@@ -1026,8 +1026,8 @@ class TelnetServer : Server
             defer_delete(ini)
             var token = self->getToken(data, path, ini.position)
             var res <- self->getRefs(token)
-            var jsRes <- [{ for it in res; js(it) }]
-            self->sendResponse(id, js(jsRes))
+            var jsRes <- [{ for it in res; JV(it) }]
+            self->sendResponse(id, JV(jsRes))
             delete res
 
     def signatureHelp(id : double; var params : JsonValue?)
@@ -1036,7 +1036,7 @@ class TelnetServer : Server
         self->getConfig(path) <| @[[<-ini]](var config : PluginConfig?)
             if config == null
                 warning("unknowm file {path}. Send global completion {length(completionData.globalCompletion)}\n", get_line_info())
-                self->sendResponse(id, js(completionData.globalCompletion))
+                self->sendResponse(id, JV(completionData.globalCompletion))
                 return
             self->signatureHelp_with_config(id, ini, config)
 
@@ -1081,11 +1081,11 @@ class TelnetServer : Server
                                 if list |> length() == 0
                                     list |> emplace([[SignatureInformation _label = token.desc]])
                             if list |> length() > 0
-                                self->sendResponse(id, js([[SignatureHelp signatures <- list ]]))
+                                self->sendResponse(id, JV([[SignatureHelp signatures <- list ]]))
                                 found = true
                                 break
             if !found
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
     def documentColor(id : double; var params : JsonValue?)
@@ -1140,10 +1140,10 @@ class TelnetServer : Server
                 delete currentNum
                 if length(res) > 0
                     found = true
-                    var arr <- [{ for it in res; js(it)}]
-                    self->sendResponse(id, js(arr))
+                    var arr <- [{ for it in res; JV(it)}]
+                    self->sendResponse(id, JV(arr))
             if !found
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
     def colorPresentation(id : double; var params : JsonValue?)
@@ -1152,7 +1152,7 @@ class TelnetServer : Server
         let len = length(ini._range)
         let color = ini.color |> to_string(len)
         var res <- [[ColorPresentation _label = color]]
-        self->sendResponse(id, js([{ auto[] js(res) }]))
+        self->sendResponse(id, JV([{ auto[] JV(res) }]))
         delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_rename
@@ -1162,10 +1162,10 @@ class TelnetServer : Server
         self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
             var token = self->getToken(data, path, ini.position)
             if token == null || !token._range |> range_oneline()
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
             else
-                self->sendResponse(id, js(token._range))
-                // self->sendResponse(id, js({{ "defaultBehavior" => js(true) }}))
+                self->sendResponse(id, JV(token._range))
+                // self->sendResponse(id, JV({{ "defaultBehavior" => JV(true) }}))
             delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
@@ -1177,7 +1177,7 @@ class TelnetServer : Server
             // info("rename token", get_line_info())
             // info(token, get_line_info())
             if token == null || !token._range |> range_oneline()
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
                 delete ini
                 return
             // split module::name
@@ -1185,7 +1185,7 @@ class TelnetServer : Server
             var res <- self->getRefs(token)
             if length(res) == 0
                 delete res
-                self->sendResponse(id, js())
+                self->sendResponse(id, JV(null))
                 delete ini
                 return
             let tokenLength = length(token._range)
@@ -1202,7 +1202,7 @@ class TelnetServer : Server
                 if !found
                     edit.changes[it.uri] <- [{auto[] [[TextEdit _range = it._range, newText = ini.newName]] }]
             // info(edit, get_line_info())
-            self->sendResponse(id, js(edit))
+            self->sendResponse(id, JV(edit))
             delete ini
             delete res
 
@@ -1306,7 +1306,7 @@ class TelnetServer : Server
             for t in tokens
                 self->collect_semantic_tokens(t, line, ch, res)
 
-            self->sendResponse(id, js(res))
+            self->sendResponse(id, JV(res))
             tokens |> clear()
             delete tokens
             delete res

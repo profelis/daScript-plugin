@@ -357,19 +357,19 @@ def contains(completions: Completions; name: string): bool
     return false
 
 [export]
-def js(it : Completion) : JsonValue?
-    var tab <- {{ "label" => js(it.name); "detail" => js(it.desc); "kind" => js(it.kind) }}
+def JV(it : Completion) : JsonValue?
+    var tab <- {{ "label" => JV(it.name); "detail" => JV(it.desc); "kind" => JV(it.kind) }}
     if !empty(it.fullName)
-        tab["filterName"] = js(it.fullName)
-        tab["sortText"] = js(it.fullName)
+        tab["filterName"] = JV(it.fullName)
+        tab["sortText"] = JV(it.fullName)
     if length(it.impls) > 0
-        tab["documentation"] = js <| {{ "kind" => js("markdown"); "value" => js("```dascript\n" + join(it.impls, "\n") + "\n```") }}
-    return js(tab)
+        tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n" + join(it.impls, "\n") + "\n```") }}
+    return JV(tab)
 
 [export]
-def js(items : Completions) : JsonValue?
-    var list <- [{ for it in values(items); js(it) }]
-    return js <| {{ "isIncomplete" => js(false); "items" => js(list)}}
+def JV(items : Completions) : JsonValue?
+    var list <- [{ for it in values(items); JV(it) }]
+    return JV <| {{ "isIncomplete" => JV(false); "items" => JV(list)}}
 
 [export]
 def is_operator(str : string)

@@ -89,31 +89,31 @@ def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonVa
     if !ast.topLevel || ast.path != path || int(ast.kind) >= int(AstTokenKind Annotation)
         return
     var data <- {{
-        "name" => js(ast.name |> strip_left("`"));
-        "detail" => js(ast._type);
-        "kind" => js(int(ast.kind));
-        "range" => js(ast._range);
-        "selectionRange" => js(ast._range)
+        "name" => JV(ast.name |> strip_left("`"));
+        "detail" => JV(ast._type);
+        "kind" => JV(int(ast.kind));
+        "range" => JV(ast._range);
+        "selectionRange" => JV(ast._range)
     }}
     if ast.children |> length() > 0
         var children : array<JsonValue?>
         for it in ast.children
             it |> build_document_symbol(path, children)
         if children |> length() > 0
-            data["children"] = js(children)
-    res |> emplace(js(data))
+            data["children"] = JV(children)
+    res |> emplace(JV(data))
 
 def build_symbol_information(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
     if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`") || int(ast.kind) >= int(AstTokenKind Annotation)
         return
     if !empty(ast.path) && (empty(query) || find(ast.name, query) != -1)
         var data <- {{
-            "name" => js(ast.name);
-            "containerName" => js(ast.desc);
-            "kind" => js(int(ast.kind));
-            "location" => js({{ "range" => js(ast._range); "uri" => js(path_to_uri(ast.path)) }})
+            "name" => JV(ast.name);
+            "containerName" => JV(ast.desc);
+            "kind" => JV(int(ast.kind));
+            "location" => JV({{ "range" => JV(ast._range); "uri" => JV(path_to_uri(ast.path)) }})
         }}
-        res |> emplace(js(data))
+        res |> emplace(JV(data))
     for it in ast.children
         it |> build_symbol_information(query, limit, res)
 
