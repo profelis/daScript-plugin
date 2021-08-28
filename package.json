@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.8.4",
+	"version": "0.8.5",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -78,8 +78,8 @@
 							},
 							"port": {
 								"type": "number",
-								"description": "Debug port used to connect",
-								"default": 10000
+								"description": "Debug port used to connect (0 - random)",
+								"default": 0
 							},
 							"connectTimeout": {
 								"type": "number",
@@ -110,13 +110,14 @@
 						"request": "launch",
 						"name": "daScript: launch",
 						"program": "${config:dascript.compiler} ${file}",
-						"port": 10000,
+						"port": 0,
 						"waitDebugger": true
 					},
 					{
 						"type": "dascript",
 						"request": "attach",
-						"name": "daScript: attach"
+						"name": "daScript: attach",
+						"port": 10000
 					}
 				],
 				"configurationSnippets": [
