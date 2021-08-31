@@ -237,6 +237,7 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 				config.request = 'launch'
 				config.program = '${config:dascript.compiler} ${file}'
 				config.waitDebugger = true
+				config.cwd = '${fileDirname}'
 			}
 		}
 		return config
