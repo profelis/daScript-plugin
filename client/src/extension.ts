@@ -12,7 +12,7 @@ import {
 } from 'vscode-languageclient/node'
 
 let SPAWN_SERVER = true
-let DEFAULT_PORT = 7999 + Math.round(Math.random() * 3000)
+let DEFAULT_PORT = 7999 + Math.round(Math.random() * 1000)
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
 const sockets: Map<string, net.Socket> = new Map()
@@ -223,6 +223,8 @@ export function deactivate(): Thenable<void> {
 	return Promise.all(promises).then(() => undefined)
 }
 
+const DEBUGGER_CONNECTION_TIMEOUT = 2
+const DEBUGGER_PORT = 10000
 
 class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider {
 
@@ -252,10 +254,10 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 
 		let port = "port" in _session.configuration ? _session.configuration.port : 0
 		if (_session.configuration.request != "launch")
-			return new vscode.DebugAdapterServer(port)
+			return new vscode.DebugAdapterServer(port <= 0 ? DEBUGGER_PORT : port)
 
 		if (port <= 0)
-			port = Math.floor(Math.random() * 1000 + 10000)
+			port = Math.floor(Math.random() * 1000 + DEBUGGER_PORT)
 
 		if (this.outputChannel)
 			this.outputChannel.dispose() // always recreate output
@@ -308,10 +310,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			this.child.stderr.on('data', (data) => {
 				log(`[stderr] ${data}`)
 			})
-		}
-
-		if (this.child) {
-			const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : 1
+			const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : DEBUGGER_CONNECTION_TIMEOUT
 			const waitTime = Date.now()
 			while (Date.now() - waitTime < connectTimeout * 1000) {
 				// log("waiting child...")
