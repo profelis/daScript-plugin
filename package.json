@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.8.7",
+	"version": "0.8.8",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -100,6 +100,11 @@
 								"type": "number",
 								"description": "Debug port used to connect",
 								"default": 10000
+							},
+							"paths": {
+								"type": "array",
+								"default": [],
+								"description": "Absolute folder paths to resolve relative file paths"
 							}
 						}
 					}
