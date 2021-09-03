@@ -1,4 +1,8 @@
 {
+	"option": {
+		"prefix": "op",
+		"body": "options ${0:value}"
+	},
 	"options": {
 		"prefix": "ops",
 		"body": "options ${1:name} = ${0:value}"
@@ -44,7 +48,7 @@
 		"body": "$(${1:args})\n\t${0:pass}"
 	},
 	"lambda": {
-		"prefix": "lambda",
+		"prefix": "lmd",
 		"body": "@ <| (${1:args})\n\t${0:pass}"
 	},
 	"lt": {
@@ -126,6 +130,10 @@
 	"smart_ptr": {
 		"prefix": "smart_ptr",
 		"body": "smart_ptr<$0>"
+	},
+	"reinterpret": {
+		"prefix": "reinterpret",
+		"body": "reinterpret<$0>"
 	},
 	"debug": {
 		"prefix": "deb",
