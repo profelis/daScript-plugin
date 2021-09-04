@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.8.10",
+	"version": "0.8.11",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -95,6 +95,11 @@
 								"type": "array",
 								"default": [],
 								"description": "Absolute folder paths to resolve relative file paths"
+							},
+							"pathAliases": {
+								"type": "object",
+								"default": {},
+								"description": "Aliases for paths to resolve virtual file paths"
 							}
 						}
 					},
@@ -115,6 +120,11 @@
 								"type": "array",
 								"default": [],
 								"description": "Absolute folder paths to resolve relative file paths"
+							},
+							"pathAliases": {
+								"type": "object",
+								"default": {},
+								"description": "Aliases for paths to resolve virtual file paths"
 							}
 						}
 					}
