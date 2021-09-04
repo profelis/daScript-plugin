@@ -50,7 +50,7 @@ let
     langOptions = [[auto "lint"; "only_fast_aot"; "aot_order_side_effects"; "no_global_heap"; "no_global_variables"; "no_global_variables_at_all"; "no_unused_function_arguments";
                          "no_unused_block_arguments"; "stack"; "intern_strings"; "multiple_contexts"; "persistent_heap"; "persistent_string_heap";
                          "heap_size_hint"; "string_heap_size_hint"; "no_aot"; "aot_prologue";
-                         "log"; "log_optimization_passes"; "log_stack"; "log_nodes"; "log_nodes_aot_hash"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
+                         "log"; "log_optimization_passes"; "log_stack"; "log_var_scope"; "log_nodes"; "log_nodes_aot_hash"; "log_mem"; "log_cpp"; "log_aot"; "log_infer_passes";
                          "log_require"; "log_compile_time"; "log_generics"; "log_mn_hash"; "log_gmn_hash"; "log_ad_hash"; "print_ref"; "print_var_access"; "print_c_style";
                          "rtti"; "optimize"; "fusion"; "remove_unused_symbols"; "always_export_initializer"; "infer_time_folding"; "disable_run";
                          "max_infer_passes"; "indenting"; "debugger"]]
