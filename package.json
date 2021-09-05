@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.8.11",
+	"version": "0.8.12",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -193,7 +193,7 @@
 				"dascript.server.connectTimeout": {
 					"type": "number",
 					"description": "Socket connection delay in seconds",
-					"default": 2
+					"default": 4
 				},
 				"dascript.project.file": {
 					"scope": "resource",
