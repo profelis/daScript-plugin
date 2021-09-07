@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.8.12",
+	"version": "0.9.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -91,6 +91,11 @@
 								"description": "Socket connection delay in seconds",
 								"default": 2
 							},
+							"instruments": {
+								"type": "boolean",
+								"description": "Use instruments API",
+								"default": false
+							},
 							"paths": {
 								"type": "array",
 								"default": [],
@@ -120,6 +125,11 @@
 								"type": "array",
 								"default": [],
 								"description": "Absolute folder paths to resolve relative file paths"
+							},
+							"instruments": {
+								"type": "boolean",
+								"description": "Use instruments API",
+								"default": false
 							},
 							"pathAliases": {
 								"type": "object",

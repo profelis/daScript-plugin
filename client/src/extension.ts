@@ -282,6 +282,8 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		const extraArgs = ["--das-debug-port", `${port}`]
 		if ("waitDebugger" in _session.configuration ? _session.configuration.waitDebugger : true)
 			extraArgs.push("--das-wait-debugger")
+		if ("instruments" in _session.configuration)
+			extraArgs.push("--das-debug-instruments")
 
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
 		const externalConsole = _session.configuration.console == "externalTerminal"
