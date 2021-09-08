@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.9.0",
+	"version": "0.9.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -94,7 +94,7 @@
 							"instruments": {
 								"type": "boolean",
 								"description": "Use instruments API",
-								"default": false
+								"default": true
 							},
 							"paths": {
 								"type": "array",
@@ -129,7 +129,7 @@
 							"instruments": {
 								"type": "boolean",
 								"description": "Use instruments API",
-								"default": false
+								"default": true
 							},
 							"pathAliases": {
 								"type": "object",
