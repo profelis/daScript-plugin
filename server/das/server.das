@@ -5,14 +5,12 @@ options persistent_heap = true
 options multiple_contexts = true
 
 require math
-require ast
 require daslib/ast_boost
-require strings
 require daslib/strings_boost
 require daslib/defer
 require network
 require fio
-require daslib/json
+require daslib/json_boost
 require daslib/jobque_boost
 require json_tools
 require lib

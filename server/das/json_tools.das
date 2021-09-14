@@ -1,7 +1,6 @@
 options indenting = 4
 options no_aot = true
 
-require daslib/json
 require daslib/json_boost
 
 def clone(var a: JsonValue?&; b: JsonValue?)

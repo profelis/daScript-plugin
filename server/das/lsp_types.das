@@ -2,11 +2,9 @@ options indenting = 4
 options no_aot = true
 
 require math
-require daslib/json
 require json_tools
 require strings
-require daslib/strings_boost
-require daslib/json_boost public
+require daslib/json_boost
 
 typedef
     JSTab = table<string; JsonValue?>

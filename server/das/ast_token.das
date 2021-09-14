@@ -1,16 +1,14 @@
 options indenting = 4
 options no_aot = true
 
-require ast
 require daslib/ast_boost
+require daslib/json_boost
 require math
 require rtti_tools
 require strings
 require lsp_types
-require logger
 require completion
 require lib
-require strings
 require fs_tools
 
 bitfield AstTokenWarn
