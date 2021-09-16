@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.9.2",
+	"version": "0.9.3",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -91,6 +91,11 @@
 								"description": "Socket connection delay in seconds",
 								"default": 2
 							},
+							"inlinePreviewLimit": {
+								"type": "number",
+								"description": "Max length of preview values",
+								"default": 50
+							},
 							"instruments": {
 								"type": "boolean",
 								"description": "Use instruments API",
@@ -120,6 +125,11 @@
 								"type": "number",
 								"description": "Debug port used to connect",
 								"default": 10000
+							},
+							"inlinePreviewLimit": {
+								"type": "number",
+								"description": "Max length of preview values",
+								"default": 50
 							},
 							"paths": {
 								"type": "array",
