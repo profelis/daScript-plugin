@@ -96,10 +96,10 @@
 								"description": "Max length of preview values",
 								"default": 50
 							},
-							"instruments": {
+							"steppingDebugger": {
 								"type": "boolean",
-								"description": "Use instruments API",
-								"default": true
+								"description": "Use stepping debugger",
+								"default": false
 							},
 							"paths": {
 								"type": "array",
@@ -135,11 +135,6 @@
 								"type": "array",
 								"default": [],
 								"description": "Absolute folder paths to resolve relative file paths"
-							},
-							"instruments": {
-								"type": "boolean",
-								"description": "Use instruments API",
-								"default": true
 							},
 							"pathAliases": {
 								"type": "object",

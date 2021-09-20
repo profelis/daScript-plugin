@@ -239,7 +239,6 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 				config.request = 'launch'
 				config.program = '${config:dascript.compiler} ${file}'
 				config.waitDebugger = true
-				config.instruments = true
 				config.cwd = '${fileDirname}'
 			}
 		}
@@ -283,8 +282,8 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		const extraArgs = ["--das-debug-port", `${port}`]
 		if ("waitDebugger" in _session.configuration ? _session.configuration.waitDebugger : true)
 			extraArgs.push("--das-wait-debugger")
-		if ("instruments" in _session.configuration ? _session.configuration.instruments : true)
-			extraArgs.push("--das-debug-instruments")
+		if ("steppingDebugger" in _session.configuration ? _session.configuration.steppingDebugger : true)
+			extraArgs.push("--das-stepping-debugger")
 
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
 		const externalConsole = _session.configuration.console == "externalTerminal"
