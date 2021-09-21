@@ -1,6 +1,8 @@
 options indenting = 4
 options no_aot = true
 options stack = 4194304
+options heap_size_hint = 16777216
+options string_heap_size_hint = 16777216
 options persistent_heap = true
 options multiple_contexts = true
 
@@ -118,63 +120,66 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
     cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
     cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-    compile_file(path, access, mg, cp) <| $(ok, program, error)
-        // info("< compiled {path} {ok}\n'{error}'", get_line_info())
+    try
+        compile_file(path, access, mg, cp) <| $(ok, program, error)
+            // info("< compiled {path} {ok}\n'{error}'", get_line_info())
 
-        if program != null
-            cloneData.program := program
-            cloneData.fs := access
-            cloneData.mg = mg
-        let compiled = ok && program != null
+            if program != null
+                cloneData.program := program
+                cloneData.fs := access
+                cloneData.mg = mg
+            let compiled = ok && program != null
 
-        if compiled
-            var visitor <- new AstData()
-            unsafe
-                visitor.tokens = addr(cloneData.ast)
-            var adapter <- make_visitor(*visitor)
-            visit(program, adapter)
-            visitor.tokens = null
-            unsafe
-                delete visitor
-            adapter := null
+            if compiled
+                var visitor <- new AstData()
+                unsafe
+                    visitor.tokens = addr(cloneData.ast)
+                var adapter <- make_visitor(*visitor)
+                visit(program, adapter)
+                visitor.tokens = null
+                unsafe
+                    delete visitor
+                adapter := null
 
-            collect_all_token(cloneData.ast) <| $(var tok : AstToken?)
-                tok.path = resolve_path(tok.path, config)
-                if !empty(tok.defPath)
-                    tok.defPath = resolve_path(tok.defPath, config)
-                if !empty(tok.typeDefPath)
-                    tok.typeDefPath = resolve_path(tok.typeDefPath, config)
+                collect_all_token(cloneData.ast) <| $(var tok : AstToken?)
+                    tok.path = resolve_path(tok.path, config)
+                    if !empty(tok.defPath)
+                        tok.defPath = resolve_path(tok.defPath, config)
+                    if !empty(tok.typeDefPath)
+                        tok.typeDefPath = resolve_path(tok.typeDefPath, config)
 
-            completion::programCompletion(program, globalCompletion, cloneData.completionData)
+                completion::programCompletion(program, globalCompletion, cloneData.completionData)
 
-            var diags : array<Diagnostic>
-            collect_diag(cloneData.ast, path, diags)
+                var diags : array<Diagnostic>
+                collect_diag(cloneData.ast, path, diags)
 
-            cloneData.diag[uri] <- diags
-            return
+                cloneData.diag[uri] <- diags
+                return
 
-        if program == null
-            var diags : array<Diagnostic>
-            diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
-            cloneData.diag[uri] <- diags
-            return
+            if program == null
+                var diags : array<Diagnostic>
+                diags |> emplace([[Diagnostic message := "{error}", severity = DiagnosticSeverity Error, _range = [[Range]] ]])
+                cloneData.diag[uri] <- diags
+                return
 
-        for err in program.errors
-            let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
-            let at = line_info_to_range(err.at)
-            var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
-            if !empty(err.extra) || !empty(err.fixme)
-                var extra = "{err.extra}"
-                if !empty(err.fixme)
-                    extra += "\n{err.fixme}"
-                var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
-                diag.relatedInformation <- [{ auto[] info }]
-            unsafe
-                var list = find_for_edit(cloneData.diag, localUri) // map is locked
-                if list != null
-                    *list |> emplace(diag)
-                else
-                    cloneData.diag[localUri] <- [{ auto[] diag }]
+            for err in program.errors
+                let localUri = err.at.fileInfo != null ? path_to_uri(resolve_path(string(err.at.fileInfo.name), config)) : uri
+                let at = line_info_to_range(err.at)
+                var diag <- [[Diagnostic message = "{err.what}", _range = at, severity = DiagnosticSeverity Error, code = double(int(err.cerr)) ]]
+                if !empty(err.extra) || !empty(err.fixme)
+                    var extra = "{err.extra}"
+                    if !empty(err.fixme)
+                        extra += "\n{err.fixme}"
+                    var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
+                    diag.relatedInformation <- [{ auto[] info }]
+                unsafe
+                    var list = find_for_edit(cloneData.diag, localUri) // map is locked
+                    if list != null
+                        *list |> emplace(diag)
+                    else
+                        cloneData.diag[localUri] <- [{ auto[] diag }]
+    recover
+        error("failed to compile '{path}'", get_line_info())
 
     access := null
     if cloneData.mg == null
@@ -1511,11 +1516,13 @@ def mainLoop(fn : string)
             var alloc = string_heap_bytes_allocated()
             if alloc > strLimit
                 // string_heap_report()
-                var report = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
+                var strReport = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
+                var heapReport = "HEAP COLLECT: {bytes_hr(heap_bytes_allocated())} -> "
                 unsafe
                     string_heap_collect()
+                    // heap_collect(true)
                 alloc = string_heap_bytes_allocated()
-                info("{report}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n", get_line_info())
+                info("{strReport}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n{heapReport}{bytes_hr(heap_bytes_allocated())}", get_line_info())
                 if alloc > strLimit
                     strLimit *= uint64(2)
                     warning("UP string heap limit: {bytes_hr(strLimit)}\n", get_line_info())
