@@ -179,7 +179,10 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
                     else
                         cloneData.diag[localUri] <- [{ auto[] diag }]
     recover
-        error("failed to compile '{path}'", get_line_info())
+        if !empty(this_context().exception)
+            error("failed to compile '{path}'\n{this_context().exceptionAt |> to_string()}:{this_context().exception}", get_line_info())
+        else
+            error("failed to compile '{path}'", get_line_info())
 
     access := null
     if cloneData.mg == null
@@ -1519,8 +1522,8 @@ def mainLoop(fn : string)
                 var strReport = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
                 var heapReport = "HEAP COLLECT: {bytes_hr(heap_bytes_allocated())} -> "
                 unsafe
-                    string_heap_collect()
-                    // heap_collect(true)
+                    // string_heap_collect()
+                    heap_collect(true)
                 alloc = string_heap_bytes_allocated()
                 info("{strReport}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n{heapReport}{bytes_hr(heap_bytes_allocated())}", get_line_info())
                 if alloc > strLimit
