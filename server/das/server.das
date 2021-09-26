@@ -3,6 +3,7 @@ options no_aot = true
 options stack = 4194304
 options heap_size_hint = 8388608
 options string_heap_size_hint = 8388608
+options intern_strings = true
 options persistent_heap = true
 options multiple_contexts = true
 
