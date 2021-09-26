@@ -32,6 +32,13 @@
 			"port": 6012,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceRoot}/server/out/**/*.js"]
+		},
+		{
+			"type": "dascript",
+			"request": "launch",
+			"name": "daScript: Launch",
+			"program": "${config:dascript.compiler} ${file}",
+			"cwd": "${fileDirname}"
 		}
 	]
 }
