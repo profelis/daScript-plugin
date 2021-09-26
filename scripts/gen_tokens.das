@@ -60,7 +60,7 @@ def getTokens(from : string) : Tokens
             debug("error: can't find bounds")
             return
         let sub = slice(data, start, length(data) - 1)
-        let tokens <- split(split(sub, "\r\n\r\n")[0], "\r\n") // workaround split
+        let tokens <- split(sub, "\r\n\r\n")[0] |> replace("\n\r", "\n") |> split("\n") // workaround split
         var list : array<string>
         for it in tokens
             if it |> strip() |> length() == 0 || find(it, "\"") == -1
