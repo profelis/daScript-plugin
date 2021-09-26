@@ -1,8 +1,8 @@
 options indenting = 4
 options no_aot = true
 options stack = 4194304
-options heap_size_hint = 16777216
-options string_heap_size_hint = 16777216
+options heap_size_hint = 8388608
+options string_heap_size_hint = 8388608
 options persistent_heap = true
 options multiple_contexts = true
 
