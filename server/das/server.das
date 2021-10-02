@@ -1504,10 +1504,10 @@ def mainLoop(fn : string)
             info("server failed to initialize\n", get_line_info())
             return
 
-        var loggerFn <- @ <| (msg : string; level : LogLevel)
-            if telnet != null
-                telnet->log(msg, level)
-        logger::onLog <- loggerFn
+        // var loggerFn <- @ <| (msg : string; level : LogLevel)
+        //     if telnet != null
+        //         telnet->log(msg, level)
+        // logger::onLog <- loggerFn
 
         let initialstrLimit = uint64(2 * 1024 * 1024)
         var strLimit = initialstrLimit

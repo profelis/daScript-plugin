@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.9.13",
+	"version": "0.9.14",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -56,11 +56,6 @@
 								"type": "string",
 								"description": "daScript compiler with arguments",
 								"default": "${config:dascript.compiler} ${file}"
-							},
-							"waitDebugger": {
-								"type": "boolean",
-								"description": "Pause the application on startup, wait for the debugger",
-								"default": true
 							},
 							"console": {
 								"type": "string",

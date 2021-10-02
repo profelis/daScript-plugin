@@ -66,10 +66,10 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 				// log("waiting child... " + timeout)
 			}
 
-			child.stdout.on('data', (data) => log(`stdout: ${data}`))
-			child.stdout.on("error", (data) => log(`stdout: error: ${data}`))
-			child.stderr.on("data", (data) => log(`stderr: ${data}`))
-			child.stderr.on("error", (data) => log(`stderr: error: ${data}`))
+			child.stdout.on('data', (data) => log(data?.toString()))
+			child.stdout.on("error", (data) => log(`error: ${data}`))
+			child.stderr.on("data", (data) => log(`stderr: ${data?.toString()}`))
+			child.stderr.on("error", (data) => log(`stderr error: ${data}`))
 
 			child.on('close', (code) => {
 				log(`child process closed with code ${code} - '${folder_uri}'`)
@@ -191,6 +191,10 @@ export function activate(context: ExtensionContext) {
 				diagnosticCollectionName: 'dascript',
 				workspaceFolder: folder,
 				outputChannel: outputChannel,
+				connectionOptions: {
+					cancellationStrategy: null,
+					maxRestartCount: 10
+				}
 				// errorHandler: {
 				// 	error: (error, message, count) => {
 				// 		outputChannel.appendLine(`[Client error] #(${count})`)
@@ -257,7 +261,6 @@ class DascriptLaunchConfigurationProvider implements DebugConfigurationProvider 
 				config.name = 'dascript'
 				config.request = 'launch'
 				config.program = '${config:dascript.compiler} ${file}'
-				config.waitDebugger = true
 				config.cwd = '${fileDirname}'
 			}
 		}
@@ -295,11 +298,12 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			this.child.kill()
 		}
 
+		const noDebug = _session.configuration?.noDebug ?? false
 		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
 		const extraArgs = ["--das-debug-port", `${port}`]
-		if ("waitDebugger" in _session.configuration ? _session.configuration.waitDebugger : true)
+		if (!noDebug)
 			extraArgs.push("--das-wait-debugger")
 		if ("steppingDebugger" in _session.configuration ? _session.configuration.steppingDebugger : false)
 			extraArgs.push("--das-stepping-debugger")
@@ -336,6 +340,6 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			}
 		}
 
-		return new vscode.DebugAdapterServer(port, host)
+		return noDebug ? new vscode.DebugAdapterExecutable("") : new vscode.DebugAdapterServer(port, host)
 	}
 }
