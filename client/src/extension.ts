@@ -294,16 +294,15 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			outputChannel.append(data)
 		}
 
-		if (this.child) {
+		if (this.child)
 			this.child.kill()
-		}
 
-		const noDebug = _session.configuration?.noDebug ?? false
+		const hasDebug = !(_session.configuration?.noDebug ?? false)
 		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
 		const cmdAndArgs: string[] = _session.configuration.program.split(" ")
 		const cmd = cmdAndArgs.shift()
 		const extraArgs = ["--das-debug-port", `${port}`]
-		if (!noDebug)
+		if (hasDebug)
 			extraArgs.push("--das-wait-debugger")
 		if ("steppingDebugger" in _session.configuration ? _session.configuration.steppingDebugger : false)
 			extraArgs.push("--das-stepping-debugger")
@@ -319,7 +318,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			// 	console.log(`da spawned`)
 			// })
 			this.child.on('error', (err) => {
-				log(`da: server error ${err.message}`)
+				log(`da: child process error ${err.message}`)
 				this.child.kill()
 				this.child = null
 			})
@@ -331,15 +330,16 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 				log(`${data}`)
 			})
 			this.child.stderr.on('data', (data) => {
-				log(`[stderr] ${data}`)
+				log(`da: [stderr] ${data}`)
 			})
 			const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : DEBUGGER_CONNECTION_TIMEOUT
 			const waitTime = Date.now()
-			while (Date.now() - waitTime < connectTimeout * 1000) {
-				// log("waiting child...")
-			}
+			if (hasDebug)
+				while (Date.now() - waitTime < connectTimeout * 1000) {
+					// log("waiting child...")
+				}
 		}
 
-		return noDebug ? new vscode.DebugAdapterExecutable("") : new vscode.DebugAdapterServer(port, host)
+		return hasDebug ? new vscode.DebugAdapterServer(port, host) : new vscode.DebugAdapterExecutable("")
 	}
 }
