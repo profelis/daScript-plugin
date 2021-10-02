@@ -8,6 +8,8 @@ import {
 import * as vscode from 'vscode'
 
 import {
+	CloseAction,
+	ErrorAction,
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient/node'
 
@@ -51,8 +53,7 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 	return new Promise<[cp.ChildProcess, net.Socket]>(resolve => {
 		const log = function (data: string) {
 			console.log(data)
-			if (!sockets.has(folder_uri))
-				out.appendLine(data)
+			out.appendLine(data)
 		}
 		log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
@@ -65,15 +66,13 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 				// log("waiting child... " + timeout)
 			}
 
-			child.stdout.on('data', (data) => {
-				log(`stdout: ${data}`)
-			})
+			child.stdout.on('data', (data) => log(`stdout: ${data}`))
+			child.stdout.on("error", (data) => log(`stdout: error: ${data}`))
+			child.stderr.on("data", (data) => log(`stderr: ${data}`))
+			child.stderr.on("error", (data) => log(`stderr: error: ${data}`))
 
-			child.stderr.on('data', (data) => {
-				log(`stderr: ${data}`)
-			})
 			child.on('close', (code) => {
-				log(`child process exited with code ${code} - '${folder_uri}'`)
+				log(`child process closed with code ${code} - '${folder_uri}'`)
 				childProcesses.delete(folder_uri)
 				if (sockets.has(folder_uri))
 					sockets.delete(folder_uri)
@@ -82,6 +81,14 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 			})
 			child.on('error', (err) => {
 				log(`Failed to spawn server ${err.message}`)
+			})
+			child.on('exit', (code) => {
+				log(`child process exited with code ${code} - '${folder_uri}'`)
+				childProcesses.delete(folder_uri)
+				if (sockets.has(folder_uri))
+					sockets.delete(folder_uri)
+				else
+					resolve([child, socket])
 			})
 		}
 
@@ -183,7 +190,19 @@ export function activate(context: ExtensionContext) {
 				],
 				diagnosticCollectionName: 'dascript',
 				workspaceFolder: folder,
-				outputChannel: outputChannel
+				outputChannel: outputChannel,
+				// errorHandler: {
+				// 	error: (error, message, count) => {
+				// 		outputChannel.appendLine(`[Client error] #(${count})`)
+				// 		outputChannel.appendLine(error.message)
+				// 		outputChannel.appendLine(message.jsonrpc)
+				// 		return ErrorAction.Continue
+				// 	},
+				// 	closed: () => {
+				// 		outputChannel.appendLine(`[Client closed] Restart`)
+				// 		return CloseAction.Restart
+				// 	}
+				// }
 			}
 			const client = new LanguageClient('dascript', serverOptions, clientOptions)
 			client.start()
