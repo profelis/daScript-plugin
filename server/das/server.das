@@ -116,7 +116,7 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
 
     var mg = new [[ModuleGroup()]]
     var cp = CodeOfPolicies()
-    cp.ignore_shared_modules = true
+    cp.ignore_shared_modules = config.policies.ignoreSharedModules
     cp.no_global_variables = config.policies.noGlobalVariables
     cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments

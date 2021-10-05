@@ -8,6 +8,7 @@ require fio
 require fs_tools
 
 struct PluginConfigPolicies
+    ignoreSharedModules: bool = true
     noGlobalVariables: bool = false
     noUnusedBlockArguments: bool = false
     noUnusedFunctionArguments: bool = false
@@ -15,6 +16,7 @@ struct PluginConfigPolicies
 
 def PluginConfigPolicies(val : JsonValue?)
     return <- [[PluginConfigPolicies
+        ignoreSharedModules = job(val, "ignore_shared_modules", true),
         noGlobalVariables = job(val, "no_global_variables"),
         noUnusedBlockArguments = job(val, "no_unused_block_arguments"),
         noUnusedFunctionArguments = job(val, "no_unused_function_arguments"),

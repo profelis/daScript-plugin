@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.9.15",
+	"version": "0.9.16",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -240,6 +240,12 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Experimental (beta) features"
+				},
+				"dascript.policies.ignore_shared_modules": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": true,
+					"description": "ignore_shared_modules policy"
 				},
 				"dascript.policies.no_global_variables": {
 					"scope": "resource",
