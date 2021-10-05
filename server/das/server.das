@@ -1106,7 +1106,6 @@ class TelnetServer : Server
                 defer_delete(res)
                 var line = 0
                 var charPos = 0
-                var i = 0
                 var step = -1
                 var currentNum : array<int>
                 for i, ch in iter_range(data.text), data.text
