@@ -850,7 +850,6 @@ class TelnetServer : Server
                     if config.project.scanWorkspace
                         prog := data.program
                     else
-                        let uri = path_to_uri(path)
                         unsafe
                             access <- make_file_access(config.project.file)
                         set_file_source(access, path, data.text)

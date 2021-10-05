@@ -341,7 +341,7 @@ def programCompletion(program : smart_ptr<Program>; globalCompletion: Completion
     var temp : Completions
     program_for_each_module(program) <| $(var mod)
         parseModule(mod, temp)
-    let was = length(items)
+    // let was = length(items)
     for key, value in keys(temp), values(temp)
         if !globalCompletion |> key_exists(key)
             items[key] <- value
