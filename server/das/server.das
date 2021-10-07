@@ -57,6 +57,7 @@ struct Dascript
 
 struct ValidateResult
     path: string
+    ok: bool
     completionData: Completions
     ast: AstTokens
     diag: table<string; array<Diagnostic>>
@@ -129,6 +130,7 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
                 cloneData.program := program
                 cloneData.fs := access
                 cloneData.mg = mg
+                cloneData.ok = ok
             let compiled = ok && program != null
 
             if compiled
@@ -436,6 +438,7 @@ class TelnetServer : Server
         if !channel.isEmpty
             for item in each(channel, type<ValidateResult>)
                 var cloneData: ValidateResult
+                cloneData.ok = item.ok
                 cloneData.path = clone_string(item.path)
                 cloneData.ast := item.ast
                 cloneData.completionData := item.completionData
@@ -573,10 +576,15 @@ class TelnetServer : Server
             data = registry |> find_for_edit(path) // registry is locked
         if data != null
             isOpen = data.isOpen
-            delete data.ast
-            delete data.completionData
-            data.ast <- item.ast
-            data.completionData <- item.completionData
+
+            if item.ok && item.program != null // otherwise keeps previous ast and completion data
+                delete data.ast
+                data.ast <- item.ast
+                delete data.completionData
+                data.completionData <- item.completionData
+            else
+                delete item.ast
+                delete item.completionData
 
             unsafe
                 delete data.mg
