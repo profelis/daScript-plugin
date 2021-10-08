@@ -1476,9 +1476,9 @@ class TelnetServer : Server
             unsafe
                 delete msg
 
-[export]
-def main(fn : string)
-    return mainLoop(fn)
+// [export] // for dasContDev.exe
+// def main(fn : string)
+//     return mainLoop(fn)
 
 [export]
 def main()
