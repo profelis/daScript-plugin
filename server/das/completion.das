@@ -363,7 +363,7 @@ def JV(it : Completion) : JsonValue?
         tab["filterName"] = JV(it.fullName)
         tab["sortText"] = JV(it.fullName)
     if length(it.impls) > 0
-        tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n" + join(it.impls, "\n") + "\n```") }}
+        tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n" + join(it.impls, "\n\n") + "\n```") }}
     return JV(tab)
 
 [export]
