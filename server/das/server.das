@@ -122,6 +122,8 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
     cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
     cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
+    static_if typeinfo(has_field <aot_module> type<CodeOfPolicies>)
+        cp.aot_module = true
     try
         compile_file(path, access, mg, cp) <| $(ok, program, error)
             // info("< compiled {path} {ok}\n'{error}'", get_line_info())
