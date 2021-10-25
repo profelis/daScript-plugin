@@ -55,7 +55,7 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 			console.log(data)
 			out.appendLine(data)
 		}
-		log(`> spawn server ${cmd} ${args.join(' ')} - '${folder_uri}' cwd: ${cwd}`)
+		log(`language server (ls): starting server... Workspace folder: '${folder_uri}'\nls: ${cwd}> ${cmd} ${args.join(' ')}`)
 		const child: cp.ChildProcess = SPAWN_SERVER ? cp.spawn(cmd, args, { cwd: cwd }) : null
 
 		if (child) {
@@ -67,12 +67,12 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 			}
 
 			child.stdout.on('data', (data) => log(data?.toString()))
-			child.stdout.on("error", (data) => log(`error: ${data}`))
+			child.stdout.on("error", (data) => log(`Error: ${data}`))
 			child.stderr.on("data", (data) => log(`stderr: ${data?.toString()}`))
-			child.stderr.on("error", (data) => log(`stderr error: ${data}`))
+			child.stderr.on("error", (data) => log(`stderr: Error: ${data}`))
 
 			child.on('close', (code) => {
-				log(`child process closed with code ${code} - '${folder_uri}'`)
+				log(`\nls: child process closed with code ${code} - '${folder_uri}'. Workspace folder: '${folder_uri}'`)
 				childProcesses.delete(folder_uri)
 				if (sockets.has(folder_uri))
 					sockets.delete(folder_uri)
@@ -80,10 +80,10 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 					resolve([child, socket])
 			})
 			child.on('error', (err) => {
-				log(`Failed to spawn server ${err.message}`)
+				log(`\nls: Error: unable to spawn server '${err.message}'. Workspace folder: '${folder_uri}'`)
 			})
 			child.on('exit', (code) => {
-				log(`child process exited with code ${code} - '${folder_uri}'`)
+				log(`\nls: child process exited with code ${code} - '${folder_uri}'. Workspace folder: '${folder_uri}'`)
 				childProcesses.delete(folder_uri)
 				if (sockets.has(folder_uri))
 					sockets.delete(folder_uri)
@@ -105,12 +105,12 @@ function createServerWithSocket(folder_uri: string, port: number, cmd: string, a
 		// 	console.log(msg.length > 1000 ? msg.substr(0, 1000) + "..." : msg)
 		// })
 		socket.on('error', (err) => {
-			console.log(`socket error: ${err.message}`)
+			console.log(`ls: socket error: ${err.message}. Workspace folder: '${folder_uri}'`)
 			if (err.stack != null)
 				console.log(err.stack ?? "")
 		})
 		socket.on('end', () => {
-			console.log(`socked closed - '${folder_uri}'`)
+			console.log(`ls: socked closed. Workspace folder: '${folder_uri}'`)
 			if (child && !child.killed)
 				child.kill()
 			childProcesses.delete(folder_uri)
@@ -234,7 +234,9 @@ export function activate(context: ExtensionContext) {
 
 	const provider = new DascriptLaunchConfigurationProvider()
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('dascript', provider))
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('dascript', new DascriptLaunchDebugAdapterFactory()))
+	const adapterFactory = new DascriptLaunchDebugAdapterFactory()
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('dascript', adapterFactory))
+	context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory('dascript', new DascriptDebugAdapterTrackerFactory(adapterFactory, outputChannel)))
 }
 
 export function deactivate(): Thenable<void> {
@@ -341,5 +343,53 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		}
 
 		return hasDebug ? new vscode.DebugAdapterServer(port, host) : new vscode.DebugAdapterExecutable("")
+	}
+}
+
+
+class DascriptDebugAdapterTrackerFactory {
+	adapterFactory: DascriptLaunchDebugAdapterFactory
+	output: OutputChannel
+	constructor(adapter: DascriptLaunchDebugAdapterFactory, output: OutputChannel)
+	{
+		this.adapterFactory = adapter
+		this.output = output
+	}
+	createDebugAdapterTracker(session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterTracker> {
+		return new DascriptDebugAdapterTracker(session, this.adapterFactory, this.output)
+	}
+}
+
+class DascriptDebugAdapterTracker {
+	adapterFactory: DascriptLaunchDebugAdapterFactory
+	output: OutputChannel
+	wasMessages = false
+	constructor(private session: vscode.DebugSession, adapter: DascriptLaunchDebugAdapterFactory, output: OutputChannel) {
+		this.adapterFactory = adapter
+		this.output = output
+	}
+
+	log(data: string) {
+		this.output.appendLine(data)
+		this.adapterFactory?.outputChannel?.appendLine(data)
+	}
+
+	onWillStopSession?(): void {
+		if (!this.wasMessages)
+			this.log(`\n\nda: Something wrong with debug session, maybe wasn't started debug session
+Make sure that dascript file contains these 2 lines
+options debugger
+require daslib/debug
+
+Or increase launch configuration option: "connectTimeout"
+"configurations": [
+{
+	"type": "dascript",
+	"connectTimeout": 4
+}`)
+	}
+
+	onDidSendMessage?(message: any): void {
+		this.wasMessages = true
 	}
 }
