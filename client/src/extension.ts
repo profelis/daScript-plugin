@@ -365,6 +365,8 @@ class DascriptDebugAdapterTracker {
 	output: OutputChannel
 	wasMessages = false
 	constructor(private session: vscode.DebugSession, adapter: DascriptLaunchDebugAdapterFactory, output: OutputChannel) {
+		const hasDebug = !(session.configuration?.noDebug ?? false)
+		this.wasMessages = !hasDebug
 		this.adapterFactory = adapter
 		this.output = output
 	}
