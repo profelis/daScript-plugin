@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.9.22",
+	"version": "0.9.23",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -222,6 +222,12 @@
 					"type": "array",
 					"default": [],
 					"description": "Absolute folder paths to resolve relative file paths"
+				},
+				"dascript.project.fileAccessRoots": {
+					"scope": "resource",
+					"type": "object",
+					"default": {},
+					"description": "Additional roots passed to file access when compiling script file"
 				},
 				"dascript.hovers.verbose": {
 					"scope": "resource",

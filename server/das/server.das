@@ -104,7 +104,19 @@ def find_token(data: Dascript const?; path: string; pos : Position; valid : bloc
             token = tok
     return token
 
-def compile(path, dataText: string; withContent: bool; config: PluginConfig; var globalCompletion: Completions): ValidateResult
+
+def init_file_access(var access; config: PluginConfig; workspaceFolders : array<WorkspaceFolder>)
+    // def rtti::add_file_access_root(access: rtti::FileAccess? const implicit; mod: string const implicit; path: string const implicit): bool
+    static_if typeinfo(builtin_function_exists @@rtti::add_file_access_root)
+        let roots & = config.project.fileAccessRoots
+        for rootName, rootPath in keys(roots), values(roots)
+            var fixedPath = rootPath
+            if !empty(workspaceFolders)
+                fixedPath = fixedPath |> replace("$\{workspaceFolder\}", uri_to_path(workspaceFolders[0].uri))
+            access |> add_file_access_root(rootName, fixedPath)
+
+
+def compile(path, dataText: string; withContent: bool; config: PluginConfig; workspaceFolders : array<WorkspaceFolder>; var globalCompletion: Completions): ValidateResult
     var cloneData: ValidateResult
     cloneData.path = path
 
@@ -113,7 +125,8 @@ def compile(path, dataText: string; withContent: bool; config: PluginConfig; var
 
     var access <- make_file_access(config.project.file)
     if withContent && !empty(dataText)
-        set_file_source(access, path, dataText)
+        access |> set_file_source(path, dataText)
+    access |> init_file_access(config, workspaceFolders)
 
     var mg = new [[ModuleGroup()]]
     var cp = CodeOfPolicies()
@@ -537,7 +550,7 @@ class TelnetServer : Server
             registry |> find_for_edit_if_exists(path) <| $(var data)
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n", get_line_info())
-                var cloneData <- compile(path, data.text, withContent, config, completionData.globalCompletion)
+                var cloneData <- compile(path, data.text, withContent, config, workspaceFolders, completionData.globalCompletion)
                 self->validationDone(cloneData)
 
             let dt = get_time_usec(t0)
@@ -559,7 +572,7 @@ class TelnetServer : Server
 
         for i in range(jobsNum)
             new_thread <| @[[:=config, :=dataText]]
-                var cloneData <- compile(path, dataText, withContent, config, completionData.globalCompletion)
+                var cloneData <- compile(path, dataText, withContent, config, workspaceFolders, completionData.globalCompletion)
                 channel |> push_clone(cloneData)
                 channel |> notify()
                 cloneData.program := null
@@ -862,7 +875,8 @@ class TelnetServer : Server
                     else
                         unsafe
                             access <- make_file_access(config.project.file)
-                        set_file_source(access, path, data.text)
+                        access |> set_file_source(path, data.text)
+                        access |> init_file_access(config, workspaceFolders)
 
                         mg = new [[ModuleGroup()]]
                         var cp = CodeOfPolicies()

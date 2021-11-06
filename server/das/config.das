@@ -34,15 +34,22 @@ struct PluginConfigProject
     roots : array<string>
     file : string
     scanWorkspace: bool
+    fileAccessRoots: table<string; string>
 
 def PluginConfigProject(val : JsonValue?)
-    var roots = joj(val, "roots")
-    if roots == null
-        return <- [[PluginConfigProject]]
+    let roots = joj(val, "roots")
+    let fileAccessRootsJs = joj(val, "fileAccessRoots")
+    var fileAccessRoots: table<string; string>
+    if fileAccessRootsJs.value is _object
+        let obj & = fileAccessRootsJs.value as _object
+        for k, v in keys(obj), values(obj)
+            fileAccessRoots[k] = v.value as _string
+
     return <- [[PluginConfigProject
         file = jos(val, "file"),
         scanWorkspace = job(val, "scanWorkspace"),
-        roots <- [{ for it in roots.value as _array; j_s(it) }]
+        roots <- roots != null ? [{ for it in roots.value as _array; j_s(it) }] : [[array<string>]],
+        fileAccessRoots <- fileAccessRoots
     ]]
 
 struct PluginConfig
