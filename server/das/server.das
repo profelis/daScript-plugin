@@ -897,12 +897,12 @@ class TelnetServer : Server
                                 var obj & = jitem.value as _object
                                 var addEdit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character + 1),
-                                    newText = "->"
+                                    newText = " "
                                 ]]
                                 obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
                                 var edit <- [[TextEdit
-                                    _range = Range(ini.position.line, ini.position.character + 1, ini.position.line, ini.position.character + 2),
-                                    newText = "{it.name}("
+                                    _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 2),
+                                    newText = "->{it.name}("
                                 ]]
                                 obj["textEdit"] = JV(edit)
                             list |> emplace(jitem)
