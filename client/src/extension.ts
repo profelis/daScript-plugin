@@ -289,7 +289,6 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		if (this.outputChannel)
 			this.outputChannel.dispose() // always recreate output
 		const outputChannel: OutputChannel = Window.createOutputChannel("daScript debug output")
-		outputChannel.show(true)
 		this.outputChannel = outputChannel
 
 		const log = function (data: string) {
@@ -313,13 +312,23 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			extraArgs.push("--das-stepping-debugger")
 
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
-		const externalTerminal = _session.configuration.console == "externalTerminal"
+		let focusConsole = true
 
 		log(`> ${cmd} ${args.join(' ')}\n`)
-		if (externalTerminal)
+		if (_session.configuration.console == "externalTerminal")
 			runInTerminal(cmd, args, { cwd: cwd })
+		else if (_session.configuration.console == "internalTerminal") {
+			// const terminal = vscode.window.createTerminal(outputChannel.name, process.env.COMSPEC)
+			const terminal = vscode.window.createTerminal(outputChannel.name)
+			terminal.sendText(`${cmd} ${args.join(' ')}`, true)
+			terminal.show(true)
+			focusConsole = false
+		}
 		else
 			this.child = cp.spawn(cmd, args, { cwd: cwd })
+
+		if (focusConsole)
+			outputChannel.show(true)
 
 		if (this.child) {
 			// this.child.on('spawn', () => {
