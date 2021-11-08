@@ -4,6 +4,7 @@ import * as cp from 'child_process'
 import {
 	workspace as Workspace, window as Window, ExtensionContext, TextDocument, OutputChannel, WorkspaceFolder, Uri, DebugConfigurationProvider, DebugConfiguration, ProviderResult, CancellationToken
 } from 'vscode'
+import { runInTerminal } from 'run-in-terminal'
 
 import * as vscode from 'vscode'
 
@@ -296,8 +297,10 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			outputChannel.append(data)
 		}
 
-		if (this.child)
+		if (this.child) {
 			this.child.kill()
+			this.child = null
+		}
 
 		const hasDebug = !(_session.configuration?.noDebug ?? false)
 		const cwd = _session.configuration.cwd || _session.workspaceFolder.uri.fsPath
@@ -310,10 +313,13 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			extraArgs.push("--das-stepping-debugger")
 
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
-		const externalConsole = _session.configuration.console == "externalTerminal"
+		const externalTerminal = _session.configuration.console == "externalTerminal"
 
 		log(`> ${cmd} ${args.join(' ')}\n`)
-		this.child = cp.spawn(cmd, args, { cwd: cwd, detached: externalConsole, shell: externalConsole })
+		if (externalTerminal)
+			runInTerminal(cmd, args, { cwd: cwd })
+		else
+			this.child = cp.spawn(cmd, args, { cwd: cwd })
 
 		if (this.child) {
 			// this.child.on('spawn', () => {
@@ -350,8 +356,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 class DascriptDebugAdapterTrackerFactory {
 	adapterFactory: DascriptLaunchDebugAdapterFactory
 	output: OutputChannel
-	constructor(adapter: DascriptLaunchDebugAdapterFactory, output: OutputChannel)
-	{
+	constructor(adapter: DascriptLaunchDebugAdapterFactory, output: OutputChannel) {
 		this.adapterFactory = adapter
 		this.output = output
 	}
