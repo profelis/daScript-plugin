@@ -357,13 +357,13 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			this.child.stderr.on('data', (data) => {
 				log(`da: [stderr] ${data}`)
 			})
-			const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : DEBUGGER_CONNECTION_TIMEOUT
-			const waitTime = Date.now()
-			if (hasDebug)
-				while (Date.now() - waitTime < connectTimeout * 1000) {
-					// log("waiting child...")
-				}
 		}
+		const connectTimeout = "connectTimeout" in _session.configuration ? _session.configuration.connectTimeout : DEBUGGER_CONNECTION_TIMEOUT
+		const waitTime = Date.now()
+		if (hasDebug && connectTimeout > 0)
+			while (Date.now() - waitTime < connectTimeout * 1000) {
+				// log("waiting child...")
+			}
 
 		return hasDebug ? new vscode.DebugAdapterServer(port, host) : new vscode.DebugAdapterExecutable("")
 	}
