@@ -321,7 +321,13 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			runInTerminal(cmd, args, { cwd: cwd })
 		else if (_session.configuration.console == "internalTerminal") {
 			// const terminal = vscode.window.createTerminal(outputChannel.name, process.env.COMSPEC)
-			this.terminal = this.terminal ?? vscode.window.createTerminal(outputChannel.name)
+			if (this.terminal == null) {
+				this.terminal = vscode.window.createTerminal(outputChannel.name)
+				vscode.window.onDidCloseTerminal(t => {
+					if (t === this.terminal)
+						this.terminal = null
+				})
+			}
 			this.terminal.sendText(`${cmd} ${args.join(' ')}`, true)
 			this.terminal.show(true)
 			focusConsole = false
