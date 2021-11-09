@@ -396,6 +396,10 @@ class DascriptDebugAdapterTracker {
 	log(data: string) {
 		this.output.appendLine(data)
 		this.adapterFactory?.outputChannel?.appendLine(data)
+		if (this.adapterFactory?.outputChannel)
+			this.adapterFactory?.outputChannel?.show(true)
+		else
+			this.output.show(true)
 	}
 
 	onWillStopSession?(): void {
