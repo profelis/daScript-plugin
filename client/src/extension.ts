@@ -13,6 +13,7 @@ import {
 	ErrorAction,
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient/node'
+import { setFlagsFromString } from 'v8'
 
 let SPAWN_SERVER = true
 let DEFAULT_PORT = 7999 + Math.round(Math.random() * 1000)
@@ -275,6 +276,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 
 	child: cp.ChildProcess
 	outputChannel: OutputChannel
+	terminal: vscode.Terminal
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 
 		const host = "host" in _session.configuration && String(_session.configuration.host).length > 0 ? String(_session.configuration.host) : null
@@ -319,9 +321,9 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			runInTerminal(cmd, args, { cwd: cwd })
 		else if (_session.configuration.console == "internalTerminal") {
 			// const terminal = vscode.window.createTerminal(outputChannel.name, process.env.COMSPEC)
-			const terminal = vscode.window.createTerminal(outputChannel.name)
-			terminal.sendText(`${cmd} ${args.join(' ')}`, true)
-			terminal.show(true)
+			this.terminal = this.terminal ?? vscode.window.createTerminal(outputChannel.name)
+			this.terminal.sendText(`${cmd} ${args.join(' ')}`, true)
+			this.terminal.show(true)
 			focusConsole = false
 		}
 		else
