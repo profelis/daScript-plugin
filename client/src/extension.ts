@@ -330,7 +330,7 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 			}
 			let cmdLine = `cd ${cwd} && ${cmd} ${args.join(' ')}`
 			if (/^win/.test(process.platform))
-				cmdLine = `cmd /c ${cmdLine}`
+				cmdLine = `cmd /c "${cmdLine}"`
 			this.terminal.sendText(cmdLine, true)
 			this.terminal.show(true)
 			focusConsole = false

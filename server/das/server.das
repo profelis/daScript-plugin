@@ -108,7 +108,7 @@ def find_token(data: Dascript const?; path: string; pos : Position; valid : bloc
 def init_file_access(var access; config: PluginConfig; workspaceFolders : array<WorkspaceFolder>)
     // def rtti::add_file_access_root(access: rtti::FileAccess? const implicit; mod: string const implicit; path: string const implicit): bool
     static_if typeinfo(builtin_function_exists @@rtti::add_file_access_root)
-        let roots & = config.project.fileAccessRoots
+        let roots & = unsafe(config.project.fileAccessRoots)
         for rootName, rootPath in keys(roots), values(roots)
             var fixedPath = rootPath
             if !empty(workspaceFolders)
@@ -330,7 +330,7 @@ class TelnetServer : Server
         var localCb <- @ <| [[<-cb]](data, error : JsonValue?)
             configReqs |> erase(path)
             if error == null && data != null && data.value is _array
-                let arr & = data.value as _array
+                let arr & = unsafe(data.value as _array)
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
                     // info("> got config {path}", get_line_info())
@@ -657,7 +657,7 @@ class TelnetServer : Server
         var data = registry |> find(path)
         var idx = 0
         while idx < length(validDataReqs)
-            var req & = validDataReqs[idx]
+            var req & = unsafe(validDataReqs[idx])
             if req.path == path
                 req.cb |> invoke(data)
                 delete validDataReqs[idx]
@@ -894,7 +894,7 @@ class TelnetServer : Server
                         for it in visitor.res
                             var jitem = JV(it)
                             if it.kind == CompletionItemKind Method
-                                var obj & = jitem.value as _object
+                                var obj & = unsafe(jitem.value as _object)
                                 var addEdit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character + 1),
                                     newText = " "
@@ -911,7 +911,7 @@ class TelnetServer : Server
                             completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
                                 var comp = JV(val)
                                 let isOperator = is_operator(val.name)
-                                var obj & = comp.value as _object
+                                var obj & = unsafe(comp.value as _object)
                                 var addEdit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
                                     newText = " "
@@ -987,7 +987,7 @@ class TelnetServer : Server
                 return
             let hasType = !empty(token.typeDefPath)
             var defPath = hasType ? token.typeDefPath : token.defPath
-            let _range & = hasType ? token.typeDefRange : token.defRange
+            let _range = hasType ? token.typeDefRange : token.defRange
             var loc = [[Location uri = path_to_uri(defPath), _range = _range ]]
             self->sendResponse(id, JV(loc))
             delete loc
@@ -1395,7 +1395,7 @@ class TelnetServer : Server
                 error("Json read error: {error}\n", get_line_info())
                 return
             if msg.value is _object
-                var obj & = msg.value as _object
+                var obj & = unsafe(msg.value as _object)
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
                     // info("> result {id} callbacks num: {length(requestCallbacks)}\n", get_line_info())
