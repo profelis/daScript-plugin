@@ -1522,6 +1522,8 @@ def mainLoop(fn : string)
 
     telnet = new TelnetServer()
     telnet.port = port
+    static_if typeinfo(has_field<make_server_adapter> *telnet)
+        telnet->make_server_adapter()
 
     var res = false
     with_channel(telnet.jobsNum) <| $(channel)
