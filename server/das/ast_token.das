@@ -206,7 +206,7 @@ def var_to_token(arg: smart_ptr<ast::Variable>; blk : block<(var token:AstToken?
         return false
     let typ = arg._type != null ? "{module_name(arg._module)}{describe([decl=arg._type,extra=true])}" : ""
     var desc = "{arg.name} : {typ}"
-    if !arg._type.flags.constant
+    if arg._type != null && !arg._type.flags.constant
         desc = "var " + desc
     if arg.init != null
         desc += " = {describe(arg.init)}"
@@ -251,6 +251,28 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
         res._range.start.character += 2
         res._range.end.character += length(res.name)
     invoke(blk, res)
+    return true
+
+
+def assume_to_token(expr; blk : block<(var token:AstToken?):void>)
+    if expr == null || expr.genFlags.generated
+        return false
+    let typ = expr._type != null ? "{describe([decl=expr._type,extra=true])}" : ""
+    var desc = "{expr.alias} : {typ}"
+    if expr._type != null && !expr._type.flags.constant
+        desc = "var " + desc
+    var token <- new [[AstToken
+        name = "{expr.alias}",
+        desc = desc,
+        kind = AstTokenKind Variable,
+        _type = typ
+        // warn = !expr.subexpr.flags.marked_used && expr.subexpr.isAccessUnused ? AstTokenWarn unused : bitfield(0)
+    ]]
+    set_type_desc(token, expr._type)
+    set_token_path(token, expr.at)
+    set_token_def(token, expr.at)
+    set_token_type_def(token, expr._type)
+    invoke(blk, token)
     return true
 
 
@@ -924,6 +946,13 @@ class AstData : AstVisitor
     // def override preVisitExprClone(expr:smart_ptr<ExprClone>) : void
     // def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
     // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
+// assume
+    def override preVisitExprAssume(expr:smart_ptr<ExprAssume>) : void
+        if skipExprs || expr == null || expr.genFlags.generated
+            return
+        assume_to_token(expr) <| $(var token : AstToken?)
+            *tokens |> emplace(token)
+    // def override visitExprAssume(expr:smart_ptr<ExprAssume>) : ExpressionPtr
 // with
     // def override preVisitExprWith(expr:smart_ptr<ExprWith>) : void
     // def override visitExprWith(expr:smart_ptr<ExprWith>) : ExpressionPtr
