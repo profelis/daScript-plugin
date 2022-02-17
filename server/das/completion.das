@@ -380,7 +380,7 @@ def is_operator(str : string)
     globalCompletion : Completions
 
     def updateGlobalList(force:bool): bool
-        if !force && get_clock() - globalCompletionUpdate < 120f
+        if !force && get_clock() - globalCompletionUpdate < 120.0lf
             return false
         globalCompletionUpdate = get_clock()
 
