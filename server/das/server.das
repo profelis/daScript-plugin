@@ -780,7 +780,7 @@ class TelnetServer : Server
                 delete hoversData
             if !found
                 warning("hover info not found @ {to_string(ini.position)}\n", get_line_info())
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
 
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
@@ -965,7 +965,7 @@ class TelnetServer : Server
             var token = find_token(data, path, ini.position) <| $(tok : AstToken?)
                 return !empty(tok.defPath)
             if token == null
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
                 return
             var loc = [[Location uri = path_to_uri(token.defPath), _range = token.defRange]]
             self->sendResponse(id, JV(loc))
@@ -983,7 +983,7 @@ class TelnetServer : Server
                 token = find_token(data, path, ini.position) <| $(tok : AstToken?)
                     return !empty(tok.defPath)
             if token == null
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
                 return
             let hasType = !empty(token.typeDefPath)
             var defPath = hasType ? token.typeDefPath : token.defPath
@@ -999,7 +999,7 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @(data: Dascript const?)
             if data == null
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
                 return
             var res : array<JsonValue?>
             for it in data.ast
@@ -1128,7 +1128,7 @@ class TelnetServer : Server
                                 found = true
                                 break
             if !found
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentColor
     def documentColor(id : double; var params : JsonValue?)
@@ -1185,7 +1185,7 @@ class TelnetServer : Server
                     var arr <- [{ for it in res; JV(it)}]
                     self->sendResponse(id, JV(arr))
             if !found
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
     def colorPresentation(id : double; var params : JsonValue?)
@@ -1204,7 +1204,7 @@ class TelnetServer : Server
         self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
             var token = self->getToken(data, path, ini.position)
             if token == null || !token._range |> range_oneline()
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
             else
                 self->sendResponse(id, JV(token._range))
                 // self->sendResponse(id, JV({{ "defaultBehavior" => JV(true) }}))
@@ -1219,7 +1219,7 @@ class TelnetServer : Server
             // info("rename token", get_line_info())
             // info(token, get_line_info())
             if token == null || !token._range |> range_oneline()
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
                 delete ini
                 return
             // split module::name
@@ -1227,7 +1227,7 @@ class TelnetServer : Server
             var res <- self->getRefs(token)
             if length(res) == 0
                 delete res
-                self->sendResponse(id, JV(null))
+                self->sendResponse(id, JVNull())
                 delete ini
                 return
             let tokenLength = length(token._range)

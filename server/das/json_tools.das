@@ -7,7 +7,7 @@ def clone(var a: JsonValue?&; b: JsonValue?)
     unsafe
         delete a
     if b == null
-        a = JV(null)
+        a = JVNull()
     else
         a = new [[JsonValue value := b.value]]
 
