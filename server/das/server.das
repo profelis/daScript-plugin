@@ -15,6 +15,7 @@ require network
 require fio
 require daslib/json_boost
 require daslib/jobque_boost
+require daslib/das_source_formatter
 require json_tools
 require lib
 require logger
@@ -386,6 +387,8 @@ class TelnetServer : Server
             documentSymbolProvider = true,
             colorProvider = true,
             workspaceSymbolProvider = true,
+            documentFormattingProvider = true,
+            documentRangeFormattingProvider = false, // TODO:
             renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]],
@@ -1207,8 +1210,46 @@ class TelnetServer : Server
                 self->sendResponse(id, JVNull())
             else
                 self->sendResponse(id, JV(token._range))
-                // self->sendResponse(id, JV({{ "defaultBehavior" => JV(true) }}))
             delete ini
+
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
+    [unused_argument(id)] def formatting(id : double; var params : JsonValue?)
+        var ini <- DocumentFormattingParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            let formatted = format_source_string(data.text)
+            var res <- [{TextEdit[]
+                [[TextEdit 
+                    _range = Range(0, 0, INT_MAX, 0),
+                    newText = formatted
+                ]]
+            }]
+            self->sendResponse(id, JV(res))
+            delete ini
+            delete res
+
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
+    [unused_argument(id)] def rangeFormatting(id : double; var params : JsonValue?)
+        var ini <- DocumentRangeFormattingParams(params)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @[[<-ini]](data: Dascript const?)
+            let startIdx = pos_to_index(ini._range.start, data.text)
+            let endIdx = pos_to_index(ini._range.end, data.text)
+            let sliceStr = slice(data.text, startIdx, endIdx)
+            info(startIdx, get_line_info())
+            info(endIdx, get_line_info())
+            info(sliceStr, get_line_info())
+            let formatted = format_source_string(sliceStr)
+            info(formatted, get_line_info())
+            var res <- [{TextEdit[]
+                [[TextEdit 
+                    _range = Range(ini._range.start, ini._range.end),
+                    newText = formatted
+                ]]
+            }]
+            self->sendResponse(id, JV(res))
+            delete ini
+            delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
     [unused_argument(id)] def rename(id : double; var params : JsonValue?)
@@ -1281,22 +1322,6 @@ class TelnetServer : Server
         res.data |> push(0) // no tokens modifiers
         // info("{newLine} {newChar} {length(ast._range)} {idx}", get_line_info())
         // info(ast, get_line_info())
-
-// kenTypes <- [{ auto[]
-//                         SemanticToken_class;
-//                         SemanticToken_enum;
-//                         SemanticToken_struct;
-//                         SemanticToken_variable;
-                        // SemanticToken_property
-//                         SemanticToken_enumMember;
-//                         SemanticToken_function;
-//                         SemanticToken_method
-//                         SemanticToken_macro;
-//                         SemanticToken_modifier
-//                         SemanticToken_string;
-//                         SemanticToken_number
-//                     }]
-
 
     def collect_semantic_tokens(ast: AstToken?; var line, ch: int&; var res: SemanticTokens)
         if ast.kind == AstTokenKind Class
@@ -1482,6 +1507,12 @@ class TelnetServer : Server
 
                     elif method == "textDocument/semanticTokens/full"
                         self->semanticTokensFull(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/formatting"
+                        self->formatting(jon(msg, "id"), joj(msg, "params"))
+
+                    // elif method == "textDocument/rangeFormatting"
+                    //     self->rangeFormatting(jon(msg, "id"), joj(msg, "params"))
 
                     elif method == "exit"
                         done = true

@@ -336,8 +336,8 @@ struct ServerCapabilities
     // codeLensProvider : CodeLensOptions
     documentLinkProvider : bool //DocumentLinkOptions
     colorProvider : bool // DocumentColorOptions
-    // documentFormattingProvider : DocumentFormattingOptions
-    // documentRangeFormattingProvider : DocumentRangeFormattingOptions
+    documentFormattingProvider : bool
+    documentRangeFormattingProvider : bool
     // documentOnTypeFormattingProvider : DocumentOnTypeFormattingOptions
     renameProvider : RenameOptions
     // foldingRangeProvider : FoldingRangeOptions
@@ -393,7 +393,7 @@ def pos_to_index(pos : Position; text : string)
     for i, ch in iter_range(text), text
         if ch == '\n'
             if line == pos.line
-                return i // something wrong with char pos, return last char in line
+                return i // something wrong with char pos, return last char in the line before new line
             line++
         if line == pos.line
             if charPos == pos.character
@@ -902,6 +902,40 @@ def PrepareRenameParams(val: JsonValue?)
     return <- [[PrepareRenameParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         position <- Position(joj(val, "position"))
+    ]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
+struct FormattingOptions
+    tabSize: double
+    insertSpaces: bool
+
+def FormattingOptions(val : JsonValue?)
+    return <- [[FormattingOptions
+        tabSize = jon(val, "tabSize"),
+        insertSpaces = job(val, "insertSpaces")
+    ]]
+
+struct DocumentFormattingParams
+    textDocument: TextDocumentIdentifier
+    _options: FormattingOptions
+
+def DocumentFormattingParams(val: JsonValue?)
+    return <- [[DocumentFormattingParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+        _options <- FormattingOptions(joj(val, "options"))
+    ]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
+struct DocumentRangeFormattingParams
+    textDocument: TextDocumentIdentifier
+    _range: Range
+    _options: FormattingOptions
+
+def DocumentRangeFormattingParams(val: JsonValue?)
+    return <- [[DocumentRangeFormattingParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+        _range <- Range(joj(val, "range")),
+        _options <- FormattingOptions(joj(val, "options"))
     ]]
 
 struct WorkspaceEdit
