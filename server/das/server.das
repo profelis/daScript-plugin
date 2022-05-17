@@ -107,14 +107,12 @@ def find_token(data : Dascript const?; path : string; pos : Position; valid : bl
 
 
 def init_file_access(var access; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>)
-    // def rtti::add_file_access_root(access: rtti::FileAccess? const implicit; mod: string const implicit; path: string const implicit): bool
-    static_if typeinfo(builtin_function_exists @@rtti::add_file_access_root)
-        let roots & = unsafe(config.project.fileAccessRoots)
-        for rootName, rootPath in keys(roots), values(roots)
-            var fixedPath = rootPath
-            if !empty(workspaceFolders)
-                fixedPath = fixedPath |> replace("$\{workspaceFolder\}", uri_to_path(workspaceFolders[0].uri))
-            access |> add_file_access_root(rootName, fixedPath)
+    let roots & = unsafe(config.project.fileAccessRoots)
+    for rootName, rootPath in keys(roots), values(roots)
+        var fixedPath = rootPath
+        if !empty(workspaceFolders)
+            fixedPath = fixedPath |> replace("$\{workspaceFolder\}", uri_to_path(workspaceFolders[0].uri))
+        access |> add_file_access_root(rootName, fixedPath)
 
 
 def compile(path, dataText : string; withContent : bool; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>; var globalCompletion : Completions) : ValidateResult
@@ -136,8 +134,7 @@ def compile(path, dataText : string; withContent : bool; config : PluginConfig; 
     cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
     cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-    static_if typeinfo(has_field < aot_module > type<CodeOfPolicies>)
-        cp.aot_module = true
+    cp.aot_module = true
     try
         compile_file(path, access, mg, cp) <| $(ok, program, error)
             // info("< compiled {path} {ok}\n'{error}'", get_line_info())
@@ -1553,8 +1550,7 @@ def mainLoop(fn : string)
 
     telnet = new TelnetServer()
     telnet.port = port
-    static_if typeinfo(has_field < make_server_adapter > *telnet)
-        telnet->make_server_adapter()
+    telnet->make_server_adapter()
 
     var res = false
     with_channel(telnet.jobsNum) <| $(channel)
