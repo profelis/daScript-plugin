@@ -3,7 +3,7 @@ options no_aot = true
 
 require daslib/json_boost
 
-def clone(var a: JsonValue?&; b: JsonValue?)
+def clone(var a : JsonValue?&; b : JsonValue?)
     unsafe
         delete a
     if b == null
@@ -29,7 +29,7 @@ def jon(val : JsonValue?; id : string; defVal = 0lf) : double
     return res
 
 def j_s(val : JsonValue?; defVal = "") : string
-    return val?.value ?as _string ?? defVal
+    return val?.value ? as _string ?? defVal
 
 def jos(val : JsonValue?; id : string; defVal = "") : string
     var res = defVal

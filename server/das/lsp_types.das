@@ -264,7 +264,7 @@ enum TextDocumentSyncKind
     Full = 1
     Incremental = 2
 
-def JV(val: TextDocumentSyncKind)
+def JV(val : TextDocumentSyncKind)
     return JV(int(val))
 
 struct CompletionOptions
@@ -285,15 +285,15 @@ struct SignatureHelpOptions
     // retriggerCharacters : array<string>
 
 struct RenameOptions
-    prepareProvider: bool
+    prepareProvider : bool
 
 struct SemanticTokensLegend
-    tokenTypes: array<string>
-    tokenModifiers: array<string>
+    tokenTypes : array<string>
+    tokenModifiers : array<string>
 
 struct SemanticTokensOptions
-    legend: SemanticTokensLegend
-    full: bool
+    legend : SemanticTokensLegend
+    full : bool
     // range: bool
 
 let
@@ -440,7 +440,7 @@ def in_range(pos : Position; r : Range)
 def in_range(b, a : Range)
     return b.start |> in_range(a) && b.end |> in_range(a)
 
-def overlaps(b, a: Range)
+def overlaps(b, a : Range)
     return b.start |> in_range(a) || b.end |> in_range(a) || a |> in_range(b)
 
 def range_oneline(a : Range)
@@ -566,7 +566,7 @@ enum DiagnosticSeverity
     Information = 3
     Hint = 4
 
-def JV(val: DiagnosticSeverity)
+def JV(val : DiagnosticSeverity)
     return JV(int(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
@@ -574,7 +574,7 @@ enum DiagnosticTag
     Unnecessary = 1
     Deprecated = 2
 
-def JV(val: DiagnosticTag)
+def JV(val : DiagnosticTag)
     return JV(int(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#diagnostic
@@ -644,7 +644,7 @@ enum CompletionItemKind
     Operator = 24
     TypeParameter = 25
 
-def JV(val: CompletionItemKind)
+def JV(val : CompletionItemKind)
     return JV(int(val))
 
 struct CompletionItem
@@ -720,7 +720,7 @@ enum MessageType
     Info = 3
     Log = 4
 
-def JV(val: MessageType)
+def JV(val : MessageType)
     return JV(int(val))
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#window_logMessage
@@ -837,7 +837,7 @@ def Color(val : JsonValue?)
         alpha = jon(val, "alpha")
     ]]
 
-def to_string(c: Color; len: int): string
+def to_string(c : Color; len : int) : string
     return build_string() <| $(var str)
         write(str, "0x")
         if len > 8
@@ -886,9 +886,9 @@ def JV(val : TextEdit)
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_rename
 struct RenameParams : TextDocumentPositionParams
-    newName: string
+    newName : string
 
-def RenameParams(val: JsonValue?)
+def RenameParams(val : JsonValue?)
     return <- [[RenameParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         position <- Position(joj(val, "position")),
@@ -898,7 +898,7 @@ def RenameParams(val: JsonValue?)
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
 struct PrepareRenameParams : TextDocumentPositionParams {}
 
-def PrepareRenameParams(val: JsonValue?)
+def PrepareRenameParams(val : JsonValue?)
     return <- [[PrepareRenameParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         position <- Position(joj(val, "position"))
@@ -906,8 +906,8 @@ def PrepareRenameParams(val: JsonValue?)
 
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
 struct FormattingOptions
-    tabSize: double
-    insertSpaces: bool
+    tabSize : double
+    insertSpaces : bool
 
 def FormattingOptions(val : JsonValue?)
     return <- [[FormattingOptions
@@ -916,10 +916,10 @@ def FormattingOptions(val : JsonValue?)
     ]]
 
 struct DocumentFormattingParams
-    textDocument: TextDocumentIdentifier
-    _options: FormattingOptions
+    textDocument : TextDocumentIdentifier
+    _options : FormattingOptions
 
-def DocumentFormattingParams(val: JsonValue?)
+def DocumentFormattingParams(val : JsonValue?)
     return <- [[DocumentFormattingParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         _options <- FormattingOptions(joj(val, "options"))
@@ -927,11 +927,11 @@ def DocumentFormattingParams(val: JsonValue?)
 
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
 struct DocumentRangeFormattingParams
-    textDocument: TextDocumentIdentifier
-    _range: Range
-    _options: FormattingOptions
+    textDocument : TextDocumentIdentifier
+    _range : Range
+    _options : FormattingOptions
 
-def DocumentRangeFormattingParams(val: JsonValue?)
+def DocumentRangeFormattingParams(val : JsonValue?)
     return <- [[DocumentRangeFormattingParams
         textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
         _range <- Range(joj(val, "range")),
@@ -939,11 +939,11 @@ def DocumentRangeFormattingParams(val: JsonValue?)
     ]]
 
 struct WorkspaceEdit
-    changes: table<string; array<TextEdit>>
+    changes : table<string; array<TextEdit>>
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-3-17/#semanticTokensParams
 struct SemanticTokensParams
-    textDocument: TextDocumentIdentifier
+    textDocument : TextDocumentIdentifier
 
 
 def SemanticTokensParams(val : JsonValue?)
@@ -952,4 +952,4 @@ def SemanticTokensParams(val : JsonValue?)
     ]]
 
 struct SemanticTokens
-    data: array<int>
+    data : array<int>

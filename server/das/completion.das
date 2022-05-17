@@ -81,26 +81,26 @@ def module_name(mod)
 
 
 def getTypeName(info; var items : Completions)
-    var res: string
+    var res : string
     if info.basicType == Type tHandle
         res = info.annotation != null ? "{module_name(info.annotation._module)}{info.annotation.name}" : "tHandle"
     elif info.basicType == Type tStructure
         res = info.structType?.name ?? "structure"
-    elif info.basicType == Type tEnumeration || info.basicType==Type tEnumeration8 || info.basicType==Type tEnumeration16
+    elif info.basicType == Type tEnumeration || info.basicType == Type tEnumeration8 || info.basicType == Type tEnumeration16
         res = info.enumType?.name ?? "enumeration"
     elif info.basicType == Type tPointer
         res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
     elif info.basicType == Type tArray
         res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
     elif info.basicType == Type tTable
-        if info.firstType != null && info.secondType!=null
+        if info.firstType != null && info.secondType != null
             res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
         else
             res = "table"
     elif info.basicType == Type tTuple
         if info.argTypes != null
             var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
-            res = "tuple<" + join(args,";") + ">"
+            res = "tuple<" + join(args, ";") + ">"
             delete args
         else
             res = "tuple"
@@ -130,7 +130,7 @@ def getTypeName(info; var items : Completions)
         res = "{get_das_type_name(info.basicType)}<"
         if info.argTypes != null
             var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
-            res += "(" + join(args,"; ") + ")"
+            res += "(" + join(args, "; ") + ")"
             delete args
         if info.firstType != null
             res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
@@ -163,17 +163,17 @@ def getValue(value)
     return " = {value}"
 
 [export]
-def parseAnnotation(ann : Annotation; fullModuleName : string; var items: Completions; verbose = true)
+def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Completions; verbose = true)
     if ann.isBasicStructureAnnotation
         unsafe
-            let sann & = reinterpret<BasicStructureAnnotation&>(ann)
+            let sann & = reinterpret<BasicStructureAnnotation&> (ann)
             let structName = "{sann.name}"
             let fullName = "{fullModuleName}{structName}"
             var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
             var props : array<string>
             var fields : array<tuple<uint; string>>
             var all : array<Completion>
-            basic_struct_for_each_field(sann) <| $ ( name, cppName, xtype, offset)
+            basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
                 var field = "{getTypeName(xtype, items)} [{cppName}"
                 if offset != -1u
                     field += " @ {offset}]"
@@ -211,7 +211,7 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items: Comple
     elif ann.isTypeAnnotation
         if verbose
             unsafe
-                let tann & = reinterpret<TypeAnnotation&>(ann)
+                let tann & = reinterpret<TypeAnnotation&> (ann)
                 let structName = "{tann.name}"
                 let fullName = "{fullModuleName}{structName}"
                 addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
@@ -258,7 +258,7 @@ def parseModule(pMod; var items : Completions)
         var shortStructDesc = ""
         structure_for_each_annotation(info) <| $(ann; annArgs)
             var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}]
-            let argT = join(args,", ")
+            let argT = join(args, ", ")
             delete args
             shortStructDesc += "[{ann.name}({argT})]\n"
         shortStructDesc += "struct {fullName}"
@@ -305,7 +305,7 @@ def parseModule(pMod; var items : Completions)
             addItem(it._1, items)
         delete all
 
-    module_for_each_global(pMod) <| $ (glob)
+    module_for_each_global(pMod) <| $(glob)
         let globName = "{glob.name}"
         let fullName = "{fullModuleName}{globName}"
         addItem([[Completion name = globName, fullName = fullName, desc = "const {fullName}{getValue(get_variable_value(glob))}", kind = CompletionItemKind Constant]], items)
@@ -337,7 +337,7 @@ def isalnum_at(text : string; pos : int)
         return is_alpha(ch) || is_number(ch)
 
 [export]
-def programCompletion(program : smart_ptr<Program>; globalCompletion: Completions; var items : Completions)
+def programCompletion(program : smart_ptr<Program>; globalCompletion : Completions; var items : Completions)
     var temp : Completions
     program_for_each_module(program) <| $(var mod)
         parseModule(mod, temp)
@@ -350,7 +350,7 @@ def programCompletion(program : smart_ptr<Program>; globalCompletion: Completion
 
 
 [export]
-def contains(completions: Completions; name: string): bool
+def contains(completions : Completions; name : string) : bool
     for it in values(completions)
         if it.name == name
             return true
@@ -379,7 +379,7 @@ def is_operator(str : string)
     globalCompletionUpdate : clock
     globalCompletion : Completions
 
-    def updateGlobalList(force:bool): bool
+    def updateGlobalList(force : bool) : bool
         if !force && get_clock() - globalCompletionUpdate < 120.0lf
             return false
         globalCompletionUpdate = get_clock()
@@ -389,16 +389,16 @@ def is_operator(str : string)
         addKeywords(globalCompletion)
         program_for_each_registered_module() <| $(var mod)
             parseModule(mod, globalCompletion)
-        let sec = double(get_time_usec(t0))/1000000.0lf
+        let sec = double(get_time_usec(t0)) / 1000000.0lf
         info("completion: got {length(globalCompletion)} global items in {sec}s\n", get_line_info())
         return true
 
-    def appendToGlobalList(comp: Completions)
+    def appendToGlobalList(comp : Completions)
         for name, val in keys(comp), values(comp)
             if !globalCompletion |> key_exists(name)
                 globalCompletion[name] := val
 
-    def findCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
+    def findCompletion(completions : Completions; name : string; blk : block<(val : Completion) : void>)
         var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
         n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
@@ -411,7 +411,7 @@ def is_operator(str : string)
             if it.kind != CompletionItemKind Keyword && it.fullName == n
                 invoke(blk, it)
 
-    def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion):void>)
+    def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion) : void>)
         var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part("<") |> first_part("-") |> first_part("(")
         info("{name} -> {n}", get_line_info())
@@ -419,7 +419,7 @@ def is_operator(str : string)
         globalCompletion |> with_func_arg(n, blk)
 
 
-def with_func_arg(completions : Completions; name: string; blk : block<(val : Completion):void>)
+def with_func_arg(completions : Completions; name : string; blk : block<(val : Completion) : void>)
     let nLen = length(name)
     for it in values(completions)
         for arg in it.funcFirstArg

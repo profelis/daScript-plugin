@@ -8,11 +8,11 @@ require fio
 require fs_tools
 
 struct PluginConfigPolicies
-    ignoreSharedModules: bool = true
-    noGlobalVariables: bool = false
-    noUnusedBlockArguments: bool = false
-    noUnusedFunctionArguments: bool = false
-    failOnLackOfAotExport: bool = false
+    ignoreSharedModules : bool = true
+    noGlobalVariables : bool = false
+    noUnusedBlockArguments : bool = false
+    noUnusedFunctionArguments : bool = false
+    failOnLackOfAotExport : bool = false
 
 def PluginConfigPolicies(val : JsonValue?)
     return <- [[PluginConfigPolicies
@@ -33,13 +33,13 @@ def PluginConfigHovers(val : JsonValue?)
 struct PluginConfigProject
     roots : array<string>
     file : string
-    scanWorkspace: bool
-    fileAccessRoots: table<string; string>
+    scanWorkspace : bool
+    fileAccessRoots : table<string; string>
 
 def PluginConfigProject(val : JsonValue?)
     let roots = joj(val, "roots")
     let fileAccessRootsJs = joj(val, "fileAccessRoots")
-    var fileAccessRoots: table<string; string>
+    var fileAccessRoots : table<string; string>
     if fileAccessRootsJs.value is _object
         let obj & = unsafe(fileAccessRootsJs.value as _object)
         for k, v in keys(obj), values(obj)
@@ -56,8 +56,8 @@ struct PluginConfig
     hovers : PluginConfigHovers
     // compiler : string // unused
     project : PluginConfigProject
-    experimental: bool
-    policies: PluginConfigPolicies
+    experimental : bool
+    policies : PluginConfigPolicies
     // server : { args : array<string> } // unused
 
 def PluginConfig(val : JsonValue?)
@@ -69,7 +69,7 @@ def PluginConfig(val : JsonValue?)
     ]]
 
 
-def is_valid(path: string)
+def is_valid(path : string)
     let st = stat(path)
     return st.is_valid
 

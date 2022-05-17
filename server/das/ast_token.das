@@ -132,52 +132,52 @@ def collect_diag(val : AstTokens; path : string; var diag : array<Diagnostic>)
     for it in val
         it |> collect_diag(path, diag)
 
-def collect_all_token(var val : AstToken?; blk : block<(var token:AstToken?):void>)
+def collect_all_token(var val : AstToken?; blk : block<(var token : AstToken?) : void>)
     blk |> invoke(val)
     for it in val.children
         it |> collect_all_token(blk)
 
-def collect_all_token(var val : AstTokens; blk : block<(var token:AstToken?):void>)
+def collect_all_token(var val : AstTokens; blk : block<(var token : AstToken?) : void>)
     for it in val
         it |> collect_all_token(blk)
 
-def collect_all_token(val : AstToken?; blk : block<(token:AstToken?):void>)
+def collect_all_token(val : AstToken?; blk : block<(token : AstToken?) : void>)
     blk |> invoke(val)
     for it in val.children
         it |> collect_all_token(blk)
 
-def collect_all_token(val : AstTokens; blk : block<(token:AstToken?):void>)
+def collect_all_token(val : AstTokens; blk : block<(token : AstToken?) : void>)
     for it in val
         it |> collect_all_token(blk)
 
-def collect_token(val : AstTokens; path : string; blk : block<(token:AstToken?):void>)
-    collect_all_token(val) <| $(token: AstToken?)
+def collect_token(val : AstTokens; path : string; blk : block<(token : AstToken?) : void>)
+    collect_all_token(val) <| $(token : AstToken?)
         if token.path == path
             blk |> invoke(token)
 
-def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token:AstToken?):void>)
-    collect_all_token(val) <| $(token: AstToken?)
+def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(token : AstToken?) : void>)
+    collect_all_token(val) <| $(token : AstToken?)
         if token.path == path && pos |> in_range(token._range)
             blk |> invoke(token)
 
-def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token:AstToken?):void>)
+def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
     if !empty(val.path) && val.defPath == path && val.defRange == _range// && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         blk |> invoke(val)
     for it in val.children
         it |> collect_ref_token(path, _range, blk)
 
-def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : block<(token:AstToken?):void>)
+def collect_ref_token(val : AstTokens; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
     for it in val
         it |> collect_ref_token(path, _range, blk)
 
-def module_name(mod: Module?)
+def module_name(mod : Module?)
     return (mod == null || length(mod.name) == 0) ? "" : "{mod.name}::"
 
-def set_token_path(var token : AstToken?; at: LineInfo)
+def set_token_path(var token : AstToken?; at : LineInfo)
     token._range = line_info_to_range(at)
     token.path = at.fileInfo != null ? "{at.fileInfo.name}" : ""
 
-def set_token_def(var token : AstToken?; at: LineInfo)
+def set_token_def(var token : AstToken?; at : LineInfo)
     token.defRange = line_info_to_range(at)
     token.defPath = at.fileInfo != null ? fix_path("{at.fileInfo.name}") : ""
 
@@ -201,7 +201,7 @@ def set_token_type_def(var token : AstToken?; typ : smart_ptr<ast::TypeDecl>)
     elif typ.secondType != null
         set_token_type_def(token, typ.secondType)
 
-def var_to_token(arg: smart_ptr<ast::Variable>; blk : block<(var token:AstToken?):void>)
+def var_to_token(arg : smart_ptr<ast::Variable>; blk : block<(var token : AstToken?) : void>)
     if arg == null || arg.flags.generated
         return false
     let typ = arg._type != null ? "{module_name(arg._module)}{describe([decl=arg._type,extra=true])}" : ""
@@ -225,7 +225,7 @@ def var_to_token(arg: smart_ptr<ast::Variable>; blk : block<(var token:AstToken?
     return true
 
 
-def field_to_token(expr; blk : block<(var token:AstToken?):void>)
+def field_to_token(expr; blk : block<(var token : AstToken?) : void>)
     if expr == null || expr.genFlags.generated
         return false
     var name = "{expr.name}"
@@ -254,7 +254,7 @@ def field_to_token(expr; blk : block<(var token:AstToken?):void>)
     return true
 
 
-def assume_to_token(expr; blk : block<(var token:AstToken?):void>)
+def assume_to_token(expr; blk : block<(var token : AstToken?) : void>)
     if expr == null || expr.genFlags.generated
         return false
     let typ = expr._type != null ? "{describe([decl=expr._type,extra=true])}" : ""
@@ -276,7 +276,7 @@ def assume_to_token(expr; blk : block<(var token:AstToken?):void>)
     return true
 
 
-def like_call_to_token(expr; blk : block<(var token:AstToken?):void>)
+def like_call_to_token(expr; blk : block<(var token : AstToken?) : void>)
     if expr == null || expr.genFlags.generated
         return false
     // info(expr._type)
@@ -318,7 +318,7 @@ def like_call_to_token(expr; blk : block<(var token:AstToken?):void>)
     invoke(blk, res)
     return true
 
-def call_to_token(expr; blk : block<(var token:AstToken?):void>)
+def call_to_token(expr; blk : block<(var token : AstToken?) : void>)
     if expr == null || expr.genFlags.generated
         return false
     // info(expr._type)
@@ -365,10 +365,10 @@ def call_to_token(expr; blk : block<(var token:AstToken?):void>)
     invoke(blk, res)
     return true
 
-def type_to_token(typ; blk : block<(var token:AstToken?):void>)
+def type_to_token(typ; blk : block<(var token : AstToken?) : void>)
     if typ == null
         return false
-    let typeName = describe([decl=typ,extra=true])
+    let typeName = describe([decl=typ, extra=true])
     var tok <- new [[AstToken
         name = typeName,
         desc = typeName,
@@ -382,7 +382,7 @@ def type_to_token(typ; blk : block<(var token:AstToken?):void>)
     invoke(blk, tok)
     return true
 
-def arguments_to_tokens(arguments: AnnotationArgumentList; var tokens : AstTokens)
+def arguments_to_tokens(arguments : AnnotationArgumentList; var tokens : AstTokens)
     for arg in arguments
         var argType = ""
         var argValue = ""
@@ -453,7 +453,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
         res._type = describe(t)
         unsafe
             let baseAnnotation & = reinterpret<Annotation?> t.annotation
-            var items: Completions
+            var items : Completions
             parseAnnotation(*baseAnnotation, module_name(t._module), items, false /*include struct name*/)
             for it in values(items)
                 res.res |> emplace(it)
@@ -463,7 +463,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
         res.found = true
         res._type = describe(t)
         let structType = t.structType
-        let structTyp = describe([decl=t,extra=false,contracts=false])
+        let structTyp = describe([decl=t, extra=false, contracts=false])
         for decl in structType.fields
             if decl.flags.generated
                 continue
@@ -505,39 +505,39 @@ def parse(t; var res : AstCompletionData; depth = 0)
     if t.baseType == Type tFloat2
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "float", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "float", res.res)
     elif t.baseType == Type tFloat3
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "float", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "float", res.res)
     elif t.baseType == Type tFloat4
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "float", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "float", res.res)
     elif t.baseType == Type tInt2
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "int", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "int", res.res)
     elif t.baseType == Type tInt3
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "int", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "int", res.res)
     elif t.baseType == Type tInt4
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "int", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "int", res.res)
     elif t.baseType == Type tUInt2
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 2, "uint", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "uint", res.res)
     elif t.baseType == Type tUInt3
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 3, "uint", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "uint", res.res)
     elif t.baseType == Type tUInt4
         res.found = true
         res._type = describe(t)
-        addCompletionSwizzle(describe([decl=t,extra=false,contracts=false]), 4, "uint", res.res)
+        addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "uint", res.res)
 
     if t.firstType != null
         parse(t.firstType, res, depth + 1)
@@ -553,7 +553,7 @@ class AstCompletionData : AstVisitor
     res : array<Completion>
 
 // var
-    def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
+    def override preVisitExprVar(expr : smart_ptr<ExprVar>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -565,7 +565,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 
 // field
-    def override preVisitExprField(expr:smart_ptr<ExprField>) : void
+    def override preVisitExprField(expr : smart_ptr<ExprField>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -578,7 +578,7 @@ class AstCompletionData : AstVisitor
         parse(expr._type, self)
 
 // safe field
-    def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
+    def override preVisitExprSafeField(expr : smart_ptr<ExprSafeField>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -589,7 +589,7 @@ class AstCompletionData : AstVisitor
         // info(_range, get_line_info())
         parse(expr._type, self)
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
-    def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
+    def override preVisitExprLooksLikeCall(expr : smart_ptr<ExprLooksLikeCall>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -600,7 +600,7 @@ class AstCompletionData : AstVisitor
         // info(_range, get_line_info())
         parse(expr._type, self)
 // call
-    def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
+    def override preVisitExprCall(expr : smart_ptr<ExprCall>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -611,7 +611,7 @@ class AstCompletionData : AstVisitor
         // info(_range, get_line_info())
         parse(expr._type, self)
 // ptr to ref
-    def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+    def override preVisitExprPtr2Ref(expr : smart_ptr<ExprPtr2Ref>) : void
         if found || expr == null || expr.genFlags.generated
             return
         if expr.at.fileInfo == null || string(expr.at.fileInfo.name) != path
@@ -630,21 +630,21 @@ class AstData : AstVisitor
     // def override visitProgram(porg:ProgramPtr) : void
     // def override preVisitProgramBody(prog:ProgramPtr) : void
 // type
-    def override preVisitTypeDecl(typ:TypeDeclPtr) : void
+    def override preVisitTypeDecl(typ : TypeDeclPtr) : void
         if typ == null
             return
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
     // def override visitTypeDecl(typ:TypeDeclPtr) : TypeDeclPtr
 // type alias
-    [unused_argument(name)] def override preVisitAlias(typ:TypeDeclPtr;name:das_string) : void
+    [unused_argument(name)] def override preVisitAlias(typ : TypeDeclPtr; name : das_string) : void
         if typ == null
             return
         type_to_token(typ) <| $(var token : AstToken?)
             *tokens |> emplace(token)
     // def override visitAlias(typ:TypeDeclPtr;name:das_string) : TypeDeclPtr
 // enumeration
-    def override preVisitEnumeration(enu:EnumerationPtr) : void
+    def override preVisitEnumeration(enu : EnumerationPtr) : void
         if enu == null
             return
         var name = "{module_name(enu._module)}{enu.name}"
@@ -678,7 +678,7 @@ class AstData : AstVisitor
     // def override visitEnumerationValue(enu:EnumerationPtr;name:das_string;value:ExpressionPtr;last:bool) : ExpressionPtr
     // def override visitEnumeration(enu:EnumerationPtr) : EnumerationPtr
 // // structure
-    def override preVisitStructure(str:StructurePtr) : void
+    def override preVisitStructure(str : StructurePtr) : void
         if str == null
             return
         if str.flags.generated || str.flags.isLambda
@@ -720,7 +720,7 @@ class AstData : AstVisitor
     // def override visitStructureField(str:StructurePtr;decl:FieldDeclaration;last:bool) : void
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
-    def override preVisitFunction(fun:FunctionPtr) : void
+    def override preVisitFunction(fun : FunctionPtr) : void
         if fun == null
             return
         if fun.flags.generated && !fun.flags._generator && !fun.flags._lambda
@@ -763,7 +763,7 @@ class AstData : AstVisitor
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)
         *tokens |> emplace(token)
-    def override visitFunction(fun:FunctionPtr) : FunctionPtr
+    def override visitFunction(fun : FunctionPtr) : FunctionPtr
         skipExprs = false
         return fun
     // def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
@@ -776,12 +776,12 @@ class AstData : AstVisitor
     // def override preVisitExpression(expr:ExpressionPtr) : void
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
 // block
-    def override preVisitExprBlock(fun:smart_ptr<ExprBlock>) : void
+    def override preVisitExprBlock(fun : smart_ptr<ExprBlock>) : void
         if skipExprs || fun == null
             return
         fun.annotations |> annotations_to_tokens(*tokens)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
-    [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool): void
+    [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void
         if skipExprs || blk == null || blk.genFlags.generated
             return
         var_to_token(arg) <| $(var token : AstToken?)
@@ -796,7 +796,7 @@ class AstData : AstVisitor
     // def override preVisitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
     // def override visitExprBlockFinalExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
 // let
-    def override preVisitExprLet(expr:smart_ptr<ExprLet>) : void
+    def override preVisitExprLet(expr : smart_ptr<ExprLet>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         for it in expr.variables
@@ -810,7 +810,7 @@ class AstData : AstVisitor
 // global let
     // def override preVisitGlobalLet(prog:ProgramPtr) : void
     // def override visitGlobalLet(prog:ProgramPtr) : void
-    [unused_argument(lastArg)] def override preVisitGlobalLetVariable(arg:VariablePtr;lastArg:bool) : void
+    [unused_argument(lastArg)] def override preVisitGlobalLetVariable(arg : VariablePtr; lastArg : bool) : void
         if skipExprs || arg == null
             return
         var_to_token(arg) <| $(var token : AstToken?)
@@ -835,7 +835,7 @@ class AstData : AstVisitor
     // def override preVisitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool): void
     // def override visitExprNamedCallArgument(expr:smart_ptr<ExprNamedCall>;arg:MakeFieldDeclPtr;last:bool) : MakeFieldDeclPtr
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
-    def override preVisitExprLooksLikeCall(expr:smart_ptr<ExprLooksLikeCall>): void
+    def override preVisitExprLooksLikeCall(expr : smart_ptr<ExprLooksLikeCall>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         like_call_to_token(expr) <| $(var token : AstToken?)
@@ -844,7 +844,7 @@ class AstData : AstVisitor
     // def override preVisitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool): void
     // def override visitExprLooksLikeCallArgument(expr:smart_ptr<ExprLooksLikeCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // call
-    def override preVisitExprCall(expr:smart_ptr<ExprCall>): void
+    def override preVisitExprCall(expr : smart_ptr<ExprCall>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         call_to_token(expr) <| $(var token : AstToken?)
@@ -853,7 +853,7 @@ class AstData : AstVisitor
     // def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
     // def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
 // null coalescing
-    def override preVisitExprNullCoalescing(expr:smart_ptr<ExprNullCoalescing>): void
+    def override preVisitExprNullCoalescing(expr : smart_ptr<ExprNullCoalescing>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "?? // null coalescing"
@@ -886,7 +886,7 @@ class AstData : AstVisitor
     // def override visitExprIs(expr:smart_ptr<ExprIs>) : ExpressionPtr
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op1
-    def override preVisitExprOp1(expr:smart_ptr<ExprOp1>) : void
+    def override preVisitExprOp1(expr : smart_ptr<ExprOp1>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         unsafe
@@ -907,7 +907,7 @@ class AstData : AstVisitor
             *tokens |> emplace(token)
     // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
 // op2
-    def override preVisitExprOp2(expr:smart_ptr<ExprOp2>): void
+    def override preVisitExprOp2(expr : smart_ptr<ExprOp2>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         unsafe
@@ -947,7 +947,7 @@ class AstData : AstVisitor
     // def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
     // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
 // assume
-    def override preVisitExprAssume(expr:smart_ptr<ExprAssume>) : void
+    def override preVisitExprAssume(expr : smart_ptr<ExprAssume>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         assume_to_token(expr) <| $(var token : AstToken?)
@@ -973,7 +973,7 @@ class AstData : AstVisitor
 // for
     // def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
     // def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
-    [unused_argument(last)] def override preVisitExprForVariable(expr:smart_ptr<ExprFor>;svar:VariablePtr;last:bool) : void
+    [unused_argument(last)] def override preVisitExprForVariable(expr : smart_ptr<ExprFor>; svar : VariablePtr; last : bool) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var_to_token(svar) <| $(var token : AstToken?)
@@ -993,7 +993,7 @@ class AstData : AstVisitor
     // def override visitExprMakeStruct(expr:smart_ptr<ExprMakeStruct>) : ExpressionPtr
     // def override preVisitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
     // def override visitExprMakeStructIndex(expr:smart_ptr<ExprMakeStruct>;index:int;last:bool) : void
-    [unused_argument(index, last)] def override preVisitExprMakeStructField(expr:smart_ptr<ExprMakeStruct>;index:int;decl:MakeFieldDeclPtr;last:bool) : void
+    [unused_argument(index, last)] def override preVisitExprMakeStructField(expr : smart_ptr<ExprMakeStruct>; index : int; decl : MakeFieldDeclPtr; last : bool) : void
         if skipExprs || expr == null || decl == null || expr.genFlags.generated
             return
         var typ = decl.value != null && decl.value._type != null ? describe(decl.value._type) : ""
@@ -1037,7 +1037,7 @@ class AstData : AstVisitor
     // def override preVisitExprArrayComprehensionSubexpr(expr:smart_ptr<ExprArrayComprehension>;subexrp:ExpressionPtr) : void
     // def override preVisitExprArrayComprehensionWhere(expr:smart_ptr<ExprArrayComprehension>;filter:ExpressionPtr) : void
 // type info
-    def override preVisitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : void
+    def override preVisitExprTypeInfo(expr : smart_ptr<ExprTypeInfo>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "typeinfo"
@@ -1072,7 +1072,7 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprTypeInfo(expr:smart_ptr<ExprTypeInfo>) : ExpressionPtr
 // ptr to ref
-    def override preVisitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : void
+    def override preVisitExprPtr2Ref(expr : smart_ptr<ExprPtr2Ref>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "deref"
@@ -1097,7 +1097,7 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprPtr2Ref(expr:smart_ptr<ExprPtr2Ref>) : ExpressionPtr
 // label
-    def override preVisitExprLabel(expr:smart_ptr<ExprLabel>) : void
+    def override preVisitExprLabel(expr : smart_ptr<ExprLabel>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "label {expr.labelName}"
@@ -1111,7 +1111,7 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprLabel(expr:smart_ptr<ExprLabel>) : ExpressionPtr
 // goto
-    def override preVisitExprGoto(expr:smart_ptr<ExprGoto>) : void
+    def override preVisitExprGoto(expr : smart_ptr<ExprGoto>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "goto"
@@ -1135,7 +1135,7 @@ class AstData : AstVisitor
     // def override preVisitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : void
     // def override visitExprRef2Value(expr:smart_ptr<ExprRef2Value>) : ExpressionPtr
 // ref to ptr
-    def override preVisitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : void
+    def override preVisitExprRef2Ptr(expr : smart_ptr<ExprRef2Ptr>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "addr"
@@ -1160,7 +1160,7 @@ class AstData : AstVisitor
         *tokens |> emplace(token)
     // def override visitExprRef2Ptr(expr:smart_ptr<ExprRef2Ptr>) : ExpressionPtr
 // @@
-    def override preVisitExprAddr(expr:smart_ptr<ExprAddr>) : void
+    def override preVisitExprAddr(expr : smart_ptr<ExprAddr>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "{expr.target}"
@@ -1211,7 +1211,7 @@ class AstData : AstVisitor
     // def override preVisitExprDelete(expr:smart_ptr<ExprDelete>) : void
     // def override visitExprDelete(expr:smart_ptr<ExprDelete>) : ExpressionPtr
 // var
-    def override preVisitExprVar(expr:smart_ptr<ExprVar>) : void
+    def override preVisitExprVar(expr : smart_ptr<ExprVar>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var_to_token(expr.variable) <| $(var token)
@@ -1221,25 +1221,25 @@ class AstData : AstVisitor
             *tokens |> emplace(token)
     // def override visitExprVar(expr:smart_ptr<ExprVar>) : ExpressionPtr
 // field
-    def override preVisitExprField(expr:smart_ptr<ExprField>) : void
+    def override preVisitExprField(expr : smart_ptr<ExprField>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
     // def override visitExprField(expr:smart_ptr<ExprField>) : ExpressionPtr
 // safe field
-    def override preVisitExprSafeField(expr:smart_ptr<ExprSafeField>) : void
+    def override preVisitExprSafeField(expr : smart_ptr<ExprSafeField>) : void
         if skipExprs
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)
     // def override visitExprSafeField(expr:smart_ptr<ExprSafeField>) : ExpressionPtr
 // swizzle
-    def override preVisitExprSwizzle(expr:smart_ptr<ExprSwizzle>) : void
+    def override preVisitExprSwizzle(expr : smart_ptr<ExprSwizzle>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var swizzle = ""
-        let f2name = [[string "x";"y";"z";"w"]]
+        let f2name = [[string "x"; "y"; "z"; "w"]]
         for fch in expr.fields
             let f = int(fch)
             swizzle += "{f>=0 && f<=3 ? f2name[f] : "?"}"
@@ -1287,12 +1287,12 @@ class AstData : AstVisitor
     // def override preVisitExprMemZero(expr:smart_ptr<ExprMemZero>) : void
     // def override visitExprMemZero(expr:smart_ptr<ExprMemZero>) : ExpressionPtr
 // const
-    def override preVisitExprConst(expr:smart_ptr<ExprConst>) : void
+    def override preVisitExprConst(expr : smart_ptr<ExprConst>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         if expr.at.line == 0u && expr.at.column == 0u
             return
-        let typ = expr._type != null ? describe([decl=expr._type,extra=true]) : ""
+        let typ = expr._type != null ? describe([decl=expr._type, extra=true]) : ""
         var name = describe(ExpressionPtr(expr))
         var token <- new [[AstToken
             name = name,
@@ -1308,7 +1308,7 @@ class AstData : AstVisitor
     // def override preVisitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : void
     // def override visitExprConstPtr(expr:smart_ptr<ExprConstPtr>) : ExpressionPtr
 // const enumeration
-    def override preVisitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : void
+    def override preVisitExprConstEnumeration(expr : smart_ptr<ExprConstEnumeration>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
         let typ = expr._type != null ? describe(expr._type, false, false, false) : ""

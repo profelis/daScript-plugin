@@ -54,10 +54,10 @@ def join_path(a, b : string)
             builder |> write(b)
     return fix_path(res)
 
-def fix_path(path: string)
+def fix_path(path : string)
     return path |> path_to_uri() |> normalize_uri() |> uri_to_path()
 
-def scan_dir(path: string; var res: table<string; void?>; suffix = ".das")
+def scan_dir(path : string; var res : table<string; void?>; suffix = ".das")
     fio::dir(path) <| $(n)
         if n == "." || n == ".."
             return

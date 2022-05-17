@@ -13,7 +13,7 @@ var
     onLog : lambda<(msg : string; level : LogLevel) : void>
 
 
-def log(data; li: LineInfo; level: LogLevel)
+def log(data; li : LineInfo; level : LogLevel)
     var msg : string
     static_if typeinfo(is_string data)
         msg = "{data} {to_string(li)}\n"
