@@ -445,9 +445,9 @@ def addCompletionSwizzle(main_type : string; num : int; typ : string; var res : 
 def parse(t; var res : AstCompletionData; depth = 0)
     if t == null
         return
-    // info("@@@@@@@@@@@@@", get_line_info())
-    // info(t, get_line_info())
-    // info("@@@@@@@@@@@@@", get_line_info())
+    // info("@@@@@@@@@@@@@")
+    // info(t)
+    // info("@@@@@@@@@@@@@")
     if t.annotation != null
         res.found = true
         res._type = describe(t)
@@ -481,7 +481,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
                 desc = fieldDesc,
                 kind = starts_with(typ, "function<") ? CompletionItemKind Method : CompletionItemKind Field
             ]]
-            // info(comp, get_line_info())
+            // info(comp)
             res.res |> emplace(comp)
 
     if t.argTypes.length > 0 || t.argNames.length > 0
@@ -561,7 +561,7 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
+        // info(_range)
         parse(expr._type, self)
 
 // field
@@ -573,8 +573,8 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.atField)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
-        // info(expr, get_line_info())
+        // info(_range)
+        // info(expr)
         parse(expr._type, self)
 
 // safe field
@@ -586,7 +586,7 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.atField)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
+        // info(_range)
         parse(expr._type, self)
 // looks like call (debug,assert,verify,erase,find,key_exists,keys,values,invoke,memzero etc)
     def override preVisitExprLooksLikeCall(expr : smart_ptr<ExprLooksLikeCall>) : void
@@ -597,7 +597,7 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
+        // info(_range)
         parse(expr._type, self)
 // call
     def override preVisitExprCall(expr : smart_ptr<ExprCall>) : void
@@ -608,7 +608,7 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
+        // info(_range)
         parse(expr._type, self)
 // ptr to ref
     def override preVisitExprPtr2Ref(expr : smart_ptr<ExprPtr2Ref>) : void
@@ -619,7 +619,7 @@ class AstCompletionData : AstVisitor
         let _range = line_info_to_range(expr.at)
         if !pos |> in_range(_range) || _range.end > pos
             return
-        // info(_range, get_line_info())
+        // info(_range)
         parse(expr._type, self)
 
 class AstData : AstVisitor

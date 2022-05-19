@@ -346,7 +346,7 @@ def programCompletion(program : smart_ptr<Program>; globalCompletion : Completio
         if !globalCompletion |> key_exists(key)
             items[key] <- value
     delete temp
-    // info("completion: got {length(items)} was {was} items for {program}\n", get_line_info())
+    // info("completion: got {length(items)} was {was} items for {program}\n")
 
 
 [export]
@@ -390,7 +390,7 @@ def is_operator(str : string)
         program_for_each_registered_module() <| $(var mod)
             parseModule(mod, globalCompletion)
         let sec = double(get_time_usec(t0)) / 1000000.0lf
-        info("completion: got {length(globalCompletion)} global items in {sec}s\n", get_line_info())
+        info("completion: got {length(globalCompletion)} global items in {sec}s\n")
         return true
 
     def appendToGlobalList(comp : Completions)
@@ -402,7 +402,7 @@ def is_operator(str : string)
         var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
         n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
-        info("--- {n} / {name} ----", get_line_info())
+        info("--- {n} / {name} ----")
         for it in values(completions)
             if it.kind != CompletionItemKind Keyword && it.fullName == n
                 invoke(blk, it)
@@ -414,7 +414,7 @@ def is_operator(str : string)
     def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion) : void>)
         var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part("<") |> first_part("-") |> first_part("(")
-        info("{name} -> {n}", get_line_info())
+        info("{name} -> {n}")
         completions |> with_func_arg(n, blk)
         globalCompletion |> with_func_arg(n, blk)
 

@@ -2,6 +2,7 @@ options indenting = 4
 options no_aot = true
 
 require rtti_tools
+require rtti
 
 enum LogLevel
     Error = 1
@@ -23,14 +24,14 @@ def log(data; li : LineInfo; level : LogLevel)
         invoke(onLog, msg, level)
     print("[{level}] {msg}")
 
-def error(data; li : LineInfo)
-    log(data, li, LogLevel Error)
+def error(data)
+    log(data, get_line_info(1), LogLevel Error)
 
-def warning(data; li : LineInfo)
-    log(data, li, LogLevel Warning)
+def warning(data)
+    log(data, get_line_info(1), LogLevel Warning)
 
-def info(data; li : LineInfo)
-    log(data, li, LogLevel Info)
+def info(data)
+    log(data, get_line_info(1), LogLevel Info)
 
-def log(data; li : LineInfo)
-    log(data, li, LogLevel Log)
+def log(data)
+    log(data, get_line_info(1), LogLevel Log)
