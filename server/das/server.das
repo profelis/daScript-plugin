@@ -29,7 +29,14 @@ require fs_tools
 
 // rebuild all files from defPaths - references
 
+// default dascript implementation does not clone pointers
+// def private builtin`clone ( var a:array<ast_token::AstToken? aka TT> explicit; b:array<ast_token::AstToken?> const# )
+// 	__::builtin`resize(a,length(b))
+// 	for aV,bV in a,b
+// 		aV = bV
+
 // requires - options multiple_contexts = true
+// keep this clone right here, does not work from ast_token.das
 def clone(var a : array<AstToken?>&; b : array<AstToken?> implicit)
     a |> resize(length(b))
     for idx, bV in iter_range(b), b
