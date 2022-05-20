@@ -1,8 +1,8 @@
 options indenting = 4
 options no_aot = true
-options stack = 4194304
-options heap_size_hint = 8388608
-options string_heap_size_hint = 8388608
+options stack = 4194304 // 4 mb
+options heap_size_hint = 8388608 // 8 mb
+options string_heap_size_hint = 8388608 // 8 mb
 options intern_strings = true
 options persistent_heap = true
 options multiple_contexts = true
@@ -522,7 +522,7 @@ class TelnetServer : Server
             info("validation in {sec} s\n")
             validating = false
             self->dispatchValidData(path)
-            return // if !config.project.scanWorkspace
+            return
 
         var dataText = ""
         var found = false
@@ -1544,11 +1544,9 @@ def mainLoop(fn : string)
 
             var alloc = string_heap_bytes_allocated()
             if alloc > strLimit
-                // string_heap_report()
                 var strReport = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
                 var heapReport = "HEAP COLLECT: {bytes_hr(heap_bytes_allocated())} -> "
                 unsafe
-                    // string_heap_collect()
                     heap_collect(true)
                 alloc = string_heap_bytes_allocated()
                 info("{strReport}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n{heapReport}{bytes_hr(heap_bytes_allocated())}")
