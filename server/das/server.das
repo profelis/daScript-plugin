@@ -26,6 +26,7 @@ require ast_token
 require config
 require debugapi
 require fs_tools
+require dascript
 
 // rebuild all files from defPaths - references
 
@@ -47,22 +48,6 @@ def clone(var a : array<AstToken?>&; b : array<AstToken?> implicit)
 var
     telnet : TelnetServer?
 
-struct Dascript
-    uri : DocumentUri
-    path : string
-    text : string
-    version : double
-
-    isOpen : bool
-    validated : bool
-
-    completionData : Completions
-    ast : AstTokens
-    program : smart_ptr<rtti::Program>
-    fs : smart_ptr<rtti::FileAccess>
-    [[do_not_delete]] mg : ModuleGroup?
-
-
 struct ValidateResult
     path : string
     ok : bool
@@ -73,18 +58,6 @@ struct ValidateResult
     fs : smart_ptr<rtti::FileAccess>
     [[do_not_delete]] mg : ModuleGroup?
 
-
-def Dascript(txt : TextDocumentItem)
-    return <- [[Dascript uri = txt.uri, path = uri_to_path(txt.uri), version = txt.version, text = txt.text, isOpen = true]]
-
-def Dascript(doc : DidChangeTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = doc.textDocument.version, text = doc.contentChanges[0].text, isOpen = true]]
-
-def Dascript(doc : DidSaveTextDocumentParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = doc.text, isOpen = true]]
-
-def Dascript(doc : HoverParams)
-    return <- [[Dascript uri = doc.textDocument.uri, path = uri_to_path(doc.textDocument.uri), version = -1lf, text = "", isOpen = true]]
 
 typedef
     ReqCb = lambda<(data, error : JsonValue?) : void>
@@ -97,20 +70,6 @@ struct Req
 struct ValidDataReq
     path : string
     cb : ValidDataCb
-
-def find_token(data : Dascript const?; path : string; pos : Position; valid : block<(tok : AstToken?) : bool>) : AstToken?
-    var token : AstToken?
-    if data == null
-        return token
-    var minRatio = FLT_MAX
-    collect_token(data.ast, path, pos) <| $(tok : AstToken?)
-        if !valid |> invoke(tok)
-            return
-        let ratio = float(range_ratio(tok._range)) + (empty(tok.defPath) ? 100f : 0f) + (tok.topLevel ? 0. : 10.)
-        if token == null || ratio < minRatio
-            minRatio = ratio
-            token = tok
-    return token
 
 
 def init_file_access(var access; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>)
@@ -338,8 +297,6 @@ class TelnetServer : Server
                 let arr & = unsafe(data.value as _array)
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
-                    // info("> got config {path}")
-                    // info(res)
                     invoke(cb, res)
                     delete cb
                     configs[path] <- res
@@ -651,9 +608,6 @@ class TelnetServer : Server
                 // self->validate(path, lazyData.first, lazyData.withContent)
                 validateQueue[path] <- *lazyData
         lazyQueue |> erase(path)
-
-        // if revalidate
-        //     return
 
     def dispatchValidData(path : string)
         if validateQueue |> key_exists(path)
