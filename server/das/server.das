@@ -1529,13 +1529,8 @@ def mainLoop(fn : string)
             info("server failed to initialize\n")
             return
 
-        // var loggerFn <- @ <| (msg : string; level : LogLevel)
-        //     if telnet != null
-        //         telnet->log(msg, level)
-        // logger::onLog <- loggerFn
-
-        let initialstrLimit = uint64(2 * 1024 * 1024)
-        var strLimit = initialstrLimit
+        let initialStrLimit = uint64(2 * 1024 * 1024)
+        var strLimit = initialStrLimit
         var step = 1u
         while !telnet.done
             telnet->tick()
@@ -1553,7 +1548,7 @@ def mainLoop(fn : string)
                 if alloc > strLimit
                     strLimit *= uint64(2)
                     warning("UP string heap limit: {bytes_hr(strLimit)}\n")
-                elif strLimit > initialstrLimit && alloc < strLimit / uint64(2)
+                elif strLimit > initialStrLimit && alloc < strLimit / uint64(2)
                     strLimit = strLimit / uint64(2)
                     warning("DOWN string heap limit: {bytes_hr(strLimit)}\n")
 
