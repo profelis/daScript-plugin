@@ -450,7 +450,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
     // info("@@@@@@@@@@@@@")
     if t.annotation != null
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         unsafe
             let baseAnnotation & = reinterpret<Annotation?> t.annotation
             var items : Completions
@@ -461,7 +461,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
 
     elif t.structType != null
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         let structType = t.structType
         let structTyp = describe([decl=t, extra=false, contracts=false])
         for decl in structType.fields
@@ -486,7 +486,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
 
     if t.argTypes.length > 0 || t.argNames.length > 0
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         for i in range(max(t.argTypes.length, t.argNames.length))
             let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
             var desc = name
@@ -504,51 +504,54 @@ def parse(t; var res : AstCompletionData; depth = 0)
 
     if t.baseType == Type tFloat2
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "float", res.res)
     elif t.baseType == Type tFloat3
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "float", res.res)
     elif t.baseType == Type tFloat4
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "float", res.res)
     elif t.baseType == Type tInt2
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "int", res.res)
     elif t.baseType == Type tInt3
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "int", res.res)
     elif t.baseType == Type tInt4
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "int", res.res)
     elif t.baseType == Type tUInt2
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 2, "uint", res.res)
     elif t.baseType == Type tUInt3
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 3, "uint", res.res)
     elif t.baseType == Type tUInt4
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
         addCompletionSwizzle(describe([decl=t, extra=false, contracts=false]), 4, "uint", res.res)
+    elif t.baseType == Type tArray
+        res.found = true
+        res.types[describe(t)] = true
 
     if t.firstType != null
         parse(t.firstType, res, depth + 1)
-    if depth == 0 && !res.found && t.baseType != Type tVoid
+    if !res.found && t.baseType != Type tVoid
         res.found = true
-        res._type = describe(t)
+        res.types[describe(t)] = true
 
 class AstCompletionData : AstVisitor
     path : string
     pos : Position
-    _type : string
+    types : table<string; bool>
     found : bool = false
     res : array<Completion>
 

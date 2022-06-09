@@ -870,22 +870,23 @@ class TelnetServer : Server
                                 obj["textEdit"] = JV(edit)
                             list |> emplace(jitem)
 
-                        if visitor.found && !empty(visitor._type)
-                            completionData->findFuncCompletion(data.completionData, visitor._type) <| $(val : Completion)
-                                var comp = JV(val)
-                                let isOperator = is_operator(val.name)
-                                var obj & = unsafe(comp.value as _object)
-                                var addEdit <- [[TextEdit
-                                    _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
-                                    newText = " "
-                                ]]
-                                obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
-                                var edit <- [[TextEdit
-                                    _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
-                                    newText = isOperator ? "{val.name} " : "|> {val.name}("
-                                ]]
-                                obj["textEdit"] = JV(edit)
-                                list |> emplace(comp)
+                        if visitor.found && length(visitor.types) > 0
+                            for _type in keys(visitor.types)
+                                completionData->findFuncCompletion(data.completionData, _type) <| $(val : Completion)
+                                    var comp = JV(val)
+                                    let isOperator = is_operator(val.name)
+                                    var obj & = unsafe(comp.value as _object)
+                                    var addEdit <- [[TextEdit
+                                        _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
+                                        newText = " "
+                                    ]]
+                                    obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
+                                    var edit <- [[TextEdit
+                                        _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
+                                        newText = isOperator ? "{val.name} " : "|> {val.name}("
+                                    ]]
+                                    obj["textEdit"] = JV(edit)
+                                    list |> emplace(comp)
 
                         unsafe
                             delete visitor
