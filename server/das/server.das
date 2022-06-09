@@ -101,6 +101,7 @@ def compile(path, dataText : string; withContent : bool; config : PluginConfig; 
     cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
     cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
     cp.aot_module = true
+    cp.completion = true
     try
         compile_file(path, access, mg, cp) <| $(ok, program, error)
             // info("< compiled {path} {ok}\n'{error}'")
@@ -842,6 +843,7 @@ class TelnetServer : Server
                         mg = new [[ModuleGroup()]]
                         var cp = CodeOfPolicies()
                         cp.ignore_shared_modules = true
+                        cp.completion = true
                         compile_file(path, access, mg, cp) <| $ [unused_argument(ok, error)] (ok, program, error)
                             prog := program
 
