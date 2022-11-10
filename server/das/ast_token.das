@@ -10,6 +10,7 @@ require lsp_types
 require completion
 require lib
 require fs_tools
+require logger
 
 bitfield AstTokenWarn
     unused
@@ -451,13 +452,12 @@ def parse(t; var res : AstCompletionData; depth = 0)
     if t.annotation != null
         res.found = true
         res.types[describe(t)] = true
-        unsafe
-            let baseAnnotation & = reinterpret<Annotation?> t.annotation
-            var items : Completions
-            parseAnnotation(*baseAnnotation, module_name(t._module), items, false /*include struct name*/)
-            for it in values(items)
-                res.res |> emplace(it)
-            delete items
+        let baseAnnotation & = unsafe(reinterpret<Annotation?> t.annotation)
+        var items : Completions
+        parseAnnotation(*baseAnnotation, module_name(t._module), items, false /*include struct name*/)
+        for it in values(items)
+            res.res |> emplace(it)
+        delete items
 
     elif t.structType != null
         res.found = true
@@ -892,44 +892,42 @@ class AstData : AstVisitor
     def override preVisitExprOp1(expr : smart_ptr<ExprOp1>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
-        unsafe
-            var name = "{expr.op}"
-            var desc = name
-            var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            if call != null && call.func != null
-                desc = "{describe(reinterpret<smart_ptr<Function>> call.func)}"
-            var token <- new [[AstToken
-                name = name,
-                desc = desc,
-                kind = AstTokenKind Operator,
-                _type = desc
-            ]]
-            set_token_path(token, expr.at)
-            if call != null && call.func != null
-                set_token_def(token, call.func.atDecl)
+        var name = "{expr.op}"
+        var desc = name
+        var call & = unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        if call != null && call.func != null
+            desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = desc
+        ]]
+        set_token_path(token, expr.at)
+        if call != null && call.func != null
+            set_token_def(token, call.func.atDecl)
             *tokens |> emplace(token)
     // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
 // op2
     def override preVisitExprOp2(expr : smart_ptr<ExprOp2>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
-        unsafe
-            var name = "{expr.op}"
-            var desc = name
-            var call & = reinterpret<smart_ptr<ExprCallFunc>> expr
-            if call != null && call.func != null
-                // desc = "{module_name(call.func._module)}{describe(reinterpret<smart_ptr<Function>> call.func)}"
-                desc = "{describe(reinterpret<smart_ptr<Function>> call.func)}"
-            var token <- new [[AstToken
-                name = name,
-                desc = desc,
-                kind = AstTokenKind Operator,
-                _type = desc
-            ]]
-            set_token_path(token, expr.at)
-            if call != null && call.func != null
-                set_token_def(token, call.func.atDecl)
-            *tokens |> emplace(token)
+        var name = "{expr.op}"
+        var desc = name
+        var call & = unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        if call != null && call.func != null
+            // desc = "{module_name(call.func._module)}{describe(reinterpret<smart_ptr<Function>> call.func)}"
+            desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
+        var token <- new [[AstToken
+            name = name,
+            desc = desc,
+            kind = AstTokenKind Operator,
+            _type = desc
+        ]]
+        set_token_path(token, expr.at)
+        if call != null && call.func != null
+            set_token_def(token, call.func.atDecl)
+        *tokens |> emplace(token)
     // def override visitExprOp2(expr:smart_ptr<ExprOp2>) : ExpressionPtr
     // def override preVisitExprOp2Right(expr:smart_ptr<ExprOp2>;right:ExpressionPtr): void
 // op3 ?:
@@ -1169,8 +1167,7 @@ class AstData : AstVisitor
         var name = "{expr.target}"
         var desc = name
         if expr.func != null
-            unsafe
-                desc = "def {describe_function_short(reinterpret<smart_ptr<Function>> expr.func)}"
+            desc = "def {describe_function_short(unsafe(reinterpret<smart_ptr<Function>> expr.func))}"
         var token <- new [[AstToken
             name = name,
             desc = desc,

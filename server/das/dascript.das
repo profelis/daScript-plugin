@@ -15,6 +15,7 @@ struct Dascript
     uri : DocumentUri
     path : string
     text : string
+    changeId : int
     version : double
 
     isOpen : bool

@@ -405,9 +405,7 @@ def index_to_pos(index : int; text : string) : Position
     var line = 0
     var charPos = 0
     for i in range(min(index, length(text)))
-        var ch : int
-        unsafe
-            ch = character_uat(text, i)
+        var ch = unsafe(character_uat(text, i))
         if ch == '\n'
             line++
             charPos = 0

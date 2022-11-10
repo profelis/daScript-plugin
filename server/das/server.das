@@ -51,6 +51,7 @@ var
 struct ValidateResult
     path : string
     ok : bool
+    changeId : int
     completionData : Completions
     ast : AstTokens
     diag : table<string; array<Diagnostic>>
@@ -73,7 +74,7 @@ struct ValidDataReq
 
 
 def init_file_access(var access; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>)
-    let roots & = unsafe(config.project.fileAccessRoots)
+    assume roots = config.project.fileAccessRoots
     for rootName, rootPath in keys(roots), values(roots)
         var fixedPath = rootPath
         if !empty(workspaceFolders)
@@ -81,9 +82,10 @@ def init_file_access(var access; config : PluginConfig; workspaceFolders : array
         access |> add_file_access_root(rootName, fixedPath)
 
 
-def compile(path, dataText : string; withContent : bool; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>; var globalCompletion : Completions) : ValidateResult
+def compile(path, dataText : string; withContent : bool; changeId : int; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>; var globalCompletion : Completions) : ValidateResult
     var cloneData : ValidateResult
     cloneData.path = path
+    cloneData.changeId = changeId
 
     let uri = path_to_uri(path)
     // info("> validate '{path}' project: '{config.project.file}'\n")
@@ -115,8 +117,7 @@ def compile(path, dataText : string; withContent : bool; config : PluginConfig; 
 
             if compiled
                 var visitor <- new AstData()
-                unsafe
-                    visitor.tokens = addr(cloneData.ast)
+                visitor.tokens = unsafe(addr(cloneData.ast))
                 var adapter <- make_visitor(*visitor)
                 visit(program, adapter)
                 visitor.tokens = null
@@ -155,12 +156,11 @@ def compile(path, dataText : string; withContent : bool; config : PluginConfig; 
                         extra += "\n{err.fixme}"
                     var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
                     diag.relatedInformation <- [{ auto[] info }]
-                unsafe
-                    var list = find_for_edit(cloneData.diag, localUri) // map is locked
-                    if list != null
-                        *list |> emplace(diag)
-                    else
-                        cloneData.diag[localUri] <- [{ auto[] diag }]
+                var list = unsafe(find_for_edit(cloneData.diag, localUri)) // map is locked
+                if list != null
+                    *list |> emplace(diag)
+                else
+                    cloneData.diag[localUri] <- [{ auto[] diag }]
     recover
         if !empty(this_context().exception)
             error("failed to compile '{path}'\n{this_context().exceptionAt |> to_string()}:{this_context().exception}")
@@ -203,10 +203,9 @@ class TelnetServer : Server
 
     sendingError : bool = false
 
-    validateQueue : table<string; tuple<first : bool; withContent : bool>>
+    validateQueue : table<string; tuple<first : bool; withContent : bool; changeId : int>>
     validDataReqs : array<ValidDataReq>
     validating : bool = false
-    lazyQueue : table<string; tuple<first : bool; withContent : bool>>
 
     def TelnetServer()
         Server`Server(cast<Server> self)
@@ -246,8 +245,8 @@ class TelnetServer : Server
         var packStr = "Content-Length: {length(msg)}\r\n\r\n{msg}"
         // print("<------\n{packStr}\n-------\n")
         // print("<---- send data {length(packStr)}\n") // only print!
+        self->send(unsafe(reinterpret<uint8?> packStr), length(packStr))
         unsafe
-            self->send(reinterpret<uint8?> packStr, length(packStr))
             delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#responseMessage
@@ -264,7 +263,12 @@ class TelnetServer : Server
     def onRequest(id : double; var cb : ReqCb)
         requestCallbacks |> emplace([[Req id = id, cb <- cb]])
 
-    def sendError(id : double; var data : ResponseError)
+    def sendError(id : double; result : string)
+        warning("send error {id}: {result}")
+        self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(id); "result" => JV(result) }}))
+
+    def sendErrorWithData(id : double; var data : ResponseError)
+        warning("send error {id}: {data.code}: {data.message}")
         self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(id); "error" => JV(data) }}))
         delete data
 
@@ -295,7 +299,7 @@ class TelnetServer : Server
         var localCb <- @ <| [[ <- cb]](data, error : JsonValue ?)
             configReqs |> erase(path)
             if error == null && data != null && data.value is _array
-                let arr & = unsafe(data.value as _array)
+                assume arr = data.value as _array
                 if length(arr) > 0
                     var res <- new PluginConfig(arr[0])
                     invoke(cb, res)
@@ -319,13 +323,12 @@ class TelnetServer : Server
         var reqId = self->sendRequest("workspace/configuration", JV(configParams), localCb)
         configReqs[path] = reqId
 
-    def log(msg : string; level : LogLevel)
+    def logMessage(msg : string; level : LogLevel)
         if !inited || done
             print(msg)
             return
         var res = [[LogMessageParams message = msg]]
-        unsafe
-            res._type = reinterpret<MessageType> (level)
+        res._type = unsafe(reinterpret<MessageType> (level))
         self->sendNotification("window/logMessage", JV(res))
         delete res
 
@@ -394,7 +397,7 @@ class TelnetServer : Server
     def getValidData(path : string; var cb : ValidDataCb)
         if !key_exists(registry, path) && !key_exists(validateQueue, path)
             error("unknown file {path}, forcibly validate")
-            self->validate(path, false, true)
+            self->validate(path, /*withContent*/false, /*first*/true)
 
         var found = false
         registry |> find_for_edit_if_exists(path) <| $(data)
@@ -402,7 +405,7 @@ class TelnetServer : Server
                 found = true
                 cb |> invoke(data)
             else
-                validateQueue[path] = [[auto true, true]]
+                validateQueue[path] = [[auto true, true, data.changeId]]
         if found
             return
         if validateQueue |> key_exists(path)
@@ -419,15 +422,15 @@ class TelnetServer : Server
             for item in each(channel, type<ValidateResult>)
                 var cloneData : ValidateResult
                 cloneData.ok = item.ok
+                cloneData.changeId := item.changeId
                 cloneData.path = clone_string(item.path)
                 cloneData.ast := item.ast
                 cloneData.completionData := item.completionData
                 cloneData.diag := item.diag
-                unsafe
-                    var rwItem & = reinterpret<ValidateResult- const&> item
-                    cloneData.program <- rwItem.program
-                    cloneData.fs <- rwItem.fs
-                    cloneData.mg <- rwItem.mg
+                var rwItem & = unsafe(reinterpret<ValidateResult- const&> item)
+                cloneData.program <- rwItem.program
+                cloneData.fs <- rwItem.fs
+                cloneData.mg <- rwItem.mg
                 self->validationDone(cloneData)
             validating = false
             if channel.size == 0
@@ -457,7 +460,7 @@ class TelnetServer : Server
                     else
                         info("> {workspaceFilesCursor + 1}/{length(workspaceFiles)} enqueue '{path}'")
                         registry[path] <- [[Dascript uri = path_to_uri(path), path = path, version = -1lf]]
-                        validateQueue[path] = [[auto false, false]]
+                        validateQueue[path] = [[auto false, false, 0]]
                         break
             workspaceFilesCursor += 1
 
@@ -480,8 +483,9 @@ class TelnetServer : Server
         self->validate(toValidate, data.withContent, data.first)
 
 
-    def validate(path : string; withContent : bool = false; first : bool = false)
+    def validate(path : string; withContent : bool = true; first : bool = false)
         let data = registry |> find(path)
+        let changeId = data.changeId
         let valid = data != null && data.validated
         if valid
             info("> '{path}' is valid. skip validation")
@@ -490,17 +494,16 @@ class TelnetServer : Server
             var found = false
             validateQueue |> find_for_edit_if_exists(path) <| $(var item)
                 found = true
+                item.changeId = changeId
                 item.withContent ||= withContent
                 item.first ||= first
             if !found
-                validateQueue[path] = [[auto first, withContent]]
-            elif !lazyQueue |> key_exists(path)
-                lazyQueue[path] = [[auto first, withContent]]
+                validateQueue[path] = [[auto first, withContent, changeId]]
             return
 
         validating = true
         if !validateQueue |> key_exists(path)
-            validateQueue[path] = [[auto first, withContent]]
+            validateQueue[path] = [[auto first, withContent, changeId]]
 
         self->getConfig(path) <| @(var config : PluginConfig?)
             if config == null
@@ -515,7 +518,7 @@ class TelnetServer : Server
             registry |> find_for_edit_if_exists(path) <| $(var data)
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n")
-                var cloneData <- compile(path, data.text, withContent, config, workspaceFolders, completionData.globalCompletion)
+                var cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
                 self->validationDone(cloneData)
 
             let dt = get_time_usec(t0)
@@ -526,9 +529,11 @@ class TelnetServer : Server
             return
 
         var dataText = ""
+        var changeId = 0
         var found = false
         registry |> find_if_exists(path) <| $(var data)
             found = true
+            changeId = data.changeId
             if withContent
                 dataText = data.text
         if !found
@@ -537,7 +542,7 @@ class TelnetServer : Server
 
         for i in range(jobsNum)
             new_thread <| @ [[ := config, := dataText]]
-                var cloneData <- compile(path, dataText, withContent, config, workspaceFolders, completionData.globalCompletion)
+                var cloneData <- compile(path, dataText, withContent, changeId, config, workspaceFolders, completionData.globalCompletion)
                 channel |> push_clone(cloneData)
                 channel |> notify()
                 cloneData.program := null
@@ -547,13 +552,12 @@ class TelnetServer : Server
 
     def validationDone(var item : ValidateResult)
         var path = item.path
-        info("validation done: {path}\n")
 
         validating = false
         var isOpen = false
-        var data : Dascript?
-        unsafe
-            data = registry |> find_for_edit(path) // registry is locked
+        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
+        var isActualData = item.changeId == data.changeId
+        info("validation done: {path}\nchangeId:{data.changeId} compiler changeId:{item.changeId}\n")
         if data != null
             isOpen = data.isOpen
 
@@ -576,18 +580,24 @@ class TelnetServer : Server
                 data.mg <- item.mg
                 item.mg = null
 
-            data.validated = true
+            data.validated = isActualData
 
             completionData->appendToGlobalList(data.completionData)
 
         if isOpen
-            for k, v in keys(item.diag), values(item.diag)
-                let localPath = uri_to_path(k)
-                registry |> find_if_exists(localPath) <| $(fileData)
-                    collect_diag(fileData.ast, localPath, v)
-                var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
-                self->sendNotification("textDocument/publishDiagnostics", JV(params))
-                delete params
+            if isActualData
+                for k, v in keys(item.diag), values(item.diag)
+                    let localPath = uri_to_path(k)
+                    registry |> find_if_exists(localPath) <| $(fileData)
+                        collect_diag(fileData.ast, localPath, v)
+                    var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
+                    self->sendNotification("textDocument/publishDiagnostics", JV(params))
+                    delete params
+            else
+                for k in keys(item.diag)
+                    var params <- [[PublishDiagnosticsParams uri = k ]]
+                    self->sendNotification("textDocument/publishDiagnostics", JV(params))
+                    delete params
 
         item.program := null
         item.fs := null
@@ -595,20 +605,11 @@ class TelnetServer : Server
             delete item.mg
         delete item
 
-        self->updateGlobalCompletion(false)
-        self->dispatchValidData(path)
-
-        var revalidate = false
-        lazyQueue |> find_for_edit_if_exists(path) <| $(var lazyData)
-            unsafe
-                data = registry |> find_for_edit(path) // registry is locked
-            if data != null
-                info("re validate file {path}")
-                revalidate = true
-                data.validated = false
-                // self->validate(path, lazyData.first, lazyData.withContent)
-                validateQueue[path] <- *lazyData
-        lazyQueue |> erase(path)
+        if isActualData
+            self->updateGlobalCompletion(false)
+            self->dispatchValidData(path)
+        else
+            info("re validate {path}")
 
     def dispatchValidData(path : string)
         if validateQueue |> key_exists(path)
@@ -619,7 +620,7 @@ class TelnetServer : Server
         var data = registry |> find(path)
         var idx = 0
         while idx < length(validDataReqs)
-            var req & = unsafe(validDataReqs[idx])
+            assume req = validDataReqs[idx]
             if req.path == path
                 req.cb |> invoke(data)
                 delete validDataReqs[idx]
@@ -635,28 +636,30 @@ class TelnetServer : Server
         registry |> find_for_edit_if_exists(path) <| $(var data)
             found = true
             data.isOpen = true
-            data.validated = false
+            if data.validated
+                data.validated = false
+                data.changeId += 1
             data.text = ini.textDocument.text
             data.version = ini.textDocument.version
         if !found
             registry[path] <- Dascript(ini.textDocument)
             info("> open file {path} len {length(ini.textDocument.text)}, total files {length(registry)}\n")
-        self->validate(path, /*withContent*/false, /*first*/true)
+        self->validate(path, /*withContent*/true, /*first*/true)
 
     [unused_argument(id)] def didSave(id : double; params : JsonValue ?)
         var doc = DidSaveTextDocumentParams(params)
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} {doc}. len {length(doc.text)}, total files {length(registry)}\n")
-        var data : Dascript?
-        unsafe
-            data = registry |> find_for_edit(path) // registry is locked
+        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
         if data != null
-            data.validated = false
+            if data.validated
+                data.validated = false
+                data.changeId += 1
         else
             registry[path] <- Dascript(doc)
             info("> unknown? register again, total files {length(registry)}\n")
-        self->validate(path, /*withContent*/false, /*first*/true)
+        self->validate(path, /*withContent*/true, /*first*/true)
 
     [unused_argument(id)] def didChange(id : double; params : JsonValue ?)
         var doc <- DidChangeTextDocumentParams(params)
@@ -665,12 +668,11 @@ class TelnetServer : Server
             return
 
         let path = uri_to_path(doc.textDocument.uri)
-        var data : Dascript?
-        unsafe
-            data = registry |> find_for_edit(path) // registry is locked
+        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
         if data != null
             data.text <- doc.contentChanges[0].text
             data.version = doc.textDocument.version
+            data.changeId += 1
         else
             info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n")
             registry[path] <- Dascript(doc)
@@ -678,15 +680,11 @@ class TelnetServer : Server
         self->getConfig(path) <| @(var config : PluginConfig?)
             if !(config?.project?.scanWorkspace ?? false)
                 return
-            var data2 : Dascript?
-            unsafe
-                data2 = registry |> find_for_edit(path) // registry is locked
+            var data2 = unsafe(registry |> find_for_edit(path)) // registry is locked
             if data2 != null
                 if data2.validated
                     data2.validated = false
                     self->validate(path, /*withContent*/true, /*first*/true)
-                elif validateQueue |> key_exists(path) && !lazyQueue |> key_exists(path)
-                    lazyQueue[path] = [[auto /*withContent*/true, /*first*/true]]
 
     [unused_argument(id)] def didClose(id : double; params : JsonValue ?)
         var doc = DidCloseTextDocumentParams(params)
@@ -718,32 +716,35 @@ class TelnetServer : Server
         if !registry |> key_exists(path)
             registry[path] <- Dascript(ini)
             warning("> {path} unknown? register again, total files {length(registry)}\n")
-            self->validate(path, /*withContent*/false, /*first*/true)
+            self->validate(path, /*withContent*/true, /*first*/true)
 
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
             defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             var found = false
-            if data != null
-                var hoversData : array<tuple<float; Range; string>>
-                collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
-                    let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
-                    hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose, experimental)]])
-                    completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
-                        hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
-                    // TODO: filter huge tokens?
-                if hoversData |> length() > 0
-                    hoversData |> sort() <| $(a; b)
-                        return a._0 < b._0
-                    var hovers <- [{ for it in hoversData; it._2 }]
-                    var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
-                    self->sendResponse(id, JV(h))
-                    delete h
-                    found = true
-                delete hoversData
+            var hoversData : array<tuple<float; Range; string>>
+            collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
+                let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
+                hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose, experimental)]])
+                completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
+                    hoversData |> emplace([[auto ratio + 0.5, it._range, "```dascript\n{join(val.impls, "\n")}\n```"]])
+                // TODO: filter huge tokens?
+            if hoversData |> length() > 0
+                hoversData |> sort() <| $(a; b)
+                    return a._0 < b._0
+                var hovers <- [{ for it in hoversData; it._2 }]
+                var h <- [[ Hover _range = hoversData[0]._1, contents <- hovers ]]
+                self->sendResponse(id, JV(h))
+                delete h
+                found = true
+            delete hoversData
             if !found
                 warning("hover info not found @ {to_string(ini.position)}\n")
                 self->sendResponse(id, JVNull())
 
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_completion
     def completion(id : double; params : JsonValue?)
         var ini <- CompletionParams(params)
         let path = uri_to_path(ini.textDocument.uri)
@@ -791,34 +792,33 @@ class TelnetServer : Server
                         i++
                 if searchToken
                     let beforeSpacesPos = i
-                    unsafe
-                        while i < maxI && is_white_space(character_uat(data.text, idx - i))
-                            i++
-                        var insideO = 0
-                        var insideD = 0
-                        while i < maxI
-                            let ch = character_uat(data.text, idx - i)
-                            if ch == ')'
-                                insideO ++
-                            elif ch == ']'
-                                insideD ++
-                            elif ch == '('
-                                if insideO > 0
-                                    insideO --
-                                if insideO == 0 && insideD == 0
-                                    i ++
-                                    break
-                            elif ch == '['
-                                if insideD > 0
-                                    insideD --
-                                if insideO == 0 && insideD == 0
-                                    i ++
-                                    break
-
-                            if insideO > 0 || insideD > 0
+                    while i < maxI && is_white_space(unsafe(character_uat(data.text, idx - i)))
+                        i++
+                    var insideO = 0
+                    var insideD = 0
+                    while i < maxI
+                        let ch = unsafe(character_uat(data.text, idx - i))
+                        if ch == ')'
+                            insideO ++
+                        elif ch == ']'
+                            insideD ++
+                        elif ch == '('
+                            if insideO > 0
+                                insideO --
+                            if insideO == 0 && insideD == 0
                                 i ++
-                                continue
-                            break
+                                break
+                        elif ch == '['
+                            if insideD > 0
+                                insideD --
+                            if insideO == 0 && insideD == 0
+                                i ++
+                                break
+
+                        if insideO > 0 || insideD > 0
+                            i ++
+                            continue
+                        break
                     var pos = Position(ini.position.line, ini.position.character - i)
                     defer_delete(pos)
                     // let search = reverse(string(word))
@@ -857,7 +857,7 @@ class TelnetServer : Server
                         for it in visitor.res
                             var jitem = JV(it)
                             if it.kind == CompletionItemKind Method
-                                var obj & = unsafe(jitem.value as _object)
+                                assume obj = jitem.value as _object
                                 var addEdit <- [[TextEdit
                                     _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character + 1),
                                     newText = " "
@@ -875,7 +875,7 @@ class TelnetServer : Server
                                 completionData->findFuncCompletion(data.completionData, _type) <| $(val : Completion)
                                     var comp = JV(val)
                                     let isOperator = is_operator(val.name)
-                                    var obj & = unsafe(comp.value as _object)
+                                    assume obj = comp.value as _object
                                     var addEdit <- [[TextEdit
                                         _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
                                         newText = " "
@@ -1031,6 +1031,9 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
             defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             var token = self->getToken(data, path, ini.position)
             var res <- self->getRefs(token)
             var jsRes <- [{ for it in res; JV(it) }]
@@ -1052,45 +1055,46 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
             defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             var found = false
-            if data != null
-                let idx = pos_to_index(ini.position, data.text)
-                if idx > 0
-                    var list : array<SignatureInformation>
-                    var searchToken = false
-                    var i = 0
-                    let maxI = min(idx, ini.position.character)
+            let idx = pos_to_index(ini.position, data.text)
+            if idx > 0
+                var list : array<SignatureInformation>
+                var searchToken = false
+                var i = 0
+                let maxI = min(idx, ini.position.character)
+                while i < maxI
+                    var insideO = 0
                     while i < maxI
-                        var insideO = 0
-                        unsafe
-                            while i < maxI
-                                let ch = character_uat(data.text, idx - i)
-                                if ch == ')'
-                                    insideO ++
-                                elif ch == '('
-                                    if insideO > 0
-                                        insideO --
-                                    else
-                                        i ++
-                                        searchToken = true
-                                        break
-                                i++
-                            while i < maxI && is_white_space(character_uat(data.text, idx - i))
-                                i++
-                        if searchToken
-                            var pos = Position(ini.position.line, ini.position.character - i)
-                            var token = find_token(data, path, pos) <| $(tok : AstToken?)
-                                return tok != null
-                            if token != null && (token.kind == AstTokenKind Function || token.kind == AstTokenKind Method || token.kind == AstTokenKind Operator)
-                                completionData->findCompletion(data.completionData, token._type) <| $(val : Completion)
-                                    for it in val.impls
-                                        list |> emplace([[SignatureInformation _label = it]])
-                                if list |> length() == 0
-                                    list |> emplace([[SignatureInformation _label = token.desc]])
-                            if list |> length() > 0
-                                self->sendResponse(id, JV([[SignatureHelp signatures <- list ]]))
-                                found = true
+                        let ch = unsafe(character_uat(data.text, idx - i))
+                        if ch == ')'
+                            insideO ++
+                        elif ch == '('
+                            if insideO > 0
+                                insideO --
+                            else
+                                i ++
+                                searchToken = true
                                 break
+                        i++
+                    while i < maxI && is_white_space(unsafe(character_uat(data.text, idx - i)))
+                        i++
+                    if searchToken
+                        var pos = Position(ini.position.line, ini.position.character - i)
+                        var token = find_token(data, path, pos) <| $(tok : AstToken?)
+                            return tok != null
+                        if token != null && (token.kind == AstTokenKind Function || token.kind == AstTokenKind Method || token.kind == AstTokenKind Operator)
+                            completionData->findCompletion(data.completionData, token._type) <| $(val : Completion)
+                                for it in val.impls
+                                    list |> emplace([[SignatureInformation _label = it]])
+                            if list |> length() == 0
+                                list |> emplace([[SignatureInformation _label = token.desc]])
+                        if list |> length() > 0
+                            self->sendResponse(id, JV([[SignatureHelp signatures <- list ]]))
+                            found = true
+                            break
             if !found
                 self->sendResponse(id, JVNull())
 
@@ -1100,56 +1104,56 @@ class TelnetServer : Server
         defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @(data : Dascript const?)
-            var found = false
-            if data != null
-                var res : array<ColorInformation>
-                defer_delete(res)
-                var line = 0
-                var charPos = 0
-                var step = -1
-                var currentNum : array<int>
-                for i, ch in iter_range(data.text), data.text
-                    if ch == '\n'
-                        line++
-                        charPos = 0
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
+            var res : array<ColorInformation>
+            // defer_delete(res) // BUG:
+            var line = 0
+            var charPos = 0
+            var step = -1
+            var currentNum : array<int>
+            // defer_delete(currentNum)
+            for i, ch in iter_range(data.text), data.text
+                if ch == '\n'
+                    line++
+                    charPos = 0
+                    step = -1
+                    clear(currentNum)
+                    continue
+                if step == -1
+                    step = ch == '0' ? 0 : -1
+                elif step == 0
+                    step = ch == 'x' || ch == 'X' ? 1 : -1
+                elif step == 1
+                    let isLowH = ch >= 'a' && ch <= 'f'
+                    let isHighH = ch >= 'A' && ch <= 'F'
+                    if is_number(ch) || isLowH || isHighH
+                        currentNum |> push(isLowH ? ch - 'a' + 10 : isHighH ? ch - 'A' + 10 : ch - '0')
+                    else
+                        let len = length(currentNum)
+                        if len == 6 || len == 8
+                            var color : array<double>
+                            if len == 6
+                                color |> push(1lf)
+                            var k = 0
+                            while k < len
+                                let h = currentNum[k++]
+                                let l = currentNum[k++]
+                                color |> push(double(h * 16 + l) / 255lf)
+                            res |> emplace([[ColorInformation
+                                _range = Range(line, charPos - len - 2, line, charPos),
+                                color = [[Color alpha=color[0], red = color[1], green = color[2], blue = color[3]]]
+                            ]])
+                            delete color
                         step = -1
                         clear(currentNum)
-                        continue
-                    if step == -1
-                        step = ch == '0' ? 0 : -1
-                    elif step == 0
-                        step = ch == 'x' || ch == 'X' ? 1 : -1
-                    elif step == 1
-                        let isLowH = ch >= 'a' && ch <= 'f'
-                        let isHighH = ch >= 'A' && ch <= 'F'
-                        if is_number(ch) || isLowH || isHighH
-                            currentNum |> push(isLowH ? ch - 'a' + 10 : isHighH ? ch - 'A' + 10 : ch - '0')
-                        else
-                            let len = length(currentNum)
-                            if len == 6 || len == 8
-                                var color : array<double>
-                                if len == 6
-                                    color |> push(1lf)
-                                var k = 0
-                                while k < len
-                                    let h = currentNum[k++]
-                                    let l = currentNum[k++]
-                                    color |> push(double(h * 16 + l) / 255lf)
-                                res |> emplace([[ColorInformation
-                                    _range = Range(line, charPos - len - 2, line, charPos),
-                                    color = [[Color alpha=color[0], red = color[1], green = color[2], blue = color[3]]]
-                                ]])
-                                delete color
-                            step = -1
-                            clear(currentNum)
-                    charPos++
-                delete currentNum
-                if length(res) > 0
-                    found = true
-                    var arr <- [{ for it in res; JV(it)}]
-                    self->sendResponse(id, JV(arr))
-            if !found
-                self->sendResponse(id, JVNull())
+                charPos++
+            if length(res) > 0
+                var arr <- [{ for it in res; JV(it)}]
+                self->sendResponse(id, JV(arr))
+            delete currentNum
+            delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_colorPresentation
     def colorPresentation(id : double; var params : JsonValue?)
@@ -1166,18 +1170,22 @@ class TelnetServer : Server
         var ini <- PrepareRenameParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
             var token = self->getToken(data, path, ini.position)
             if token == null || !token._range |> range_oneline()
                 self->sendResponse(id, JVNull())
             else
                 self->sendResponse(id, JV(token._range))
-            delete ini
 
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
     [unused_argument(id)] def formatting(id : double; var params : JsonValue ?)
         var ini <- DocumentFormattingParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             let formatted = format_source_string(data.text)
             var res <- [{TextEdit[]
                 [[TextEdit
@@ -1186,7 +1194,6 @@ class TelnetServer : Server
                 ]]
             }]
             self->sendResponse(id, JV(res))
-            delete ini
             delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
@@ -1194,6 +1201,10 @@ class TelnetServer : Server
         var ini <- DocumentRangeFormattingParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             let startIdx = pos_to_index(ini._range.start, data.text)
             let endIdx = pos_to_index(ini._range.end, data.text)
             let sliceStr = slice(data.text, startIdx, endIdx)
@@ -1209,7 +1220,6 @@ class TelnetServer : Server
                 ]]
             }]
             self->sendResponse(id, JV(res))
-            delete ini
             delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
@@ -1217,12 +1227,15 @@ class TelnetServer : Server
         var ini <- RenameParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             var token = self->getToken(data, path, ini.position)
             // info("rename token")
             // info(token)
             if token == null || !token._range |> range_oneline()
                 self->sendResponse(id, JVNull())
-                delete ini
                 return
             // split module::name
             // split Struct : Parent
@@ -1230,7 +1243,6 @@ class TelnetServer : Server
             if length(res) == 0
                 delete res
                 self->sendResponse(id, JVNull())
-                delete ini
                 return
             let tokenLength = length(token._range)
             var edit : WorkspaceEdit
@@ -1247,7 +1259,6 @@ class TelnetServer : Server
                     edit.changes[it.uri] <- [{auto[] [[TextEdit _range = it._range, newText = ini.newName]] }]
             // info(edit)
             self->sendResponse(id, JV(edit))
-            delete ini
             delete res
 
 
@@ -1316,6 +1327,10 @@ class TelnetServer : Server
         var ini <- SemanticTokensParams(params)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
             var tokens : array<AstToken?>
             data.ast |> collect_token(path) <| $(tok)
                 tokens |> push(tok)
@@ -1338,14 +1353,11 @@ class TelnetServer : Server
             tokens |> clear()
             delete tokens
             delete res
-            delete ini
 
 
     def override onData(message : uint8?; size : int)
         for i in range(size)
-            var uch : uint8
-            unsafe
-                uch = message[i]
+            var uch = unsafe(message[i])
             let ch = int(uch)
 
             if toRead == 0
@@ -1357,10 +1369,9 @@ class TelnetServer : Server
                     continue
                 var str = string(current_string)
                 if str |> starts_with(prefix)
-                    unsafe
-                        var lenStr = chop(str, 16, length(current_string) - length(prefix) - 2) // \r\n length
-                        toRead = to_int(lenStr)
-                        clear(current_string)
+                    var lenStr = unsafe(chop(str, 16, length(current_string) - length(prefix) - 2)) // \r\n length
+                    toRead = to_int(lenStr)
+                    clear(current_string)
                 continue
 
             if ch == '\n' || ch == '\r'
@@ -1381,7 +1392,7 @@ class TelnetServer : Server
                 error("Json read error: {error}\n")
                 return
             if msg.value is _object
-                var obj & = unsafe(msg.value as _object)
+                assume obj = msg.value as _object
                 if obj |> key_exists("result")
                     let id = jon(msg, "id")
                     // info("> result {id} callbacks num: {length(requestCallbacks)}\n")
@@ -1402,7 +1413,7 @@ class TelnetServer : Server
 
                 elif obj |> key_exists("method")
                     let method = jos(msg, "method")
-                    info("> method {method}\n")
+                    info("> method {method} id: {int64(jon(msg, "id"))}\n")
                     if method == "initialize"
                         self->initialize(jon(msg, "id"), joj(msg, "params"))
 
@@ -1544,8 +1555,7 @@ def mainLoop(fn : string)
             if alloc > strLimit
                 var strReport = "STRING HEAP COLLECT: {bytes_hr(alloc)} -> "
                 var heapReport = "HEAP COLLECT: {bytes_hr(heap_bytes_allocated())} -> "
-                unsafe
-                    heap_collect(true)
+                unsafe(heap_collect(true))
                 alloc = string_heap_bytes_allocated()
                 info("{strReport}{bytes_hr(alloc)} limit : {bytes_hr(strLimit)}\n{heapReport}{bytes_hr(heap_bytes_allocated())}")
                 if alloc > strLimit

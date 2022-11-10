@@ -41,7 +41,7 @@ def PluginConfigProject(val : JsonValue?)
     let fileAccessRootsJs = joj(val, "fileAccessRoots")
     var fileAccessRoots : table<string; string>
     if fileAccessRootsJs.value is _object
-        let obj & = unsafe(fileAccessRootsJs.value as _object)
+        assume obj = fileAccessRootsJs.value as _object
         for k, v in keys(obj), values(obj)
             fileAccessRoots[k] = v.value as _string
 

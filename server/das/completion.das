@@ -165,56 +165,54 @@ def getValue(value)
 [export]
 def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Completions; verbose = true)
     if ann.isBasicStructureAnnotation
-        unsafe
-            let sann & = reinterpret<BasicStructureAnnotation&> (ann)
-            let structName = "{sann.name}"
-            let fullName = "{fullModuleName}{structName}"
-            var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-            var props : array<string>
-            var fields : array<tuple<uint; string>>
-            var all : array<Completion>
-            basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
-                var field = "{getTypeName(xtype, items)} [{cppName}"
-                if offset != -1u
-                    field += " @ {offset}]"
-                    fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
-                else
-                    field += "]"
-                    props |> emplace("\n\t{name}: {field}")
-                let fullItemName = "{fullModuleName}{structName}.{name}"
-                all |> emplace([[Completion name = "{name}", fullName = fullItemName,
-                                        desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
+        let sann & = unsafe(reinterpret<BasicStructureAnnotation&> (ann))
+        let structName = "{sann.name}"
+        let fullName = "{fullModuleName}{structName}"
+        var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
+        var props : array<string>
+        var fields : array<tuple<uint; string>>
+        var all : array<Completion>
+        basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
+            var field = "{getTypeName(xtype, items)} [{cppName}"
+            if offset != -1u
+                field += " @ {offset}]"
+                fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
+            else
+                field += "]"
+                props |> emplace("\n\t{name}: {field}")
+            let fullItemName = "{fullModuleName}{structName}.{name}"
+            all |> emplace([[Completion name = "{name}", fullName = fullItemName,
+                                    desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
 
-            if length(fields) > 0
-                fields |> sort() <| $(a; b)
-                    return a._0 < b._0
-                if verbose
-                    for it in fields
-                        structDesc += it._1
-            if verbose && length(props) > 0
-                if length(fields) > 0
-                    structDesc += "\n"
-                structDesc += join(props, "")
-
+        if length(fields) > 0
+            fields |> sort() <| $(a; b)
+                return a._0 < b._0
             if verbose
-                addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
-                    impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
-            for it in all
-                if verbose
-                    it.impls |> emplace(structDesc)
-                addItem(it, items)
+                for it in fields
+                    structDesc += it._1
+        if verbose && length(props) > 0
+            if length(fields) > 0
+                structDesc += "\n"
+            structDesc += join(props, "")
 
-            delete props
-            delete fields
-            delete all
+        if verbose
+            addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
+                impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
+        for it in all
+            if verbose
+                it.impls |> emplace(structDesc)
+            addItem(it, items)
+
+        delete props
+        delete fields
+        delete all
 
     elif ann.isTypeAnnotation
         if verbose
-            unsafe
-                let tann & = reinterpret<TypeAnnotation&> (ann)
-                let structName = "{tann.name}"
-                let fullName = "{fullModuleName}{structName}"
-                addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
+            let tann & = unsafe(reinterpret<TypeAnnotation&> (ann))
+            let structName = "{tann.name}"
+            let fullName = "{fullModuleName}{structName}"
+            addItem([[Completion name = structName, fullName = fullName, desc = "type {fullName} [{tann.cppName}]", kind = CompletionItemKind Struct]], items)
 
     else
         if verbose
@@ -332,9 +330,8 @@ def first_part(str : string; del : string)
 
 
 def isalnum_at(text : string; pos : int)
-    unsafe
-        let ch = character_uat(text, pos)
-        return is_alpha(ch) || is_number(ch)
+    let ch = unsafe(character_uat(text, pos))
+    return is_alpha(ch) || is_number(ch)
 
 [export]
 def programCompletion(program : smart_ptr<Program>; globalCompletion : Completions; var items : Completions)
