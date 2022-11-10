@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "0.10.12",
+	"version": "0.10.14",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -324,12 +324,12 @@
 		"@typescript-eslint/parser": "^3.7.1",
 		"eslint": "^7.32.0",
 		"typescript": "^3.9.7",
-		"vscode-debugadapter": "^1.48.0"
+		"@vscode/debugadapter": "^1.48.0"
 	},
 	"dependencies": {
-		"minimatch": "^3.0.4",
+		"minimatch": "^5.1.0",
 		"run-in-terminal": "^0.0.3",
 		"semver": "^7.3.2",
-		"vscode-debugadapter": "^1.48.0"
+		"@vscode/debugadapter": "^1.48.0"
 	}
 }
