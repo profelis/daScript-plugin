@@ -9,14 +9,10 @@ import { runInTerminal } from 'run-in-terminal'
 import * as vscode from 'vscode'
 
 import {
-	CloseAction,
-	ErrorAction,
 	LanguageClient, LanguageClientOptions, StreamInfo
 } from 'vscode-languageclient/node'
-import { setFlagsFromString } from 'v8'
 
 let SPAWN_SERVER = true
-let DEFAULT_PORT = 7999 + Math.round(Math.random() * 1000)
 let defaultClient: LanguageClient
 const clients: Map<string, LanguageClient> = new Map()
 const sockets: Map<string, net.Socket> = new Map()
@@ -131,10 +127,13 @@ function setArg(args: string[], pattern: string, value: string): string[] {
 
 export function activate(context: ExtensionContext) {
 
+	let DEFAULT_PORT = 7999 + Math.round(Math.random() * 1000)
+
 	const settings = Workspace.getConfiguration()
 
 	const cmd = settings.get<string>("dascript.compiler")
 	let args = settings.get<string[]>("dascript.server.args")
+	let unityServer = settings.get<boolean>("dascript.server.unity", false)
 	const port: number = settings.get("dascript.debug.port", -1)
 	if (port != 0) {
 		SPAWN_SERVER = port > 0
@@ -153,7 +152,7 @@ export function activate(context: ExtensionContext) {
 		const uri = document.uri
 		if (uri.scheme === 'untitled' && !defaultClient) {
 			const serverOptions = async () => {
-				const port = DEFAULT_PORT
+				const port = DEFAULT_PORT - 1
 				const [_, socket] = await createServerWithSocket("____untitled____", port, cmd, setArg(args, "${port}", port.toPrecision()), cwd, outputChannel)
 				const result: StreamInfo = {
 					writer: socket,
@@ -164,7 +163,11 @@ export function activate(context: ExtensionContext) {
 			const clientOptions: LanguageClientOptions = {
 				documentSelector: [{ scheme: 'untitled', language: 'dascript' }],
 				diagnosticCollectionName: 'dascript',
-				outputChannel: outputChannel
+				outputChannel: outputChannel,
+				connectionOptions: {
+					cancellationStrategy: null,
+					maxRestartCount: 10
+				}
 			}
 			defaultClient = new LanguageClient('dascript', serverOptions, clientOptions)
 			defaultClient.start()
@@ -175,7 +178,7 @@ export function activate(context: ExtensionContext) {
 			return
 		folder = getOuterMostWorkspaceFolder(folder)
 
-		const folderUri = folder.uri.toString()
+		const folderUri = !unityServer ? folder.uri.toString() : "server"
 		if (!clients.has(folderUri)) {
 			const serverOptions = async () => {
 				const port = DEFAULT_PORT + clients.size
@@ -188,7 +191,7 @@ export function activate(context: ExtensionContext) {
 			}
 			const clientOptions: LanguageClientOptions = {
 				documentSelector: [
-					{ scheme: 'file', language: 'dascript', pattern: `${folder.uri.fsPath}/**/*` }
+					{ scheme: 'file', language: 'dascript', pattern: !unityServer ? `${folder.uri.fsPath}/**/*` : undefined }
 				],
 				diagnosticCollectionName: 'dascript',
 				workspaceFolder: folder,
@@ -212,7 +215,7 @@ export function activate(context: ExtensionContext) {
 			}
 			const client = new LanguageClient('dascript', serverOptions, clientOptions)
 			client.start()
-			clients.set(folder.uri.toString(), client)
+			clients.set(folderUri, client)
 		}
 	}
 
@@ -408,7 +411,7 @@ class DascriptDebugAdapterTracker {
 	onWillStopSession?(): void {
 		if (!this.wasMessages)
 			this.log(`\n\nda: Something wrong with debug session, maybe wasn't started debug session
-Make sure that dascript file contains these 2 lines
+Try to inject debugger explicitly, add these 2 lines in the main module
 options debugger
 require daslib/debug
 
