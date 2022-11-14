@@ -10,6 +10,7 @@ require daslib/strings_boost
 require lsp_types
 require lib
 require logger
+require config
 
 struct Completion
     name : string              // label
@@ -18,6 +19,11 @@ struct Completion
     impls : array<string>      // documentation
     kind : CompletionItemKind
     funcFirstArg : array<string>
+
+def disableLocks(var it : Completion)
+    unsafe
+        disableLocks(it.funcFirstArg)
+        disableLocks(it.impls)
 
 typedef
     Completions = table<string; Completion>
@@ -73,6 +79,7 @@ def addItem(var item : Completion; var items : Completions; once = false)
                 (*it).funcFirstArg |> emplace(arg)
         delete item
     if !found
+        disableLocks(item)
         items[key] <- item
 
 
@@ -100,6 +107,7 @@ def getTypeName(info; var items : Completions)
     elif info.basicType == Type tTuple
         if info.argTypes != null
             var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
+            disableLocks(args)
             res = "tuple<" + join(args, ";") + ">"
             delete args
         else
@@ -109,6 +117,7 @@ def getTypeName(info; var items : Completions)
             res = "variant<"
             var variantDesc = "variant<"
             var all : array<Completion>
+            disableLocks(all)
             var f = true
             for argname, argtype in arg_names(info), arg_types(info)
                 if !f
@@ -130,6 +139,7 @@ def getTypeName(info; var items : Completions)
         res = "{get_das_type_name(info.basicType)}<"
         if info.argTypes != null
             var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
+            disableLocks(args)
             res += "(" + join(args, "; ") + ")"
             delete args
         if info.firstType != null
@@ -142,6 +152,7 @@ def getTypeName(info; var items : Completions)
     else
         res = get_das_type_name(info.basicType)
     var dim <- [{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}]
+    disableLocks(dim)
     res += join(dim, "")
     delete dim
     if info.isConst
@@ -170,8 +181,11 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
         let fullName = "{fullModuleName}{structName}"
         var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
         var props : array<string>
+        disableLocks(props)
         var fields : array<tuple<uint; string>>
+        disableLocks(fields)
         var all : array<Completion>
+        disableLocks(all)
         basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
             var field = "{getTypeName(xtype, items)} [{cppName}"
             if offset != -1u
@@ -221,7 +235,7 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
             addItem([[Completion name = structName, fullName = fullName, desc = "annotation {fullName}", kind = CompletionItemKind Struct]], items)
 
 
-def parseFunction(info; fullModuleName : string; var items : Completions)
+def private parseFunction(info; fullModuleName : string; var items : Completions)
     var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
     res.fullName = "{fullModuleName}{info.name}"
     var impl = "def {fullModuleName}{info.name}("
@@ -245,7 +259,7 @@ def parseFunction(info; fullModuleName : string; var items : Completions)
     addItem(res, items)
 
 
-def parseModule(pMod; var items : Completions)
+def private parseModule(pMod; var items : Completions)
     let hugeStructDescSize = 500
     let fullModuleName = "{pMod.name}{length(string(pMod.name)) > 0 ? "::" : ""}"
 
@@ -256,12 +270,14 @@ def parseModule(pMod; var items : Completions)
         var shortStructDesc = ""
         structure_for_each_annotation(info) <| $(ann; annArgs)
             var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}]
+            disableLocks(args)
             let argT = join(args, ", ")
             delete args
             shortStructDesc += "[{ann.name}({argT})]\n"
         shortStructDesc += "struct {fullName}"
         var structDesc = shortStructDesc
         var all : array<Completion>
+        disableLocks(all)
         for it in info
             let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
             if structDesc |> length() < hugeStructDescSize
@@ -292,6 +308,7 @@ def parseModule(pMod; var items : Completions)
         let fullName = "{fullModuleName}{enumName}"
         var enumDesc = "enum {fullName}"
         var all : array< tuple < int64; Completion > >
+        disableLocks(all)
         for it in info
             enumDesc += "\n\t{it.name} = {it.value}"
             let fullItemName = "{fullModuleName}{enumName} {it.name}"
@@ -323,13 +340,13 @@ def addKeywords(var items : Completions)
         addItem([[Completion name = it, fullName = "option {it}", desc = "option {it}", kind = CompletionItemKind Property, impls <- [{ auto[] "option {it}" }] ]], items)
 
 
-def first_part(str : string; del : string)
+def private first_part(str : string; del : string)
     var parts <- split(str, del)
     defer_delete(parts)
     return parts[0]
 
 
-def isalnum_at(text : string; pos : int)
+def private isalnum_at(text : string; pos : int)
     let ch = unsafe(character_uat(text, pos))
     return is_alpha(ch) || is_number(ch)
 
@@ -366,6 +383,7 @@ def JV(it : Completion) : JsonValue?
 [export]
 def JV(items : Completions) : JsonValue?
     var list <- [{ for it in values(items); JV(it) }]
+    disableLocks(list)
     return JV <| {{ "isIncomplete" => JV(false); "items" => JV(list)}}
 
 [export]

@@ -7,6 +7,14 @@ require json_tools
 require fio
 require fs_tools
 
+def disableLocks(var arr)
+    unsafe
+        set_verify_array_locks(arr, false)
+
+def enableLocks(var arr)
+    unsafe
+        set_verify_array_locks(arr, true)
+
 struct PluginConfigPolicies
     ignoreSharedModules : bool = true
     noGlobalVariables : bool = false

@@ -849,6 +849,7 @@ class TelnetServer : Server
 
                     if prog != null
                         var visitor <- new AstCompletionData()
+                        disableLocks(visitor.res)
                         visitor.path = path
                         visitor.pos = pos
                         var adapter <- make_visitor(*visitor)
@@ -915,6 +916,7 @@ class TelnetServer : Server
             self->sendResponse(id, res)
             let sec = double(get_time_usec(t0)) / 1000000.0lf
             info("< completion time {sec}s")
+            delete list
 
 
     def resolveCompletion(id : double; var params : JsonValue?)
