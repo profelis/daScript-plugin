@@ -1,3 +1,5 @@
+module dascript shared
+
 options indenting = 4
 options no_aot = true
 

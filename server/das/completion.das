@@ -1,3 +1,5 @@
+module completion shared
+
 options no_aot = true
 options indenting = 4
 
@@ -67,7 +69,7 @@ let
                          ">>="; "<<<"; ">>>"; "<<<="; ">>>="]]
 
 
-def addItem(var item : Completion; var items : Completions; once = false)
+def private addItem(var item : Completion; var items : Completions; once = false)
     var found = false
     let key = "{item.desc}{int(item.kind)}"
     find_for_edit_if_exists(items, key) <| $(it)
@@ -83,11 +85,11 @@ def addItem(var item : Completion; var items : Completions; once = false)
         items[key] <- item
 
 
-def module_name(mod)
+def private module_name(mod)
     return mod == null || length(mod.name) == 0 ? "" : "{mod.name}::"
 
 
-def getTypeName(info; var items : Completions)
+def private getTypeName(info; var items : Completions)
     var res : string
     if info.basicType == Type tHandle
         res = info.annotation != null ? "{module_name(info.annotation._module)}{info.annotation.name}" : "tHandle"
@@ -166,14 +168,13 @@ def getTypeName(info; var items : Completions)
     return res
 
 
-def getValue(value)
+def private getValue(value)
     if value is nothing
         return ""
     if value is tString
         return " = \"{value}\""
     return " = {value}"
 
-[export]
 def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Completions; verbose = true)
     if ann.isBasicStructureAnnotation
         let sann & = unsafe(reinterpret<BasicStructureAnnotation&> (ann))
@@ -329,7 +330,7 @@ def private parseModule(pMod; var items : Completions)
         parseAnnotation(ann, fullModuleName, items)
 
 
-def addKeywords(var items : Completions)
+def private addKeywords(var items : Completions)
     for it in keywords
         addItem([[Completion name = it, fullName = it, desc = "keyword {it}", kind = CompletionItemKind Keyword, impls <- [{ auto[] "keyword {it}" }] ]], items)
     for it in basicTypes
@@ -350,7 +351,7 @@ def private isalnum_at(text : string; pos : int)
     let ch = unsafe(character_uat(text, pos))
     return is_alpha(ch) || is_number(ch)
 
-[export]
+
 def programCompletion(program : smart_ptr<Program>; globalCompletion : Completions; var items : Completions)
     var temp : Completions
     program_for_each_module(program) <| $(var mod)
@@ -363,14 +364,13 @@ def programCompletion(program : smart_ptr<Program>; globalCompletion : Completio
     // info("completion: got {length(items)} was {was} items for {program}\n")
 
 
-[export]
 def contains(completions : Completions; name : string) : bool
     for it in values(completions)
         if it.name == name
             return true
     return false
 
-[export]
+
 def JV(it : Completion) : JsonValue?
     var tab <- {{ "label" => JV(it.name); "detail" => JV(it.desc); "kind" => JV(it.kind) }}
     if !empty(it.fullName)
@@ -380,17 +380,15 @@ def JV(it : Completion) : JsonValue?
         tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n" + join(it.impls, "\n\n") + "\n```") }}
     return JV(tab)
 
-[export]
 def JV(items : Completions) : JsonValue?
     var list <- [{ for it in values(items); JV(it) }]
     disableLocks(list)
     return JV <| {{ "isIncomplete" => JV(false); "items" => JV(list)}}
 
-[export]
 def is_operator(str : string)
     return find_index(operators, str) >= 0
 
-[export] class CompletionData
+class CompletionData
     globalCompletionUpdate : clock
     globalCompletion : Completions
 

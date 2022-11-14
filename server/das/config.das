@@ -1,3 +1,5 @@
+module config shared
+
 options indenting = 4
 options no_aot = true
 
@@ -77,7 +79,7 @@ def PluginConfig(val : JsonValue?)
     ]]
 
 
-def is_valid(path : string)
+def private is_valid(path : string)
     let st = stat(path)
     return st.is_valid
 

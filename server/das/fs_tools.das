@@ -1,3 +1,5 @@
+module fs_tools shared
+
 options indenting = 4
 options no_aot = true
 
@@ -27,14 +29,14 @@ def path_to_uri(str : string)
     return file_name_to_uri(str) |> normalize_uri()
 
 
-def ends_with_separator(str : string)
+def private ends_with_separator(str : string)
     for c in "\\/"
         if ends_with(str, to_char(c))
             return true
     return false
 
 
-def starts_with_separator(str : string)
+def private starts_with_separator(str : string)
     for c in "\\/"
         if starts_with(str, to_char(c))
             return true

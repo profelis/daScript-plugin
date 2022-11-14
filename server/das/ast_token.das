@@ -1,3 +1,5 @@
+module ast_token shared
+
 options indenting = 4
 options no_aot = true
 
@@ -116,7 +118,7 @@ def build_symbol_information(ast : AstToken?; query : string; limit : int; var r
     for it in ast.children
         it |> build_symbol_information(query, limit, res)
 
-def collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
+def private collect_diag(val : AstToken?; path : string; var diag : array<Diagnostic>)
     if val.path == path && val.warn != bitfield(0)
         var d <- [[Diagnostic _range = val._range ]]
         if val.warn.unused
