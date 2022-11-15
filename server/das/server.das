@@ -48,6 +48,7 @@ def clone(var a : array<AstToken?>&; b : array<AstToken?> implicit)
 var
     telnet : TelnetServer?
 
+[skip_field_lock_check]
 struct ValidateResult
     path : string
     ok : bool
@@ -64,10 +65,12 @@ typedef
     ReqCb = lambda<(data, error : JsonValue?) : void>
     ValidDataCb = lambda<(data : Dascript const?) : void>
 
+[skip_field_lock_check]
 struct Req
     id : double
     cb : ReqCb
 
+[skip_field_lock_check]
 struct ValidDataReq
     path : string
     cb : ValidDataCb
@@ -173,6 +176,7 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
             delete mg
     return <- cloneData
 
+[skip_field_lock_check]
 class TelnetServer : Server
     jobsNum = 1
     port : int // port number, for debug
@@ -1495,7 +1499,7 @@ class TelnetServer : Server
                         done = true
 
                     elif method == "$/cancelRequest"
-                        pass // ignore???
+                        pass // TODO: process ignored requiests
 
                     elif method == "$/setTraceNotification" || method == "$/setTrace"
                         info(write_json(msg))

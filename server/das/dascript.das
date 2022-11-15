@@ -13,6 +13,7 @@ require fs_tools
 require strings
 
 
+[skip_field_lock_check]
 struct Dascript
     uri : DocumentUri
     path : string

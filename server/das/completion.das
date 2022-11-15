@@ -14,6 +14,7 @@ require lib
 require logger
 require config
 
+[skip_field_lock_check]
 struct Completion
     name : string              // label
     desc : string              // detail
@@ -72,7 +73,7 @@ let
 def private addItem(var item : Completion; var items : Completions; once = false)
     var found = false
     let key = "{item.desc}{int(item.kind)}"
-    find_for_edit_if_exists(items, key) <| $(it)
+    items |> find_for_edit_if_exists(key) <| $(it)
         found = true
         if !once
             for impl in item.impls
@@ -388,6 +389,7 @@ def JV(items : Completions) : JsonValue?
 def is_operator(str : string)
     return find_index(operators, str) >= 0
 
+[skip_field_lock_check]
 class CompletionData
     globalCompletionUpdate : clock
     globalCompletion : Completions
