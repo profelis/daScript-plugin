@@ -185,7 +185,7 @@ class TelnetServer : Server
     toRead : int = 0 // message length
     inited : bool = false // is LSP inited
 
-    channel : jobque::Channel?
+    outChannel : jobque::Channel?
 
     // client capabilities
     hasConfigurationCapability : bool
@@ -422,8 +422,8 @@ class TelnetServer : Server
         cb |> invoke(data) // unknown file
 
     def invalidateQueue()
-        if !channel.isEmpty
-            for item in each(channel, type<ValidateResult>)
+        if !outChannel.isEmpty
+            for item in each(outChannel, type<ValidateResult>)
                 var cloneData : ValidateResult
                 cloneData.ok = item.ok
                 cloneData.changeId := item.changeId
@@ -437,8 +437,8 @@ class TelnetServer : Server
                 cloneData.mg <- rwItem.mg
                 validating -= 1
                 self->validationDone(cloneData)
-            if channel.size == 0
-                channel |> append(jobsNum)
+            if outChannel.size == 0
+                outChannel |> append(jobsNum)
 
         if validating == jobsNum
             return
@@ -550,8 +550,8 @@ class TelnetServer : Server
         for i in range(jobsNum)
             new_job <| @ [[ := config, := dataText]]
                 var cloneData <- compile(path, dataText, withContent, changeId, config, workspaceFolders, completionData.globalCompletion)
-                channel |> push_clone(cloneData)
-                channel |> notify()
+                outChannel |> push_clone(cloneData)
+                outChannel |> notify()
                 cloneData.program := null
                 cloneData.fs := null
                 delete cloneData
@@ -1537,9 +1537,9 @@ def mainLoop(fn : string)
 
     var res = false
     with_job_que <|
-        with_channel(telnet.jobsNum) <| $(channel)
+        with_channel(telnet.jobsNum) <| $(outChannel)
 
-            telnet.channel = channel
+            telnet.outChannel = outChannel
 
             var session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
             if session != null
