@@ -209,7 +209,7 @@ class TelnetServer : Server
 
     validateQueue : table<string; tuple<first : bool; withContent : bool; changeId : int>>
     validDataReqs : array<ValidDataReq>
-    validating : bool = false
+    validating : int = 0
 
     def TelnetServer()
         Server`Server(cast<Server> self)
@@ -435,12 +435,12 @@ class TelnetServer : Server
                 cloneData.program <- rwItem.program
                 cloneData.fs <- rwItem.fs
                 cloneData.mg <- rwItem.mg
+                validating -= 1
                 self->validationDone(cloneData)
-            validating = false
             if channel.size == 0
                 channel |> append(jobsNum)
 
-        if validating
+        if validating == jobsNum
             return
 
         if validateQueue |> length == 0 // equeue workspace files
@@ -494,7 +494,7 @@ class TelnetServer : Server
         if valid
             info("> '{path}' is valid. skip validation")
             return
-        if validating
+        if validating == jobsNum
             var found = false
             validateQueue |> find_for_edit_if_exists(path) <| $(var item)
                 found = true
@@ -505,13 +505,13 @@ class TelnetServer : Server
                 validateQueue[path] = [[auto first, withContent, changeId]]
             return
 
-        validating = true
+        validating += 1
         if !validateQueue |> key_exists(path)
             validateQueue[path] = [[auto first, withContent, changeId]]
 
         self->getConfig(path) <| @(var config : PluginConfig?)
             if config == null
-                validating = false
+                validating -= 1
                 error("> validate error: '{path}'. Config is null")
             else
                 self->validate_with_config(path, withContent, *config)
@@ -519,7 +519,9 @@ class TelnetServer : Server
     def validate_with_config(path : string; withContent : bool; var config : PluginConfig)
         if !config.project.scanWorkspace
             var t0 = ref_time_ticks()
+            var found = false
             registry |> find_for_edit_if_exists(path) <| $(var data)
+                found = true
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n")
                 var cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
@@ -528,7 +530,8 @@ class TelnetServer : Server
             let dt = get_time_usec(t0)
             let sec = double(dt) / 1000000.0lf
             info("validation in {sec} s\n")
-            validating = false
+            if !found
+                validating -= 1
             self->dispatchValidData(path)
             return
 
@@ -557,7 +560,6 @@ class TelnetServer : Server
     def validationDone(var item : ValidateResult)
         var path = item.path
 
-        validating = false
         var isOpen = false
         var data = unsafe(registry |> find_for_edit(path)) // registry is locked
         var isActualData = item.changeId == data.changeId
