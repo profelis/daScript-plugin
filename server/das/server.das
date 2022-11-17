@@ -208,8 +208,8 @@ class TelnetServer : Server
     sendingError : bool = false
 
     validateQueue : table<string; tuple<first : bool; withContent : bool; changeId : int>>
+    validatingFiles : table<string>
     validDataReqs : array<ValidDataReq>
-    validating : int = 0
 
     def TelnetServer()
         Server`Server(cast<Server> self)
@@ -408,18 +408,12 @@ class TelnetServer : Server
             if data.validated
                 found = true
                 cb |> invoke(data)
-            else
-                validateQueue[path] = [[auto true, true, data.changeId]]
         if found
             return
-        if validateQueue |> key_exists(path)
-            info("wait for valid data {path}")
-            validDataReqs |> emplace([[ValidDataReq path = path, cb <- cb]])
-            return
 
-        error("unknown file data {path}")
-        var data : Dascript?
-        cb |> invoke(data) // unknown file
+        info("wait for valid data {path}")
+        validDataReqs |> emplace([[ValidDataReq path = path, cb <- cb]])
+        self->validate(path, /*withContent*/true, /*first*/true)
 
     def invalidateQueue()
         if !outChannel.isEmpty
@@ -435,12 +429,11 @@ class TelnetServer : Server
                 cloneData.program <- rwItem.program
                 cloneData.fs <- rwItem.fs
                 cloneData.mg <- rwItem.mg
-                validating -= 1
                 self->validationDone(cloneData)
-            if outChannel.size == 0
-                outChannel |> append(jobsNum)
+            // if outChannel.size == 0
+            outChannel |> append(jobsNum - outChannel.size)
 
-        if validating == jobsNum
+        if length(validatingFiles) >= jobsNum
             return
 
         if validateQueue |> length == 0 // equeue workspace files
@@ -473,13 +466,14 @@ class TelnetServer : Server
 
         var toValidate = ""
         for name, data in keys(validateQueue), values(validateQueue)
-            if data.first
+            if data.first && !key_exists(validatingFiles, name)
                 toValidate = name
                 break
         if toValidate |> empty
             for name in keys(validateQueue)
-                toValidate = name
-                break
+                if !key_exists(validatingFiles, name)
+                    toValidate = name
+                    break
         if toValidate |> empty
             return
 
@@ -494,7 +488,7 @@ class TelnetServer : Server
         if valid
             info("> '{path}' is valid. skip validation")
             return
-        if validating == jobsNum
+        if length(validatingFiles) >= jobsNum
             var found = false
             validateQueue |> find_for_edit_if_exists(path) <| $(var item)
                 found = true
@@ -505,13 +499,13 @@ class TelnetServer : Server
                 validateQueue[path] = [[auto first, withContent, changeId]]
             return
 
-        validating += 1
+        validatingFiles |> insert(path)
         if !validateQueue |> key_exists(path)
             validateQueue[path] = [[auto first, withContent, changeId]]
 
         self->getConfig(path) <| @(var config : PluginConfig?)
             if config == null
-                validating -= 1
+                validatingFiles |> erase(path)
                 error("> validate error: '{path}'. Config is null")
             else
                 self->validate_with_config(path, withContent, *config)
@@ -521,7 +515,6 @@ class TelnetServer : Server
             var t0 = ref_time_ticks()
             var found = false
             registry |> find_for_edit_if_exists(path) <| $(var data)
-                found = true
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n")
                 var cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
@@ -530,35 +523,34 @@ class TelnetServer : Server
             let dt = get_time_usec(t0)
             let sec = double(dt) / 1000000.0lf
             info("validation in {sec} s\n")
-            if !found
-                validating -= 1
+            validatingFiles |> erase(path)
             self->dispatchValidData(path)
             return
 
         var dataText = ""
         var changeId = 0
-        var found = false
-        registry |> find_if_exists(path) <| $(var data)
-            found = true
-            changeId = data.changeId
-            if withContent
+        if withContent
+            var found = false
+            registry |> find_if_exists(path) <| $(var data)
+                found = true
+                changeId = data.changeId
                 dataText = data.text
-        if !found
-            error("validation failed: unregistered file '{path}'\n")
-            return
+            if !found
+                error("validation failed: unregistered file '{path}'\n")
+                return
 
-        for i in range(jobsNum)
-            new_job <| @ [[ := config, := dataText]]
-                var cloneData <- compile(path, dataText, withContent, changeId, config, workspaceFolders, completionData.globalCompletion)
-                outChannel |> push_clone(cloneData)
-                outChannel |> notify()
-                cloneData.program := null
-                cloneData.fs := null
-                delete cloneData
-                delete config
+        new_job <| @ [[ := config, := dataText]]
+            var cloneData <- compile(path, dataText, withContent, changeId, config, workspaceFolders, completionData.globalCompletion)
+            outChannel |> push_clone(cloneData)
+            outChannel |> notify()
+            cloneData.program := null
+            cloneData.fs := null
+            delete cloneData
+            delete config
 
     def validationDone(var item : ValidateResult)
         var path = item.path
+        validatingFiles |> erase(path)
 
         var isOpen = false
         var data = unsafe(registry |> find_for_edit(path)) // registry is locked
