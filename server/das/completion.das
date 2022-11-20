@@ -91,82 +91,86 @@ def private module_name(mod)
 
 
 def private getTypeName(info; var items : Completions)
-    var res : string
-    if info.basicType == Type tHandle
-        res = info.annotation != null ? "{module_name(info.annotation._module)}{info.annotation.name}" : "tHandle"
-    elif info.basicType == Type tStructure
-        res = info.structType?.name ?? "structure"
-    elif info.basicType == Type tEnumeration || info.basicType == Type tEnumeration8 || info.basicType == Type tEnumeration16
-        res = info.enumType?.name ?? "enumeration"
-    elif info.basicType == Type tPointer
-        res = info.firstType != null ? "{getTypeName(*(info.firstType), items)}?" : "void?"
-    elif info.basicType == Type tArray
-        res = info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array"
-    elif info.basicType == Type tTable
-        if info.firstType != null && info.secondType != null
-            res = "table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>"
+    return build_string() <| $(var res)
+        if info.basicType == Type tHandle
+            res |> write(info.annotation != null ? "{module_name(info.annotation._module)}{info.annotation.name}" : "tHandle")
+        elif info.basicType == Type tStructure
+            res |> write(info.structType?.name ?? "structure")
+        elif info.basicType == Type tEnumeration || info.basicType == Type tEnumeration8 || info.basicType == Type tEnumeration16
+            res |> write(info.enumType?.name ?? "enumeration")
+        elif info.basicType == Type tPointer
+            res |> write(info.firstType != null ? getTypeName(*(info.firstType), items) : "void")
+            res |> write("?")
+        elif info.basicType == Type tArray
+            res |> write(info.firstType != null ? "array<{getTypeName(*(info.firstType), items)}>" : "array")
+        elif info.basicType == Type tTable
+            if info.firstType != null && info.secondType != null
+                res |> write("table<{getTypeName(deref(info.firstType), items)};{getTypeName(deref(info.secondType), items)}>")
+            else
+                res |> write("table")
+        elif info.basicType == Type tTuple
+            if info.argTypes != null
+                res |> write("tuple<")
+                var first = true
+                for argtype in arg_types(info)
+                    if first { first = false; } else { res |> write(";"); }
+                    res |> write(getTypeName(argtype, items))
+                res |> write(">")
+                // delete args
+            else
+                res |> write("tuple")
+        elif info.basicType == Type tVariant
+            if info.argTypes != null && info.argNames != null
+                res |> write("variant<")
+                var variantDesc = "variant<"
+                var all : array<Completion>
+                disableLocks(all)
+                var f = true
+                for argname, argtype in arg_names(info), arg_types(info)
+                    if !f
+                        res |> write("; ")
+                    f = false
+                    var desc = "{argname}: {getTypeName(argtype, items)}"
+                    res |> write(desc)
+                    variantDesc += "\n\t{desc}"
+                    all |> emplace([[Completion name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
+                res |> write(">")
+                variantDesc += "\n>"
+                for it in all
+                    it.impls |> emplace(variantDesc)
+                    addItem(it, items, true)
+                delete all
+            else
+                res |> write("variant")
+        elif info.basicType == Type tFunction || info.basicType == Type tLambda || info.basicType == Type tBlock
+            res |> write("{get_das_type_name(info.basicType)}<")
+            if info.argTypes != null
+                res |> write("(")
+                var first = true
+                for argtype in arg_types(info)
+                    if first { first = false; } else { res |> write(";"); }
+                    res |> write(getTypeName(argtype, items))
+                res |> write(")")
+            if info.firstType != null
+                res |> write ((info.argTypes != null ? ":" : ""))
+                res |> write (getTypeName(*(info.firstType), items))
+            res |> write(">")
+        elif info.basicType == Type fakeContext
+            res |> write("__context__")
+        elif info.basicType == Type fakeLineInfo
+            res |> write("__lineInfo__")
         else
-            res = "table"
-    elif info.basicType == Type tTuple
-        if info.argTypes != null
-            var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
-            disableLocks(args)
-            res = "tuple<" + join(args, ";") + ">"
-            delete args
-        else
-            res = "tuple"
-    elif info.basicType == Type tVariant
-        if info.argTypes != null && info.argNames != null
-            res = "variant<"
-            var variantDesc = "variant<"
-            var all : array<Completion>
-            disableLocks(all)
-            var f = true
-            for argname, argtype in arg_names(info), arg_types(info)
-                if !f
-                    res += "; "
-                f = false
-                var desc = "{argname}: {getTypeName(argtype, items)}"
-                res += desc
-                variantDesc += "\n\t{desc}"
-                all |> emplace([[Completion name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
-            res += ">"
-            variantDesc += "\n>"
-            for it in all
-                it.impls |> emplace(variantDesc)
-                addItem(it, items, true)
-            delete all
-        else
-            res = "variant"
-    elif info.basicType == Type tFunction || info.basicType == Type tLambda || info.basicType == Type tBlock
-        res = "{get_das_type_name(info.basicType)}<"
-        if info.argTypes != null
-            var args <- [{for argtype in arg_types(info); getTypeName(argtype, items)}]
-            disableLocks(args)
-            res += "(" + join(args, "; ") + ")"
-            delete args
-        if info.firstType != null
-            res += (info.argTypes != null ? ":" : "") + "{getTypeName(*(info.firstType), items)}"
-        res += ">"
-    elif info.basicType == Type fakeContext
-        res = "__context__"
-    elif info.basicType == Type fakeLineInfo
-        res = "__lineInfo__"
-    else
-        res = get_das_type_name(info.basicType)
-    var dim <- [{for d in each_dim(info); d != -1 ? "[{d}]" : "[]"}]
-    disableLocks(dim)
-    res += join(dim, "")
-    delete dim
-    if info.isConst
-        res += " const"
-    if info.isRef
-        res += " &"
-    if info.isTemp
-        res += "#"
-    if info.isImplicit
-        res += " implicit"
-    return res
+            res |> write(get_das_type_name(info.basicType))
+        for d in each_dim(info)
+            res |> write(d != -1 ? "[{d}]" : "[]")
+        if info.isConst
+            res |> write(" const")
+        if info.isRef
+            res |> write(" &")
+        if info.isTemp
+            res |> write("#")
+        if info.isImplicit
+            res |> write(" implicit")
 
 
 def private getValue(value)
@@ -189,13 +193,11 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
         var all : array<Completion>
         disableLocks(all)
         basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
-            var field = "{getTypeName(xtype, items)} [{cppName}"
+            let field = "{getTypeName(xtype, items)} [{cppName}"
             if offset != -1u
-                field += " @ {offset}]"
-                fields |> emplace([[auto offset, "\n\t{name}: {field}"]])
+                fields |> emplace([[auto offset, "\n\t{name}: {field} @ {offset}]"]])
             else
-                field += "]"
-                props |> emplace("\n\t{name}: {field}")
+                props |> emplace("\n\t{name}: {field}]")
             let fullItemName = "{fullModuleName}{structName}.{name}"
             all |> emplace([[Completion name = "{name}", fullName = fullItemName,
                                     desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
@@ -271,10 +273,12 @@ def private parseModule(pMod; var items : Completions)
         let fullName = "{fullModuleName}{structName}"
         var shortStructDesc = ""
         structure_for_each_annotation(info) <| $(ann; annArgs)
-            var args <- [{for arg in annArgs; "{arg.name}{getValue(get_annotation_argument_value(arg))}"}]
-            disableLocks(args)
-            let argT = join(args, ", ")
-            delete args
+            let argT = build_string() <| $(str)
+                var first = true
+                for arg in annArgs
+                    if first { first = false; } else { str |> write(", "); }
+                    str |> write(arg.name)
+                    str |> write(getValue(get_annotation_argument_value(arg)))
             shortStructDesc += "[{ann.name}({argT})]\n"
         shortStructDesc += "struct {fullName}"
         var structDesc = shortStructDesc
