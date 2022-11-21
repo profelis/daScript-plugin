@@ -242,24 +242,34 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
 def private parseFunction(info; fullModuleName : string; var items : Completions)
     var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
     res.fullName = "{fullModuleName}{info.name}"
-    var impl = "def {fullModuleName}{info.name}("
-    var firstArg = true
-    for it in info
-        // if it.basicType == Type fakeContext
-        //   continue
-        let argType = getTypeName(it, items)
-        if firstArg
-            res.funcFirstArg |> push <| argType
-        else
-            impl += "; "
-        firstArg = false
-        impl += "{it.name}: {argType}{getValue(get_variable_value(it))}"
-    impl += ")"
-    if info.result != null
-        impl += ": {getTypeName(*info.result, items)}"
-    if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && !empty(info.cppName)
-        impl += " [{info.cppName}]"
-    res.impls |> emplace(impl)
+    let imp = build_string() <| $(impl)
+        impl |> write("def ")
+        impl |> write(fullModuleName)
+        impl |> write(info.name)
+        impl |> write("(")
+        var firstArg = true
+        for it in info
+            // if it.basicType == Type fakeContext
+            //   continue
+            let argType = getTypeName(it, items)
+            if firstArg
+                res.funcFirstArg |> push <| argType
+                firstArg = false
+            else
+                impl |> write("; ")
+            impl |> write(it.name)
+            impl |> write(": ")
+            impl |> write(argType)
+            impl |> write(getValue(get_variable_value(it)))
+        impl |> write(")")
+        if info.result != null
+            impl |> write(": ")
+            impl |> write(getTypeName(*info.result, items))
+        if (info.flags & FUNCINFO_BUILTIN) == FUNCINFO_BUILTIN && !empty(info.cppName)
+            impl |> write(" [")
+            impl |> write(info.cppName)
+            impl |> write("]")
+    res.impls |> emplace(imp)
     addItem(res, items)
 
 
