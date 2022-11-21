@@ -281,16 +281,16 @@ def private parseModule(pMod; var items : Completions)
     module_for_each_structure(pMod) <| $(info)
         let structName = "{info.name}"
         let fullName = "{fullModuleName}{structName}"
-        var shortStructDesc = ""
-        structure_for_each_annotation(info) <| $(ann; annArgs)
-            let argT = build_string() <| $(str)
+        let shortStructDesc = build_string() <| $(shortDesc)
+            structure_for_each_annotation(info) <| $(ann; annArgs)
+                shortDesc |> write("[{ann.name}(")
                 var first = true
                 for arg in annArgs
-                    if first { first = false; } else { str |> write(", "); }
-                    str |> write(arg.name)
-                    str |> write(getValue(get_annotation_argument_value(arg)))
-            shortStructDesc += "[{ann.name}({argT})]\n"
-        shortStructDesc += "struct {fullName}"
+                    if first { first = false; } else { shortDesc |> write(", "); }
+                    shortDesc |> write(arg.name)
+                    shortDesc |> write(getValue(get_annotation_argument_value(arg)))
+                shortDesc |> write(")]\n")
+            shortDesc |> write("struct {fullName}")
         var structDesc = shortStructDesc
         var all : array<Completion>
         disableLocks(all)
@@ -322,13 +322,17 @@ def private parseModule(pMod; var items : Completions)
     module_for_each_enumeration(pMod) <| $(info)
         let enumName = "{info.name}"
         let fullName = "{fullModuleName}{enumName}"
-        var enumDesc = "enum {fullName}"
         var all : array< tuple < int64; Completion > >
         disableLocks(all)
-        for it in info
-            enumDesc += "\n\t{it.name} = {it.value}"
-            let fullItemName = "{fullModuleName}{enumName} {it.name}"
-            all |> emplace([[auto it.value, [[Completion name = "{enumName} {it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
+        let enumDesc = build_string() <| $(enumStr)
+            enumStr |> write("enum {fullName}")
+            for it in info
+                enumStr |> write("\n\t")
+                enumStr |> write(it.name)
+                enumStr |> write(" = ")
+                enumStr |> write(it.value)
+                let fullItemName = "{fullModuleName}{enumName} {it.name}"
+                all |> emplace([[auto it.value, [[Completion name = "{enumName} {it.name}", fullName = fullItemName, desc = "{fullItemName} = {it.value}", kind = CompletionItemKind EnumMember]] ]])
 
         addItem([[Completion name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
         for it in all
