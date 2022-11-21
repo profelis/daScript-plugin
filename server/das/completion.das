@@ -122,20 +122,22 @@ def private getTypeName(info; var items : Completions)
         elif info.basicType == Type tVariant
             if info.argTypes != null && info.argNames != null
                 res |> write("variant<")
-                var variantDesc = "variant<"
                 var all : array<Completion>
                 disableLocks(all)
-                var f = true
-                for argname, argtype in arg_names(info), arg_types(info)
-                    if !f
-                        res |> write("; ")
-                    f = false
-                    var desc = "{argname}: {getTypeName(argtype, items)}"
-                    res |> write(desc)
-                    variantDesc += "\n\t{desc}"
-                    all |> emplace([[Completion name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
-                res |> write(">")
-                variantDesc += "\n>"
+                let variantDesc = build_string() <| $(variantStr)
+                    variantStr |> write("variant<")
+                    var f = true
+                    for argname, argtype in arg_names(info), arg_types(info)
+                        if !f
+                            res |> write("; ")
+                        f = false
+                        var desc = "{argname}: {getTypeName(argtype, items)}"
+                        res |> write(desc)
+                        variantStr |> write("\n\t")
+                        variantStr |> write(desc)
+                        all |> emplace([[Completion name = "{argname}", fullName = "variant {argname}", desc = "variant {desc}", kind = CompletionItemKind TypeParameter]])
+                    res |> write(">")
+                    variantStr |> write("\n>")
                 for it in all
                     it.impls |> emplace(variantDesc)
                     addItem(it, items, true)
@@ -185,33 +187,37 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
         let sann & = unsafe(reinterpret<BasicStructureAnnotation&> (ann))
         let structName = "{sann.name}"
         let fullName = "{fullModuleName}{structName}"
-        var structDesc = "struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}"
-        var props : array<string>
-        disableLocks(props)
-        var fields : array<tuple<uint; string>>
-        disableLocks(fields)
         var all : array<Completion>
         disableLocks(all)
-        basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
-            let field = "{getTypeName(xtype, items)} [{cppName}"
-            if offset != -1u
-                fields |> emplace([[auto offset, "\n\t{name}: {field} @ {offset}]"]])
-            else
-                props |> emplace("\n\t{name}: {field}]")
-            let fullItemName = "{fullModuleName}{structName}.{name}"
-            all |> emplace([[Completion name = "{name}", fullName = fullItemName,
-                                    desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
+        let structDesc = build_string() <| $(structStr)
+            structStr |> write("struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}")
+            var props : array<string>
+            disableLocks(props)
+            var fields : array<tuple<uint; string>>
+            disableLocks(fields)
+            basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
+                let field = "{getTypeName(xtype, items)} [{cppName}"
+                if offset != -1u
+                    fields |> emplace([[auto offset, "\n\t{name}: {field} @ {offset}]"]])
+                else
+                    props |> emplace("\n\t{name}: {field}]")
+                let fullItemName = "{fullModuleName}{structName}.{name}"
+                all |> emplace([[Completion name = "{name}", fullName = fullItemName,
+                                        desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
 
-        if length(fields) > 0
-            fields |> sort() <| $(a; b)
-                return a._0 < b._0
-            if verbose
-                for it in fields
-                    structDesc += it._1
-        if verbose && length(props) > 0
             if length(fields) > 0
-                structDesc += "\n"
-            structDesc += join(props, "")
+                fields |> sort() <| $(a; b)
+                    return a._0 < b._0
+                if verbose
+                    for it in fields
+                        structStr |> write(it._1)
+            if verbose && length(props) > 0
+                if length(fields) > 0
+                    structStr |> write("\n")
+                structStr |> write(join(props, ""))
+
+            delete props
+            delete fields
 
         if verbose
             addItem([[Completion name = structName, fullName = fullName, desc = "struct {fullName}",
@@ -221,8 +227,6 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
                 it.impls |> emplace(structDesc)
             addItem(it, items)
 
-        delete props
-        delete fields
         delete all
 
     elif ann.isTypeAnnotation
@@ -396,7 +400,7 @@ def JV(it : Completion) : JsonValue?
         tab["filterName"] = JV(it.fullName)
         tab["sortText"] = JV(it.fullName)
     if length(it.impls) > 0
-        tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n" + join(it.impls, "\n\n") + "\n```") }}
+        tab["documentation"] = JV <| {{ "kind" => JV("markdown"); "value" => JV("```dascript\n{join(it.impls, "\n\n")}\n```") }}
     return JV(tab)
 
 def JV(items : Completions) : JsonValue?
