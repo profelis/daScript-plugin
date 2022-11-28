@@ -1223,7 +1223,7 @@ class TelnetServer : Server
                         if ch == ' '
                             idx += 1
                             continue
-                        if ch != ':'
+                        if ch != ':' && ch != ','
                             insertHint = true
                         break
                     if insertHint && find(usedIndexes, endIdx) ?? "" != tok._type
