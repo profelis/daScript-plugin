@@ -358,7 +358,7 @@ class TelnetServer : Server
             workspaceSymbolProvider = true,
             documentFormattingProvider = true,
             documentRangeFormattingProvider = false, // TODO:
-            inlayHintProvider = false,
+            inlayHintProvider = true,
             renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]],
@@ -1197,6 +1197,34 @@ class TelnetServer : Server
             self->sendResponse(id, JV(res))
             delete res
 
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_inlayHint
+    [unused_argument(id)] def inlayHint(id : double; var params : JsonValue ?)
+        var ini <- InlayHintParams(params)
+        info(ini)
+        let path = uri_to_path(ini.textDocument.uri)
+        self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
+            defer_delete(ini)
+            if data == null
+                self->sendResponse(id, JVNull())
+                return
+            var res : array<InlayHint>
+            data.ast |> collect_token(path, ini._range) <| $(tok)
+                if tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
+                    var idx = pos_to_index(tok._range.end, data.text) + 1
+                    var insertHint = false
+                    while idx < length(data.text)
+                        let ch = unsafe(character_uat(data.text, idx))
+                        if ch == ' '
+                            idx += 1
+                            continue
+                        if ch != ':'
+                            insertHint = true
+                        break
+                    if insertHint
+                        res |> emplace([[InlayHint position=tok._range.end, _label=tok._type, paddingLeft=true]])
+            self->sendResponse(id, JV(res))
+            delete res
+
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
     [unused_argument(id)] def rangeFormatting(id : double; var params : JsonValue ?)
         var ini <- DocumentRangeFormattingParams(params)
@@ -1483,6 +1511,9 @@ class TelnetServer : Server
 
                     elif method == "textDocument/formatting"
                         self->formatting(jon(msg, "id"), joj(msg, "params"))
+
+                    elif method == "textDocument/inlayHint"
+                        self->inlayHint(jon(msg, "id"), joj(msg, "params"))
 
                     // elif method == "textDocument/rangeFormatting"
                     //     self->rangeFormatting(jon(msg, "id"), joj(msg, "params"))

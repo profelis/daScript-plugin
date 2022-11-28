@@ -937,6 +937,32 @@ def DocumentFormattingParams(val : JsonValue?)
         _options <- FormattingOptions(joj(val, "options"))
     ]]
 
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintParams
+struct InlayHintParams
+    textDocument : TextDocumentIdentifier
+    _range : Range
+
+def InlayHintParams(val : JsonValue?)
+    return <- [[InlayHintParams
+        textDocument <- TextDocumentIdentifier(joj(val, "textDocument")),
+        _range <- Range(joj(val, "range"))
+    ]]
+
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHint
+struct InlayHint
+    position : Position
+    _label : string
+    paddingLeft : bool
+    paddingRight : bool
+
+def JV(val : InlayHint)
+    return JV({{
+        "position" => JV(val.position);
+         "label" => JV(val._label);
+         "paddingLeft" => JV(val.paddingLeft);
+         "paddingRight" => JV(val.paddingRight)
+    }})
+
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
 struct DocumentRangeFormattingParams
     textDocument : TextDocumentIdentifier

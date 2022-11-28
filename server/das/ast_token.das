@@ -164,6 +164,11 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
         if token.path == path && pos |> in_range(token._range)
             blk |> invoke(token)
 
+def collect_token(val : AstTokens; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
+    collect_all_token(val) <| $(token : AstToken?)
+        if token.path == path && token._range |> in_range(_range)
+            blk |> invoke(token)
+
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
     if !empty(val.path) && val.defPath == path && val.defRange == _range// && ! val._range |> in_range(_range) &&  ! val._range |> in_range(val.defRange)
         blk |> invoke(val)
