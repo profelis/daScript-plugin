@@ -1209,7 +1209,12 @@ class TelnetServer : Server
             var usedIndexes : table<int; string>
             var res : array<InlayHint>
             data.ast |> collect_token(path, ini._range) <| $(tok)
-                if tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
+                if tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0 && !tok.topLevel
+                    let idx = pos_to_index(tok._range.start, data.text)
+                    if find(usedIndexes, idx) ?? "" != tok.callArgument
+                        usedIndexes[idx] = tok.callArgument
+                        res |> emplace([[InlayHint position=tok._range.start, _label=tok.callArgument, paddingRight=true]])
+                elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
                     let endIdx = pos_to_index(tok._range.end, data.text)
                     var idx = endIdx + 1
                     var insertHint = false
