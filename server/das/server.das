@@ -1200,17 +1200,18 @@ class TelnetServer : Server
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_inlayHint
     [unused_argument(id)] def inlayHint(id : double; var params : JsonValue ?)
         var ini <- InlayHintParams(params)
-        info(ini)
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
             defer_delete(ini)
             if data == null
                 self->sendResponse(id, JVNull())
                 return
+            var usedIndexes : table<int; string>
             var res : array<InlayHint>
             data.ast |> collect_token(path, ini._range) <| $(tok)
                 if tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
-                    var idx = pos_to_index(tok._range.end, data.text) + 1
+                    let endIdx = pos_to_index(tok._range.end, data.text)
+                    var idx = endIdx + 1
                     var insertHint = false
                     while idx < length(data.text)
                         let ch = unsafe(character_uat(data.text, idx))
@@ -1220,9 +1221,11 @@ class TelnetServer : Server
                         if ch != ':'
                             insertHint = true
                         break
-                    if insertHint
+                    if insertHint && find(usedIndexes, endIdx) ?? "" != tok._type
+                        usedIndexes[endIdx] = tok._type
                         res |> emplace([[InlayHint position=tok._range.end, _label=tok._type, paddingLeft=true]])
             self->sendResponse(id, JV(res))
+            delete usedIndexes
             delete res
 
     // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
