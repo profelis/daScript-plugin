@@ -10,11 +10,11 @@
 		"url": "https://github.com/profelis/daScript-plugin"
 	},
 	"engines": {
-		"vscode": "^1.33.0"
+		"vscode": "^1.67.0"
 	},
 	"scripts": {},
 	"dependencies": {
-		"vscode-languageclient": "^7.0.0",
+		"vscode-languageclient": "^8.0.2",
 		"run-in-terminal": "^0.0.3"
 	},
 	"devDependencies": {

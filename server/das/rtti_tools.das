@@ -15,6 +15,3 @@ def line_info_to_range(val : rtti::LineInfo)
     if res.end.character > 0 && range_oneline(res)
         res.end.character += 1
     return <- res
-
-def to_string(val : rtti::LineInfo)
-    return val.fileInfo != null ? "{val.fileInfo.name}:{int(val.line)}" : "{int(val.line)}"

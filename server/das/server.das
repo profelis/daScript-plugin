@@ -358,6 +358,7 @@ class TelnetServer : Server
             workspaceSymbolProvider = true,
             documentFormattingProvider = true,
             documentRangeFormattingProvider = false, // TODO:
+            inlayHintProvider = false,
             renameProvider = [[RenameOptions prepareProvider = true]],
             signatureHelpProvider <- [[SignatureHelpOptions triggerCharacters <- [{ auto[] "(" }] ]],
             workspace = [[ServerCapabilitiesWorkspace workspaceFolders <- workspace]],

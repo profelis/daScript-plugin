@@ -7,6 +7,7 @@ require math
 require json_tools
 require strings
 require daslib/json_boost
+require daslib/json
 
 typedef
     JSTab = table<string; JsonValue?>
@@ -99,6 +100,14 @@ def PublishDiagnosticsClientCapabilities(val : JsonValue?)
         versionSupport = job(val, "versionSupport")
     ]]
 
+struct InlayHintClientCapabilities
+    dynamicRegistration : bool
+
+def InlayHintClientCapabilities(val : JsonValue?)
+    return [[InlayHintClientCapabilities
+        dynamicRegistration = job(val, "dynamicRegistration")
+    ]]
+
 struct TextDocumentClientCapabilities
     synchronization : TextDocumentSyncClientCapabilities
     completion : CompletionClientCapabilities
@@ -122,13 +131,15 @@ struct TextDocumentClientCapabilities
     publishDiagnostics : PublishDiagnosticsClientCapabilities
     // foldingRange : FoldingRangeClientCapabilities
     // selectionRange : SelectionRangeClientCapabilities
+    inlayHint : InlayHintClientCapabilities
 
 def TextDocumentClientCapabilities(val : JsonValue?)
     return <- [[TextDocumentClientCapabilities
         synchronization <- TextDocumentSyncClientCapabilities(joj(val, "synchronization")),
         completion <- CompletionClientCapabilities(joj(val, "completion")),
         hover <- HoverClientCapabilities(joj(val, "hover")),
-        publishDiagnostics <- PublishDiagnosticsClientCapabilities(joj(val, "publishDiagnostics"))
+        publishDiagnostics <- PublishDiagnosticsClientCapabilities(joj(val, "publishDiagnostics")),
+        inlayHint <- InlayHintClientCapabilities(joj(val, "inlayHint"))
     ]]
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspaceEditClientCapabilities
@@ -349,6 +360,7 @@ struct ServerCapabilities
     workspaceSymbolProvider : bool
     workspace : ServerCapabilitiesWorkspace
     // experimental : void?
+    inlayHintProvider : bool
 
 // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
 struct InitializeResult

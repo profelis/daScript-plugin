@@ -3,7 +3,6 @@ module logger shared
 options indenting = 4
 options no_aot = true
 
-require rtti_tools
 require rtti
 
 enum LogLevel
@@ -11,6 +10,9 @@ enum LogLevel
     Warning = 2
     Info = 3
     Log = 4
+
+def to_string(val : rtti::LineInfo)
+    return val.fileInfo != null ? "{val.fileInfo.name}:{int(val.line)}" : "{int(val.line)}"
 
 def log(data; li : LineInfo; level : LogLevel)
     var msg : string

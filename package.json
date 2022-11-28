@@ -27,7 +27,7 @@
 		"eguskov.dascript"
 	],
 	"engines": {
-		"vscode": "^1.33.0"
+		"vscode": "^1.67.0"
 	},
 	"activationEvents": [
 		"onLanguage:dascript"
