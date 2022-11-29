@@ -1210,7 +1210,7 @@ class TelnetServer : Server
             var usedIndexes : table<int; string>
             var res : array<InlayHint>
             data.ast |> collect_token(path, ini._range) <| $(tok)
-                if tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0 && !tok.topLevel
+                if tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
                     let idx = pos_to_index(tok._range.start, data.text)
                     if find(usedIndexes, idx) ?? "" != tok.callArgument
                         usedIndexes[idx] = tok.callArgument
@@ -1221,6 +1221,8 @@ class TelnetServer : Server
                             kind=InlayHintKind Parameter]])
                 elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
                     let endIdx = pos_to_index(tok._range.end, data.text)
+                    if find(usedIndexes, endIdx) ?? "" == tok._type
+                        return
                     var idx = endIdx + 1
                     var insertHint = false
                     while idx < length(data.text)
@@ -1231,7 +1233,7 @@ class TelnetServer : Server
                         if ch != ':'
                             insertHint = true
                         break
-                    if insertHint && find(usedIndexes, endIdx) ?? "" != tok._type
+                    if insertHint
                         usedIndexes[endIdx] = tok._type
                         res |> emplace([[InlayHint
                             position=tok._range.end,
