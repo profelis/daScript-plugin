@@ -639,8 +639,8 @@ class AstCompletionData : AstVisitor
 class AstData : AstVisitor
     tokens : AstTokens?
     skipExprs : bool = false
-    callArgumentIdx : int = 0
-    callArgument : string = ""
+    callArgumentIdx : array<int>
+    callArgument : array<string>
 // program
     // def override preVisitProgram(prog:ProgramPtr) : void
     // def override visitProgram(porg:ProgramPtr) : void
@@ -795,13 +795,11 @@ class AstData : AstVisitor
     def override preVisitExprBlock(fun : smart_ptr<ExprBlock>) : void
         if skipExprs || fun == null
             return
-        callArgumentIdx = 0
         fun.annotations |> annotations_to_tokens(*tokens)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
     [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void
         if skipExprs || blk == null || blk.genFlags.generated
             return
-        callArgumentIdx += 1
         var_to_token(arg) <| $(var token : AstToken?)
             token.callArgument = "{arg.name}"
             *tokens |> emplace(token)
@@ -866,16 +864,31 @@ class AstData : AstVisitor
     def override preVisitExprCall(expr : smart_ptr<ExprCall>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
-        callArgumentIdx = 0
+        callArgumentIdx |> push(0)
         call_to_token(expr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-    // def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
-    def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
-        if arg.flags.constexpression && expr.func != null && !is_operator("{expr.func.name}") && length(expr.func.arguments) > callArgumentIdx
-            callArgument = "{expr.func.arguments[callArgumentIdx].name}"
-    def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
-        callArgument = ""
-        callArgumentIdx += 1
+    def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
+        if skipExprs || expr == null || expr.genFlags.generated
+            return expr
+        if length(callArgumentIdx) > 0
+            callArgumentIdx |> pop()
+        return expr
+    [unused_argument(last)] def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
+        if skipExprs || expr == null || expr.genFlags.generated
+            return
+        let argIdx = length(callArgumentIdx) > 0 ? callArgumentIdx[length(callArgumentIdx) - 1] : -1
+        if (argIdx >= 0 && arg.flags.constexpression && length(expr.func.arguments) > argIdx
+            && expr.func != null && !is_operator("{expr.func.name}"))
+            callArgument |> push("{expr.func.arguments[argIdx].name}")
+    [unused_argument(last)] def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+        if skipExprs || expr == null || expr.genFlags.generated
+            return arg
+        let argIdx = length(callArgumentIdx) > 0 ? callArgumentIdx[length(callArgumentIdx) - 1] : -1
+        if (argIdx >= 0 && arg.flags.constexpression && length(expr.func.arguments) > argIdx
+            && expr.func != null && !is_operator("{expr.func.name}"))
+            callArgument |> pop()
+        if length(callArgumentIdx) > 0
+            callArgumentIdx[length(callArgumentIdx) - 1] += 1
         return arg
 // null coalescing
     def override preVisitExprNullCoalescing(expr : smart_ptr<ExprNullCoalescing>) : void
@@ -1325,7 +1338,8 @@ class AstData : AstVisitor
         set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
         if expr.flags.isCallArgument
-            token.callArgument = callArgument
+            if length(callArgument) > 0
+                token.callArgument = callArgument[length(callArgument) - 1]
         *tokens |> emplace(token)
     // def override visitExprConst(expr:smart_ptr<ExprConst>) : ExpressionPtr
 // const ptr
@@ -1354,7 +1368,8 @@ class AstData : AstVisitor
             if !found
                 set_token_def(token, expr._type.enumType.at)
             set_token_type_def(token, expr._type)
-        token.callArgument = callArgument
+        if length(callArgument) > 0
+            token.callArgument = callArgument[length(callArgument) - 1]
         *tokens |> emplace(token)
 
     // def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr
