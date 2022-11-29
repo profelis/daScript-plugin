@@ -18,6 +18,7 @@ Plugin for scripting language [daScript](https://dascript.org/)
 - Go to type definition
 - Snippets
 - Semantic highlighting
+- Inlay hints (type name hint and parameter name hint)
 
 ## Development
 
