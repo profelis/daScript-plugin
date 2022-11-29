@@ -65,9 +65,10 @@ let
                          "max_infer_passes"; "indenting"; "debugger"]]
 
     // src\parser\ds_parser.ypp: 893
-    operators = [[string "!"; "~"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; "&&="; "||="; "^^="; "&&"; "||"; "^^"; "+"; "-";
+    operators <- {{ "!"; "~"; "+="; "-="; "*="; "/="; "%="; "&="; "|="; "^="; "&&="; "||="; "^^="; "&&"; "||"; "^^"; "+"; "-";
                          "*"; "/"; "%"; "<"; ">"; "=="; "!="; "<="; ">="; "&"; "|"; "^"; "++"; "--"; "+++"; "---"; "<<"; ">>"; "<<=";
-                         ">>="; "<<<"; ">>>"; "<<<="; ">>>="]]
+                         ">>="; "<<<"; ">>>"; "<<<="; ">>>="; "[]"; "?[]"; "."; "?."; "clone"; "finalize"; "??"; "`is"; "`as"; "?as";
+                         ":="; "<-"; "safe``operator`qmark`qmark" }}
 
 
 def private addItem(var item : Completion; var items : Completions; once = false)
@@ -409,7 +410,7 @@ def JV(items : Completions) : JsonValue?
     return JV <| {{ "isIncomplete" => JV(false); "items" => JV(list)}}
 
 def is_operator(str : string)
-    return find_index(operators, str) >= 0
+    return operators |> key_exists(str)
 
 [skip_field_lock_check]
 class CompletionData
