@@ -559,8 +559,9 @@ class TelnetServer : Server
         info("validation done: {path}\nchangeId:{data.changeId} compiler changeId:{item.changeId}\n")
         if data != null
             isOpen = data.isOpen
+            data.compiledOk = item.ok && item.program != null
 
-            if item.ok && item.program != null // otherwise keeps previous ast and completion data
+            if data.compiledOk // otherwise keeps previous ast and completion data
                 delete data.ast
                 data.ast <- item.ast
                 delete data.completionData
@@ -1203,7 +1204,7 @@ class TelnetServer : Server
         let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @ [[ <- ini]] (data : Dascript const?)
             defer_delete(ini)
-            if data == null
+            if data == null || !data.compiledOk
                 self->sendResponse(id, JVNull())
                 return
             var usedIndexes : table<int; string>
@@ -1223,7 +1224,7 @@ class TelnetServer : Server
                         if ch == ' '
                             idx += 1
                             continue
-                        if ch != ':' && ch != ','
+                        if ch != ':'
                             insertHint = true
                         break
                     if insertHint && find(usedIndexes, endIdx) ?? "" != tok._type

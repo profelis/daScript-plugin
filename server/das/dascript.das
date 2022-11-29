@@ -27,6 +27,7 @@ struct Dascript
     completionData : Completions
     ast : AstTokens
     program : smart_ptr<rtti::Program>
+    compiledOk : bool
     fs : smart_ptr<rtti::FileAccess>
     [[do_not_delete]] mg : ModuleGroup?
 
