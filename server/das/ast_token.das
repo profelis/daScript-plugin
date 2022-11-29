@@ -1010,7 +1010,7 @@ class AstData : AstVisitor
     // def override preVisitExprFor(expr:smart_ptr<ExprFor>) : void
     // def override visitExprFor(expr:smart_ptr<ExprFor>) : ExpressionPtr
     [unused_argument(last)] def override preVisitExprForVariable(expr : smart_ptr<ExprFor>; svar : VariablePtr; last : bool) : void
-        if skipExprs || expr == null || expr.genFlags.generated
+        if skipExprs || expr == null || expr.genFlags.generated || svar.flags.generated
             return
         var_to_token(svar) <| $(var token : AstToken?)
             *tokens |> emplace(token)
