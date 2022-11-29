@@ -871,8 +871,7 @@ class AstData : AstVisitor
             *tokens |> emplace(token)
     // def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
     def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
-        // TODO: exclude more function names
-        if arg.flags.constexpression && expr.func != null && expr.func.name != "clone" && length(expr.func.arguments) > callArgumentIdx
+        if arg.flags.constexpression && expr.func != null && !is_operator("{expr.func.name}") && length(expr.func.arguments) > callArgumentIdx
             callArgument = "{expr.func.arguments[callArgumentIdx].name}"
     def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
         callArgument = ""
