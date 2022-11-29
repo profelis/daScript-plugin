@@ -948,20 +948,28 @@ def InlayHintParams(val : JsonValue?)
         _range <- Range(joj(val, "range"))
     ]]
 
+// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintKind
+enum InlayHintKind
+    Type = 1
+    Parameter = 2
+
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHint
 struct InlayHint
     position : Position
     _label : string
     paddingLeft : bool
     paddingRight : bool
+    kind : InlayHintKind
 
 def JV(val : InlayHint)
     return JV({{
         "position" => JV(val.position);
          "label" => JV(val._label);
          "paddingLeft" => JV(val.paddingLeft);
-         "paddingRight" => JV(val.paddingRight)
+         "paddingRight" => JV(val.paddingRight);
+         "kind" => JV(int(val.kind))
     }})
+
 
 // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
 struct DocumentRangeFormattingParams

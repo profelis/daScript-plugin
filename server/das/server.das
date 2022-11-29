@@ -1214,7 +1214,11 @@ class TelnetServer : Server
                     let idx = pos_to_index(tok._range.start, data.text)
                     if find(usedIndexes, idx) ?? "" != tok.callArgument
                         usedIndexes[idx] = tok.callArgument
-                        res |> emplace([[InlayHint position=tok._range.start, _label=tok.callArgument, paddingRight=true]])
+                        res |> emplace([[InlayHint
+                            position=tok._range.start,
+                            _label=tok.callArgument,
+                            paddingRight=true,
+                            kind=InlayHintKind Parameter]])
                 elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
                     let endIdx = pos_to_index(tok._range.end, data.text)
                     var idx = endIdx + 1
@@ -1229,7 +1233,11 @@ class TelnetServer : Server
                         break
                     if insertHint && find(usedIndexes, endIdx) ?? "" != tok._type
                         usedIndexes[endIdx] = tok._type
-                        res |> emplace([[InlayHint position=tok._range.end, _label=tok._type, paddingLeft=true]])
+                        res |> emplace([[InlayHint
+                            position=tok._range.end,
+                            _label=tok._type,
+                            paddingLeft=true,
+                            kind=InlayHintKind Type]])
             self->sendResponse(id, JV(res))
             delete usedIndexes
             delete res
