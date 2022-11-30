@@ -1213,30 +1213,40 @@ class TelnetServer : Server
                 if tok.kind == AstTokenKind Function && length(tok.resultType) > 0
                     let fromIdx = pos_to_index(tok.funcHeaderEndPos, data.text)
                     let toIdx = pos_to_index(tok.bodyStartPos, data.text)
-                    var foundIdx = -1
                     var bracketsCount = 0
+                    var totalBrackets = 0
                     var lastBracket = fromIdx + 1
+                    var foundIdx = -1
                     for idx in range(fromIdx, toIdx)
                         let ch = unsafe(character_uat(data.text, idx))
-                        if bracketsCount != -1 // wait for next ')'
-                            if ch == '('
-                                bracketsCount += 1
-                            elif ch == ')'
-                                bracketsCount -= 1
-                                if bracketsCount == 0
-                                    lastBracket = idx + 1
-                                elif bracketsCount == -1
-                                    foundIdx = idx + 1
-                            continue
+                        if ch == '('
+                            bracketsCount += 1
+                            totalBrackets += 1
+                        elif ch == ')'
+                            bracketsCount -= 1
+                            totalBrackets += 1
+                            // arg : Type<(..(..)..)> ) == bracketsCount == -1
+                            if bracketsCount == 0
+                                lastBracket = idx + 1
+                            if bracketsCount == -1
+                                foundIdx = idx + 1
+                                break
 
+                    // def foo == totalBrackets == 0
+                    // () == totalBrackets == 2 && bracketsCount == 0
+                    if foundIdx == -1 && (totalBrackets == 0 || (totalBrackets == 2 && bracketsCount == 0))
+                        foundIdx = lastBracket
+
+                    for idx in range(foundIdx, toIdx)
+                        let ch = unsafe(character_uat(data.text, idx))
                         if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
                             continue
                         if ch == ':' // type declaration? reset searching
                             foundIdx = -1
                         break
-                    if foundIdx < 0 && bracketsCount == 0 // function without args
-                        foundIdx = lastBracket
-                    if foundIdx >= 0
+
+                    if foundIdx >= 0 && find(usedIndexes, foundIdx) ?? "" != tok.resultType
+                        usedIndexes[foundIdx] = tok.resultType
                         res |> emplace([[InlayHint
                                 position=index_to_pos(foundIdx, data.text),
                                 _label=tok.resultType,
