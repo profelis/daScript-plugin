@@ -1210,6 +1210,38 @@ class TelnetServer : Server
             var usedIndexes : table<int; string>
             var res : array<InlayHint>
             data.ast |> collect_token(path, ini._range) <| $(tok)
+                if tok.kind == AstTokenKind Function && length(tok.resultType) > 0
+                    let fromIdx = pos_to_index(tok.funcHeaderEndPos, data.text)
+                    let toIdx = pos_to_index(tok.bodyStartPos, data.text)
+                    var foundIdx = -1
+                    var bracketsCount = 0
+                    var lastBracket = fromIdx + 1
+                    for idx in range(fromIdx, toIdx)
+                        let ch = unsafe(character_uat(data.text, idx))
+                        if bracketsCount != -1 // wait for next ')'
+                            if ch == '('
+                                bracketsCount += 1
+                            elif ch == ')'
+                                bracketsCount -= 1
+                                if bracketsCount == 0
+                                    lastBracket = idx + 1
+                                elif bracketsCount == -1
+                                    foundIdx = idx + 1
+                            continue
+
+                        if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+                            continue
+                        if ch == ':' // type declaration? reset searching
+                            foundIdx = -1
+                        break
+                    if foundIdx < 0 && bracketsCount == 0 // function without args
+                        foundIdx = lastBracket
+                    if foundIdx >= 0
+                        res |> emplace([[InlayHint
+                                position=index_to_pos(foundIdx, data.text),
+                                _label=tok.resultType,
+                                paddingLeft=true,
+                                kind=InlayHintKind Type]])
                 if tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
                     let idx = pos_to_index(tok._range.start, data.text)
                     if find(usedIndexes, idx) ?? "" != tok.callArgument

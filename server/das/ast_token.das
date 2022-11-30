@@ -69,7 +69,10 @@ struct AstToken
 
     typeDefRange : Range
     typeDefPath : string
-    callArgument : string
+    callArgument : string // passed argument name
+    resultType : string // for functions
+    funcHeaderEndPos : Position // for functions
+    bodyStartPos : Position // for functions
 
 typedef
     AstTokens = array<AstToken?>
@@ -641,6 +644,7 @@ class AstData : AstVisitor
     skipExprs : bool = false
     callArgumentIdx : array<int>
     callArgument : array<string>
+    funcHeaderEndRange : Range
 // program
     // def override preVisitProgram(prog:ProgramPtr) : void
     // def override visitProgram(porg:ProgramPtr) : void
@@ -737,6 +741,19 @@ class AstData : AstVisitor
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
     def override preVisitFunction(fun : FunctionPtr) : void
+        funcHeaderEndRange = line_info_to_range(fun.at)
+
+    def override visitFunction(fun : FunctionPtr) : FunctionPtr
+        skipExprs = false
+        return fun
+
+    def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
+        if lastArg
+            funcHeaderEndRange = arg.at |> line_info_to_range()
+    // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
+    // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
+    def override preVisitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
         if fun == null
             return
         if fun.flags.generated && !fun.flags._generator && !fun.flags._lambda
@@ -763,15 +780,22 @@ class AstData : AstVisitor
                 if arg.init != null
                     desc += " = {describe(arg.init)}"
             desc += ")"
+        var resultType = ""
         if fun.result != null
-            desc += " : {describe([decl=fun.result,extra=true])}"
+            resultType = describe([decl=fun.result,extra=true])
+            desc += " : {resultType}"
         var token <- new [[AstToken
             // topLevel = fun.body != null,
             name = "{fun.name}",
             desc = desc,
             kind = fun.flags.isClassMethod ? AstTokenKind Method : AstTokenKind Function,
-            _type = desc
+            _type = desc,
+            resultType = resultType
         ]]
+        if funcHeaderEndRange.start.line >= 0
+            token.funcHeaderEndPos = funcHeaderEndRange.end
+            token.bodyStartPos = line_info_to_range(expr.at).start
+            funcHeaderEndRange.start.line = -1
         set_token_path(token, fun.at)
         set_token_def(token, fun.atDecl)
         token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated && token._range |> in_range(token.defRange)
@@ -779,15 +803,8 @@ class AstData : AstVisitor
             var_to_token(it) <| $(var arg : AstToken?)
                 token.children |> emplace(arg)
         *tokens |> emplace(token)
-    def override visitFunction(fun : FunctionPtr) : FunctionPtr
-        skipExprs = false
-        return fun
-    // def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
-    // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
-    // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
-    // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
-    // def override preVisitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
-    // def override visitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
+
+    // def override visitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : ExpressionPtr
 // any expression there is
     // def override preVisitExpression(expr:ExpressionPtr) : void
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
