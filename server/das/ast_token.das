@@ -786,8 +786,8 @@ class AstData : AstVisitor
     // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
     // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
     // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
-    // def override preVisitFunctionBody(fun:FunctionPtr) : void
-    // def override visitFunctionBody(fun:FunctionPtr) : void
+    // def override preVisitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
+    // def override visitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
 // any expression there is
     // def override preVisitExpression(expr:ExpressionPtr) : void
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
