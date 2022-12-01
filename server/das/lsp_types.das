@@ -409,6 +409,7 @@ def pos_to_index(pos : Position; text : string)
             if line == pos.line
                 return i // something wrong with char pos, return last char in the line before new line
             line++
+            continue
         if line == pos.line
             if charPos == pos.character
                 return i

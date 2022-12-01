@@ -767,7 +767,7 @@ class TelnetServer : Server
             let t0 = ref_time_ticks()
             var list : array<JsonValue?>
             // info(data.text)
-            let idx = pos_to_index(ini.position, data.text)
+            let idx = pos_to_index(ini.position, data.text) - 1
             if idx > 0
                 var searchToken = false
                 var i = 0
@@ -1061,7 +1061,7 @@ class TelnetServer : Server
                 self->sendResponse(id, JVNull())
                 return
             var found = false
-            let idx = pos_to_index(ini.position, data.text)
+            let idx = pos_to_index(ini.position, data.text) - 1 // starts before closed )
             if idx > 0
                 var list : array<SignatureInformation>
                 var searchToken = false
@@ -1215,7 +1215,7 @@ class TelnetServer : Server
                     let toIdx = pos_to_index(tok.bodyStartPos, data.text)
                     var bracketsCount = 0
                     var totalBrackets = 0
-                    var lastBracket = fromIdx + 1
+                    var lastBracket = fromIdx
                     var foundIdx = -1
                     for idx in range(fromIdx, toIdx)
                         let ch = unsafe(character_uat(data.text, idx))
@@ -1262,12 +1262,41 @@ class TelnetServer : Server
                             paddingRight=true,
                             kind=InlayHintKind Parameter]])
                 elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
-                    let endIdx = pos_to_index(tok._range.end, data.text) // TODO: aka range if exists
+                    let textLen = length(data.text)
+                    var endIdx = pos_to_index(tok._range.end, data.text)
+                    let akaLen = length(tok._aka)
+
+                    if akaLen > 0
+                        var akaIdx = 0
+                        var i = endIdx + 1
+                        while i < textLen - 3
+                            let ch1 = unsafe(character_uat(data.text, i + 0))
+                            let ch2 = unsafe(character_uat(data.text, i + 1))
+                            let ch3 = unsafe(character_uat(data.text, i + 2))
+                            if ch1 == 'a' && ch2 == 'k' && ch3 == 'a'
+                                akaIdx = i + 3
+                                break
+                            i += 1
+                        if akaIdx > 0
+                            i = akaIdx + 1
+                            while i < textLen - 3
+                                let ch = unsafe(character_uat(data.text, i))
+                                if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+                                    i += 1
+                                    continue
+                                if slice(data.text, i, i + akaLen) == tok._aka
+                                    akaIdx = i + akaLen
+                                else
+                                    akaIdx = -1
+                                break
+                        if akaIdx > 0
+                            endIdx = akaIdx
+
                     if find(usedIndexes, endIdx) ?? "" == tok._type
                         return
-                    var idx = endIdx + 1
                     var insertHint = false
-                    while idx < length(data.text)
+                    var idx = endIdx + 1
+                    while idx < textLen
                         let ch = unsafe(character_uat(data.text, idx))
                         if ch == ' '
                             idx += 1
@@ -1278,7 +1307,7 @@ class TelnetServer : Server
                     if insertHint
                         usedIndexes[endIdx] = tok._type
                         res |> emplace([[InlayHint
-                            position=tok._range.end,
+                            position=index_to_pos(endIdx, data.text),
                             _label=tok._type,
                             paddingLeft=true,
                             kind=InlayHintKind Type]])
@@ -1322,8 +1351,6 @@ class TelnetServer : Server
                 self->sendResponse(id, JVNull())
                 return
             var token = self->getToken(data, path, ini.position)
-            // info("rename token")
-            // info(token)
             if token == null || !token._range |> range_oneline()
                 self->sendResponse(id, JVNull())
                 return
@@ -1337,8 +1364,6 @@ class TelnetServer : Server
             let tokenLength = length(token._range)
             var edit : WorkspaceEdit
             for it in res
-                // info(it)
-                // info("{length(it._range)} != {tokenLength}")
                 if length(it._range) != tokenLength
                     continue
                 var found = false
@@ -1347,7 +1372,6 @@ class TelnetServer : Server
                     *edits |> emplace <| [[TextEdit _range = it._range, newText = ini.newName]]
                 if !found
                     edit.changes[it.uri] <- [{auto[] [[TextEdit _range = it._range, newText = ini.newName]] }]
-            // info(edit)
             self->sendResponse(id, JV(edit))
             delete res
 
