@@ -73,6 +73,7 @@ struct AstToken
     resultType : string // for functions
     funcHeaderEndPos : Position // for functions
     bodyStartPos : Position // for functions
+    _aka : string // for variable
 
 typedef
     AstTokens = array<AstToken?>
@@ -228,7 +229,8 @@ def var_to_token(arg : smart_ptr<ast::Variable>; blk : block<(var token : AstTok
         desc = desc,
         kind = AstTokenKind Variable,
         _type = typ,
-        warn = !arg.flags.marked_used && arg.isAccessUnused ? AstTokenWarn unused : bitfield(0)
+        warn = !arg.flags.marked_used && arg.isAccessUnused ? AstTokenWarn unused : bitfield(0),
+        _aka = "{arg._aka}"
     ]]
     set_type_desc(token, arg._type)
     set_token_path(token, arg.at)
@@ -748,7 +750,7 @@ class AstData : AstVisitor
         return fun
 
     def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
-        if lastArg
+        if !arg.flags.generated
             funcHeaderEndRange = arg.at |> line_info_to_range()
     // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
     // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
@@ -1354,7 +1356,7 @@ class AstData : AstVisitor
         ]]
         set_type_desc(token, expr._type)
         set_token_path(token, expr.at)
-        if expr.flags.isCallArgument
+        if expr.flags.isCallArgument && (expr._type == null || !expr._type.isEnum)
             if length(callArgument) > 0
                 token.callArgument = callArgument[length(callArgument) - 1]
         *tokens |> emplace(token)
@@ -1385,8 +1387,6 @@ class AstData : AstVisitor
             if !found
                 set_token_def(token, expr._type.enumType.at)
             set_token_type_def(token, expr._type)
-        if length(callArgument) > 0
-            token.callArgument = callArgument[length(callArgument) - 1]
         *tokens |> emplace(token)
 
     // def override visitExprConstEnumeration(expr:smart_ptr<ExprConstEnumeration>) : ExpressionPtr

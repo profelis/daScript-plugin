@@ -1252,7 +1252,7 @@ class TelnetServer : Server
                                 _label=tok.resultType,
                                 paddingLeft=true,
                                 kind=InlayHintKind Type]])
-                if tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
+                elif tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
                     let idx = pos_to_index(tok._range.start, data.text)
                     if find(usedIndexes, idx) ?? "" != tok.callArgument
                         usedIndexes[idx] = tok.callArgument
@@ -1262,7 +1262,7 @@ class TelnetServer : Server
                             paddingRight=true,
                             kind=InlayHintKind Parameter]])
                 elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
-                    let endIdx = pos_to_index(tok._range.end, data.text)
+                    let endIdx = pos_to_index(tok._range.end, data.text) // TODO: aka range if exists
                     if find(usedIndexes, endIdx) ?? "" == tok._type
                         return
                     var idx = endIdx + 1
