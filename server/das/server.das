@@ -1268,7 +1268,7 @@ class TelnetServer : Server
 
                     if akaLen > 0
                         var akaIdx = 0
-                        var i = endIdx + 1
+                        var i = endIdx
                         while i < textLen - 3
                             let ch1 = unsafe(character_uat(data.text, i + 0))
                             let ch2 = unsafe(character_uat(data.text, i + 1))
@@ -1295,7 +1295,7 @@ class TelnetServer : Server
                     if find(usedIndexes, endIdx) ?? "" == tok._type
                         return
                     var insertHint = false
-                    var idx = endIdx + 1
+                    var idx = endIdx
                     while idx < textLen
                         let ch = unsafe(character_uat(data.text, idx))
                         if ch == ' '
