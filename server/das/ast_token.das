@@ -743,27 +743,27 @@ class AstData : AstVisitor
     // def override visitStructure(str:StructurePtr) : StructurePtr
 // function
     def override preVisitFunction(fun : FunctionPtr) : void
-        funcHeaderEndRange = line_info_to_range(fun.at)
-
-    def override visitFunction(fun : FunctionPtr) : FunctionPtr
-        skipExprs = false
-        return fun
-
-    def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
-        if !arg.flags.generated
-            funcHeaderEndRange = arg.at |> line_info_to_range()
-    // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
-    // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
-    // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
-    def override preVisitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
-        if fun == null
-            return
         if fun.flags.generated && !fun.flags._generator && !fun.flags._lambda
             skipExprs = true
             return
         if fun.flags._lambda
             return
         fun.annotations |> annotations_to_tokens(*tokens)
+        funcHeaderEndRange = line_info_to_range(fun.at)
+
+    def override visitFunction(fun : FunctionPtr) : FunctionPtr
+        skipExprs = false
+        return fun
+
+    [unused_argument(fun, lastArg)] def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
+        if !arg.flags.generated
+            funcHeaderEndRange = arg.at |> line_info_to_range()
+    // def override visitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : VariablePtr
+    // def override preVisitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : void
+    // def override visitFunctionArgumentInit(fun:FunctionPtr;arg:VariablePtr;value:ExpressionPtr) : ExpressionPtr
+    def override preVisitFunctionBody(fun:FunctionPtr; expr:ExpressionPtr) : void
+        if fun == null || skipExprs
+            return
         var desc = "def {module_name(fun._module)}{fun.name}"
         if fun.arguments.length >= 0
             desc += "("
@@ -815,17 +815,63 @@ class AstData : AstVisitor
         if skipExprs || fun == null
             return
         fun.annotations |> annotations_to_tokens(*tokens)
+        funcHeaderEndRange = line_info_to_range(fun.at)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
     [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void
         if skipExprs || blk == null || blk.genFlags.generated
             return
-        var_to_token(arg) <| $(var token : AstToken?)
-            token.callArgument = "{arg.name}"
-            *tokens |> emplace(token)
+        // var_to_token(arg) <| $(var token : AstToken?)
+        //     token.callArgument = "{arg.name}"
+        //     *tokens |> emplace(token)
+        if !arg.flags.generated
+            funcHeaderEndRange = arg.at |> line_info_to_range()
     // def override visitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool) : VariablePtr
     // def override preVisitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr): void
     // def override visitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
-    // def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+    def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
+        if blk == null || skipExprs
+            return
+        var desc = describe(blk) //"def {module_name(blk._module)}{blk.name}"
+        if blk.arguments.length >= 0
+            desc += "("
+            var first = true
+            for arg in blk.arguments
+                arg.annotation |> arguments_to_tokens(*tokens)
+                if !first
+                    desc += "; "
+                first = false
+                if arg._type != null
+                    if !arg._type.flags.constant
+                        desc += "var "
+                    desc += "{arg.name} : {describe([decl=arg._type,extra=true])}"
+                else
+                    desc += "{arg.name}"
+                if arg.init != null
+                    desc += " = {describe(arg.init)}"
+            desc += ")"
+        var resultType = ""
+        if blk.returnType != null
+            resultType = describe([decl=blk.returnType,extra=true])
+            desc += " : {resultType}"
+        var token <- new [[AstToken
+            name = desc,
+            desc = desc,
+            kind = AstTokenKind Function,
+            _type = desc,
+            resultType = resultType
+        ]]
+        if funcHeaderEndRange.start.line >= 0
+            token.funcHeaderEndPos = funcHeaderEndRange.end
+            token.bodyStartPos = line_info_to_range(expr.at).start
+            funcHeaderEndRange.start.line = -1
+        set_token_path(token, blk.at)
+        set_token_def(token, blk.at)
+        token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated && token._range |> in_range(token.defRange)
+        for it in blk.arguments
+            var_to_token(it) <| $(var arg : AstToken?)
+                arg.callArgument = "{arg.name}"
+                token.children |> emplace(arg)
+        *tokens |> emplace(token)
     // def override visitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr) : ExpressionPtr
     // def override preVisitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
     // def override visitExprBlockFinal(blk:smart_ptr<ExprBlock>): void
