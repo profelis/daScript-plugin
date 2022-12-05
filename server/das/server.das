@@ -726,6 +726,8 @@ class TelnetServer : Server
             var found = false
             var hoversData : array<tuple<float; Range; string>>
             collect_token(data.ast, path, ini.position) <| $(it : AstToken?)
+                if it.kind == AstTokenKind Block // ignore blocks
+                    return
                 let ratio = float(range_ratio(it._range)) + (empty(it.defPath) ? 100f : 0f) + (it.topLevel ? 0. : 10.)
                 hoversData |> emplace([[auto ratio, it._range, to_hover(it, verbose, experimental)]])
                 completionData->findCompletion(data.completionData, it._type) <| $(val : Completion)
@@ -1210,7 +1212,7 @@ class TelnetServer : Server
             var usedIndexes : table<int; string>
             var res : array<InlayHint>
             data.ast |> collect_token(path, ini._range) <| $(tok)
-                if tok.kind == AstTokenKind Function && length(tok.resultType) > 0
+                if (tok.kind == AstTokenKind Function || tok.kind == AstTokenKind Block) && length(tok.resultType) > 0 && !is_zero(tok.funcHeaderEndPos)
                     let fromIdx = pos_to_index(tok.funcHeaderEndPos, data.text)
                     let toIdx = pos_to_index(tok.bodyStartPos, data.text)
                     var bracketsCount = 0

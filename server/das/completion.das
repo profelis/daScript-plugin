@@ -440,6 +440,8 @@ class CompletionData
         var n = name |> strip_left("smart_ptr<") |> strip_left("array<") |> strip_left("def ") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part(">") |> first_part("-") |> first_part("(")
         n = n |> replace("dasvector`", "") |> replace("smart_ptr`", "")
+        if length(n) == 0
+            return
         info("--- {n} / {name} ----")
         for it in values(completions)
             if it.kind != CompletionItemKind Keyword && it.fullName == n
@@ -452,6 +454,8 @@ class CompletionData
     def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion) : void>)
         var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
         n = n |> first_part(" ") |> first_part("&") |> first_part("?") |> first_part("#") |> first_part("=") |> first_part("<") |> first_part("-") |> first_part("(")
+        if length(n) == 0
+            return
         info("{name} -> {n}")
         completions |> with_func_arg(n, blk)
         globalCompletion |> with_func_arg(n, blk)

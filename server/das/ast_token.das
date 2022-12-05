@@ -49,6 +49,7 @@ enum AstTokenKind
     // user defined
     Annotation = 27
     AnnotationArgument = 28
+    Block = 29
 
 [skip_field_lock_check]
 struct AstToken
@@ -821,9 +822,9 @@ class AstData : AstVisitor
     def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
         if skipExprs || blk == null || blk.genFlags.generated
             return
-        var desc = describe(blk) //"def {module_name(blk._module)}{blk.name}"
+        var desc : string //"def {module_name(blk._module)}{blk.name}"
         if blk.arguments.length >= 0
-            desc += "("
+            desc = "("
             var first = true
             for arg in blk.arguments
                 arg.annotation |> arguments_to_tokens(*tokens)
@@ -839,6 +840,8 @@ class AstData : AstVisitor
                 if arg.init != null
                     desc += " = {describe(arg.init)}"
             desc += ")"
+        else
+            desc = "$ ()"
         var resultType = ""
         if blk.returnType != null
             resultType = describe([decl=blk.returnType,extra=true])
@@ -846,7 +849,7 @@ class AstData : AstVisitor
         var token <- new [[AstToken
             name = desc,
             desc = desc,
-            kind = AstTokenKind Function,
+            kind = AstTokenKind Block,
             _type = desc,
             resultType = resultType
         ]]
