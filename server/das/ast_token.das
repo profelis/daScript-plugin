@@ -171,7 +171,7 @@ def collect_token(val : AstTokens; path : string; pos : Position; blk : block<(t
 
 def collect_token(val : AstTokens; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
     collect_all_token(val) <| $(token : AstToken?)
-        if token.path == path && token._range |> in_range(_range)
+        if token.path == path && token._range |> overlaps(_range) // overlaps to catch huge tokens
             blk |> invoke(token)
 
 def collect_ref_token(val : AstToken?; path : string; _range : Range; blk : block<(token : AstToken?) : void>)
@@ -794,10 +794,8 @@ class AstData : AstVisitor
             _type = desc,
             resultType = resultType
         ]]
-        if funcHeaderEndRange.start.line >= 0
-            token.funcHeaderEndPos = funcHeaderEndRange.end
-            token.bodyStartPos = line_info_to_range(expr.at).start
-            funcHeaderEndRange.start.line = -1
+        token.funcHeaderEndPos = funcHeaderEndRange.end
+        token.bodyStartPos = line_info_to_range(expr.at).start
         set_token_path(token, fun.at)
         set_token_def(token, fun.atDecl)
         token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated && token._range |> in_range(token.defRange)
@@ -811,25 +809,17 @@ class AstData : AstVisitor
     // def override preVisitExpression(expr:ExpressionPtr) : void
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
 // block
-    def override preVisitExprBlock(fun : smart_ptr<ExprBlock>) : void
-        if skipExprs || fun == null
+    def override preVisitExprBlock(blk : smart_ptr<ExprBlock>) : void
+        if skipExprs || blk == null
             return
-        fun.annotations |> annotations_to_tokens(*tokens)
-        funcHeaderEndRange = line_info_to_range(fun.at)
+        blk.annotations |> annotations_to_tokens(*tokens)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
-    [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void
-        if skipExprs || blk == null || blk.genFlags.generated
-            return
-        // var_to_token(arg) <| $(var token : AstToken?)
-        //     token.callArgument = "{arg.name}"
-        //     *tokens |> emplace(token)
-        if !arg.flags.generated
-            funcHeaderEndRange = arg.at |> line_info_to_range()
+    // [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void
     // def override visitExprBlockArgument(blk:smart_ptr<ExprBlock>;arg:VariablePtr;lastArg:bool) : VariablePtr
     // def override preVisitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr): void
     // def override visitExprBlockArgumentInit(blk:smart_ptr<ExprBlock>;arg:VariablePtr;expr:ExpressionPtr) : ExpressionPtr
     def override preVisitExprBlockExpression(blk:smart_ptr<ExprBlock>;expr:ExpressionPtr): void
-        if blk == null || skipExprs
+        if skipExprs || blk == null || blk.genFlags.generated
             return
         var desc = describe(blk) //"def {module_name(blk._module)}{blk.name}"
         if blk.arguments.length >= 0
@@ -860,14 +850,14 @@ class AstData : AstVisitor
             _type = desc,
             resultType = resultType
         ]]
-        if funcHeaderEndRange.start.line >= 0
-            token.funcHeaderEndPos = funcHeaderEndRange.end
-            token.bodyStartPos = line_info_to_range(expr.at).start
-            funcHeaderEndRange.start.line = -1
         set_token_path(token, blk.at)
         set_token_def(token, blk.at)
-        token.topLevel = true //!fun.flags.isClassMethod //!fun.flags.generated && token._range |> in_range(token.defRange)
+        // info("deep: blk body : {desc} at {token._range} - {blk.at.fileInfo}")
+        token.funcHeaderEndPos = token._range.start
+        token.bodyStartPos = line_info_to_range(expr.at).start
         for it in blk.arguments
+            if !it.flags.generated
+                token.funcHeaderEndPos = line_info_to_range(it.at).end // TODO: use blk/func begin instead of last arg
             var_to_token(it) <| $(var arg : AstToken?)
                 arg.callArgument = "{arg.name}"
                 token.children |> emplace(arg)

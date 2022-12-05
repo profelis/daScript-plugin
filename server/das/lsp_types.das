@@ -401,6 +401,9 @@ def operator ==(a, b : Position)
 def operator !=(a, b : Position)
     return a.line != b.line || a.character != b.character
 
+def is_zero(pos : Position) : bool
+    return pos.character == 0 && pos.line == 0
+
 def pos_to_index(pos : Position; text : string)
     var line = 0
     var charPos = 0
