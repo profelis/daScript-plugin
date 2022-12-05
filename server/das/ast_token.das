@@ -859,11 +859,11 @@ class AstData : AstVisitor
         set_token_path(token, blk.at)
         set_token_def(token, blk.at)
         // info("deep: blk body : {desc} at {token._range} - {blk.at.fileInfo}")
-        token.funcHeaderEndPos = token._range.start
+        // token.funcHeaderEndPos = token._range.start // range.start is on the next line after
         token.bodyStartPos = line_info_to_range(expr.at).start
         for it in blk.arguments
             if !it.flags.generated
-                token.funcHeaderEndPos = line_info_to_range(it.at).end // TODO: use blk/func begin instead of last arg
+                token.funcHeaderEndPos = line_info_to_range(it.at).end
             var_to_token(it) <| $(var arg : AstToken?)
                 arg.callArgument = "{arg.name}"
                 token.children |> emplace(arg)
