@@ -814,7 +814,7 @@ class AstData : AstVisitor
     // def override visitExpression(expr:ExpressionPtr) : ExpressionPtr
 // block
     def override preVisitExprBlock(blk : smart_ptr<ExprBlock>) : void
-        if skipExprs || blk == null
+        if skipExprs || blk == null || blk.genFlags.generated
             return
         blk.annotations |> annotations_to_tokens(*tokens)
     // def override visitExprBlock(blk:smart_ptr<ExprBlock>) : ExpressionPtr
@@ -1327,7 +1327,7 @@ class AstData : AstVisitor
     // def override visitExprField(expr:smart_ptr<ExprField>) : ExpressionPtr
 // safe field
     def override preVisitExprSafeField(expr : smart_ptr<ExprSafeField>) : void
-        if skipExprs
+        if skipExprs || expr == null || expr.genFlags.generated
             return
         field_to_token(expr) <| $(var token)
             *tokens |> emplace(token)

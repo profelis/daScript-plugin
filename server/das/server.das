@@ -1253,6 +1253,7 @@ class TelnetServer : Server
                                 position=index_to_pos(foundIdx, data.text),
                                 _label=tok.resultType,
                                 paddingLeft=true,
+                                // tooltip="{tok.kind}:{tok._range}",
                                 kind=InlayHintKind Type]])
                 elif tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
                     let idx = pos_to_index(tok._range.start, data.text)
@@ -1262,6 +1263,7 @@ class TelnetServer : Server
                             position=tok._range.start,
                             _label=tok.callArgument,
                             paddingRight=true,
+                            // tooltip="{tok.kind}:{tok._range}",
                             kind=InlayHintKind Parameter]])
                 elif tok.kind == AstTokenKind Variable && tok._range |> in_range(tok.defRange)
                     let textLen = length(data.text)
@@ -1312,6 +1314,7 @@ class TelnetServer : Server
                             position=index_to_pos(endIdx, data.text),
                             _label=tok._type,
                             paddingLeft=true,
+                            // tooltip="{tok.kind}:{tok._range}",
                             kind=InlayHintKind Type]])
             self->sendResponse(id, JV(res))
             delete usedIndexes

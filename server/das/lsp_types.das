@@ -964,6 +964,7 @@ struct InlayHint
     paddingLeft : bool
     paddingRight : bool
     kind : InlayHintKind
+    tooltip : string
 
 def JV(val : InlayHint)
     return JV({{
@@ -971,7 +972,8 @@ def JV(val : InlayHint)
          "label" => JV(val._label);
          "paddingLeft" => JV(val.paddingLeft);
          "paddingRight" => JV(val.paddingRight);
-         "kind" => JV(int(val.kind))
+         "kind" => JV(int(val.kind));
+         "tooltip" => (length(val.tooltip) > 0 ? JV(val.tooltip) : JVNull())
     }})
 
 
