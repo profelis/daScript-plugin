@@ -571,6 +571,9 @@ class AstCompletionData : AstVisitor
     found : bool = false
     res : array<Completion>
 
+// assume
+    [unused_argument(expr)] def override canVisitWithAliasSubexpression(expr:smart_ptr<ExprAssume>) : bool
+        return true
 // var
     def override preVisitExprVar(expr : smart_ptr<ExprVar>) : void
         if found || expr == null || expr.genFlags.generated
@@ -1041,6 +1044,8 @@ class AstData : AstVisitor
     // def override visitExprClone(expr:smart_ptr<ExprClone>) : ExpressionPtr
     // def override preVisitExprCloneRight(expr:smart_ptr<ExprClone>;right:ExpressionPtr) : void
 // assume
+    [unused_argument(expr)] def override canVisitWithAliasSubexpression(expr:smart_ptr<ExprAssume>) : bool
+        return true
     def override preVisitExprAssume(expr : smart_ptr<ExprAssume>) : void
         if skipExprs || expr == null || expr.genFlags.generated
             return
