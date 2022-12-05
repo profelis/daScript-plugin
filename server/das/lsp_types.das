@@ -973,7 +973,7 @@ def JV(val : InlayHint)
          "paddingLeft" => JV(val.paddingLeft);
          "paddingRight" => JV(val.paddingRight);
          "kind" => JV(int(val.kind));
-         "tooltip" => (length(val.tooltip) > 0 ? JV(val.tooltip) : JVNull())
+         "tooltip" => JV(val.tooltip)
     }})
 
 
