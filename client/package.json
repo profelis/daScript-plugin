@@ -18,6 +18,6 @@
 		"run-in-terminal": "^0.0.3"
 	},
 	"devDependencies": {
-		"@types/vscode": "^1.44.0"
+		"@types/vscode": "^1.74.0"
 	}
 }
