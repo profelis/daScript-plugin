@@ -75,13 +75,15 @@ struct ValidDataReq
     path : string
     cb : ValidDataCb
 
+def fix_system_paths(path : string; workspaceFolders : array<WorkspaceFolder>)
+    return path |> replace("$\{workspaceFolder\}", uri_to_path(workspaceFolders[0].uri))
 
 def init_file_access(var access; config : PluginConfig; workspaceFolders : array<WorkspaceFolder>)
     assume roots = config.project.fileAccessRoots
     for rootName, rootPath in keys(roots), values(roots)
         var fixedPath = rootPath
         if !empty(workspaceFolders)
-            fixedPath = fixedPath |> replace("$\{workspaceFolder\}", uri_to_path(workspaceFolders[0].uri))
+            fixedPath = fixedPath |> fix_system_paths(workspaceFolders)
         access |> add_file_access_root(rootName, fixedPath)
 
 
@@ -91,9 +93,9 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
     cloneData.changeId = changeId
 
     let uri = path_to_uri(path)
-    // info("> validate '{path}' project: '{config.project.file}'\n")
+    // info("> validate '{path}' project: '{config.project.file |> fix_system_paths(workspaceFolders)}'\n")
 
-    var access <- make_file_access(config.project.file)
+    var access <- make_file_access(config.project.file |> fix_system_paths(workspaceFolders))
     if withContent && !empty(dataText)
         access |> set_file_source(path, dataText)
     access |> init_file_access(config, workspaceFolders)
@@ -165,10 +167,13 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
                 else
                     cloneData.diag[localUri] <- [{ auto[] diag }]
     recover
+        var diag <- [[Diagnostic _range = line_info_to_range(this_context().exceptionAt), severity = DiagnosticSeverity Error ]]
         if !empty(this_context().exception)
-            error("failed to compile '{path}'\n{this_context().exceptionAt |> to_string()}:{this_context().exception}")
+            diag.message = "failed to compile:{this_context().exception}"
         else
-            error("failed to compile '{path}'")
+            diag.message = "failed to compile '{path}'"
+
+        cloneData.diag[uri] <- [{ auto[] diag }]
 
     access := null
     if cloneData.mg == null
@@ -417,6 +422,8 @@ class TelnetServer : Server
         self->validate(path, /*withContent*/true, /*first*/true)
 
     def invalidateQueue()
+        if !inited // wait initialization
+            return
         if !outChannel.isEmpty
             for item in each(outChannel, type<ValidateResult>)
                 var cloneData : ValidateResult
@@ -537,6 +544,7 @@ class TelnetServer : Server
                 changeId = data.changeId
                 dataText = data.text
             if !found
+                validatingFiles |> erase(path)
                 error("validation failed: unregistered file '{path}'\n")
                 return
 
