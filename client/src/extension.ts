@@ -316,6 +316,17 @@ class DascriptLaunchDebugAdapterFactory implements vscode.DebugAdapterDescriptor
 		if ("steppingDebugger" in _session.configuration ? _session.configuration.steppingDebugger : false)
 			extraArgs.push("--das-stepping-debugger")
 
+		const hasProfiler = (_session.configuration?.profiler ?? false)
+		const profilerManual = (_session.configuration?.profilerManual ?? false)
+		if (hasProfiler)
+			extraArgs.push("--das-profiler")
+		if (profilerManual)
+			extraArgs.push("--das-profiler-manual")
+		if ("profilerFile" in _session.configuration) {
+			extraArgs.push("--das-profiler-log-file")
+			extraArgs.push(_session.configuration.profilerFile)
+		}
+
 		const args = cmdAndArgs.concat(cmdAndArgs.indexOf("--") >= 0 ? extraArgs : ["--", ...extraArgs])
 		let focusConsole = true
 
