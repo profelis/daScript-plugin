@@ -25,6 +25,22 @@
             "request": "attach",
             "name": "daScript: attach",
             "port": 10000
+        },
+        {
+            "type": "dascript",
+            "request": "launch",
+            "name": "daScript: Test file",
+            "program": "${config:dascript.compiler} _dasroot_/dastest/dastest.das -- --color --test ${file} --test-project tests.das_project",
+            "cwd": "${workspaceFolder}/tests",
+            "console": "internalTerminal",
+        },
+        {
+            "type": "dascript",
+            "request": "launch",
+            "name": "daScript: Test all",
+            "program": "${config:dascript.compiler} _dasroot_/dastest/dastest.das -- --color --test ${workspaceFolder}/tests --test-project tests.das_project",
+            "cwd": "${workspaceFolder}/tests",
+            "console": "internalTerminal",
         }
     ]
 }

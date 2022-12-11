@@ -1,0 +1,21 @@
+
+require daslib/strings_boost
+
+
+var
+    DAS_PAK_ROOT = "./"
+
+
+[export]
+def module_get(req,from:string) : tuple<string;string;string>
+    let rs <- split_by_chars(req,"./")
+    return [[ auto req, req, "" ]] if length(rs) == 0
+    var fr <- split_by_chars(from,"/")
+    let modName = rs[length(rs)-1]
+    if length(rs) == 2
+        return [[auto modName, "../main/{modName}.das", ""]] if rs[0] == "main"
+        return [[auto modName, "{get_das_root()}/daslib/{modName}.das", ""]] if rs[0] == "daslib"
+        return [[auto modName, "{get_das_root()}/dastest/{modName}.das", ""]] if rs[0] == "dastest"
+
+    pop(fr)
+    return [[auto modName, "{join(fr,"/")}/{join(rs,"/")}.das", ""]]
