@@ -13,9 +13,10 @@ def module_get(req,from:string) : tuple<string;string;string>
     var fr <- from |> split_by_chars("/")
     let modName = rs[length(rs)-1]
     if length(rs) == 2
-        return [[auto modName, "../main/{modName}.das", ""]] if rs[0] == "main"
         return [[auto modName, "{get_das_root()}/daslib/{modName}.das", ""]] if rs[0] == "daslib"
         return [[auto modName, "{get_das_root()}/dastest/{modName}.das", ""]] if rs[0] == "dastest"
 
     fr |> pop()
+    if length(fr) > 1 && fr[length(fr)-1] == "tests"
+        fr |> pop() // move out from tests folder
     return [[auto modName, "{join(fr,"/")}/{join(rs,"/")}.das", ""]]
