@@ -7,14 +7,21 @@
         {
             "type": "dascript",
             "request": "launch",
-            "name": "daScript: launch",
+            "name": "launch file",
             "program": "${config:dascript.compiler} ${file}",
             "cwd": "${fileDirname}"
         },
         {
             "type": "dascript",
             "request": "launch",
-            "name": "daScript: profiler",
+            "name": "launch main.das",
+            "program": "${config:dascript.compiler} ${workspaceFolder}/main.das",
+            "cwd": "${fileDirname}"
+        },
+        {
+            "type": "dascript",
+            "request": "launch",
+            "name": "profile file",
             "program": "${config:dascript.compiler} ${file}",
             "cwd": "${fileDirname}",
             "profiler": true,
