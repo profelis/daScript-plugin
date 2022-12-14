@@ -1,5 +1,5 @@
 require dastest/testing_boost
-require main/simple_math
+require src/simple_math
 
 
 [test]
