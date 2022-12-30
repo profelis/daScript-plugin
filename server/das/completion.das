@@ -11,7 +11,7 @@ require strings
 require daslib/strings_boost
 require lsp_types
 require lib
-require logger
+require dapLogger
 require config
 
 [skip_field_lock_check]

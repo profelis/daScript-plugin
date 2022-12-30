@@ -18,7 +18,7 @@ require daslib/jobque_boost
 require daslib/das_source_formatter
 require json_tools
 require lib
-require logger
+require dapLogger
 require lsp_types
 require rtti_tools
 require completion

@@ -12,7 +12,7 @@ require lsp_types
 require completion
 require lib
 require fs_tools
-require logger
+require dapLogger
 
 bitfield AstTokenWarn
     unused
