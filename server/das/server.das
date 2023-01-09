@@ -846,7 +846,7 @@ class TelnetServer : Server
                         prog := data.program
                     else
                         unsafe
-                            access <- make_file_access(config.project.file)
+                            access <- make_file_access(config.project.file |> fix_system_paths(workspaceFolders))
                         access |> set_file_source(path, data.text)
                         access |> init_file_access(config, workspaceFolders)
 
