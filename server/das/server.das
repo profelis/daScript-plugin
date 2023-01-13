@@ -1649,7 +1649,10 @@ def main()
 def mainLoop(fn : string)
     let args <- get_command_line_arguments()
     debug(args)
-    let port = get_int_arg(args, "--port", 9000)
+    let DEFAULT_PORT = 9000
+    if get_string_arg(args, "--port", "") == ""
+        error("--port argument is required, default port is {DEFAULT_PORT}")
+    let port = get_int_arg(args, "--port", DEFAULT_PORT)
     let main_time = stat(fn).mtime
     info("server start: port: {port} file:{fn} ts:{main_time}\n")
 
