@@ -117,7 +117,6 @@ def private getTypeName(info; var items : Completions)
                     if first { first = false; } else { res |> write(";"); }
                     res |> write(getTypeName(argtype, items))
                 res |> write(">")
-                // delete args
             else
                 res |> write("tuple")
         elif info.basicType == Type tVariant
@@ -145,6 +144,14 @@ def private getTypeName(info; var items : Completions)
                 delete all
             else
                 res |> write("variant")
+        elif info.basicType == Type option
+            if info.argTypes != null
+                var first = true
+                for argtype in arg_types(info)
+                    if first { first = false; } else { res |> write(" | "); }
+                    res |> write(getTypeName(argtype, items))
+            else
+                res |> write("option")
         elif info.basicType == Type tFunction || info.basicType == Type tLambda || info.basicType == Type tBlock
             res |> write("{get_das_type_name(info.basicType)}<")
             if info.argTypes != null
