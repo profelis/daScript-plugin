@@ -161,10 +161,9 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
                         extra += "\n{err.fixme}"
                     var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
                     diag.relatedInformation <- [{ auto[] info }]
-                var list = unsafe(find_for_edit(cloneData.diag, localUri)) // map is locked
-                if list != null
-                    *list |> emplace(diag)
-                else
+                let found = find_for_edit_if_exists(cloneData.diag, localUri) <| $(var list)
+                    list |> emplace(diag)
+                if !found
                     cloneData.diag[localUri] <- [{ auto[] diag }]
     recover
         var diag <- [[Diagnostic _range = line_info_to_range(this_context().exceptionAt), severity = DiagnosticSeverity Error ]]
@@ -521,11 +520,12 @@ class TelnetServer : Server
     def validate_with_config(path : string; withContent : bool; var config : PluginConfig)
         if !config.project.scanWorkspace
             var t0 = ref_time_ticks()
-            var found = false
-            registry |> find_for_edit_if_exists(path) <| $(var data)
+            var cloneData : ValidateResult
+            let found = registry |> find_for_edit_if_exists(path) <| $(var data)
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n")
-                var cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
+                cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
+            if found
                 self->validationDone(cloneData)
 
             let dt = get_time_usec(t0)
@@ -562,10 +562,10 @@ class TelnetServer : Server
         validatingFiles |> erase(path)
 
         var isOpen = false
-        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
-        var isActualData = item.changeId == data.changeId
-        info("validation done: {path}\nchangeId:{data.changeId} compiler changeId:{item.changeId}\n")
-        if data != null
+        var isActualData = true
+        registry |> find_for_edit_if_exists(path) <| $(var data)
+            isActualData = item.changeId == data.changeId
+            info("validation done: {path}\nchangeId:{data.changeId} compiler changeId:{item.changeId}\n")
             isOpen = data.isOpen
             data.compiledOk = item.ok && item.program != null
 
@@ -659,12 +659,11 @@ class TelnetServer : Server
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} {doc}. len {length(doc.text)}, total files {length(registry)}\n")
-        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
-        if data != null
+        let found = registry |> find_for_edit_if_exists(path) <| $(var data)
             if data.validated
                 data.validated = false
                 data.changeId += 1
-        else
+        if !found
             registry[path] <- Dascript(doc)
             info("> unknown? register again, total files {length(registry)}\n")
         self->validate(path, /*withContent*/true, /*first*/true)
@@ -676,20 +675,18 @@ class TelnetServer : Server
             return
 
         let path = uri_to_path(doc.textDocument.uri)
-        var data = unsafe(registry |> find_for_edit(path)) // registry is locked
-        if data != null
+        let found = registry |> find_for_edit_if_exists(path) <| $(var data)
             data.text <- doc.contentChanges[0].text
             data.version = doc.textDocument.version
             data.changeId += 1
-        else
+        if !found
             info("> file changed {path} len {length(doc.contentChanges[0].text)}, unknown? register again, total files {length(registry)}\n")
             registry[path] <- Dascript(doc)
 
         self->getConfig(path) <| @(var config : PluginConfig?)
             if !(config?.project?.scanWorkspace ?? false)
                 return
-            var data2 = unsafe(registry |> find_for_edit(path)) // registry is locked
-            if data2 != null
+            registry |> find_for_edit_if_exists(path) <| $(var data2)
                 if data2.validated
                     data2.validated = false
                     self->validate(path, /*withContent*/true, /*first*/true)
