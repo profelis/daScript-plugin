@@ -78,9 +78,9 @@ def private addItem(var item : Completion; var items : Completions; once = false
         found = true
         if !once
             for impl in item.impls
-                (*it).impls |> emplace(impl)
+                it.impls |> emplace(impl)
             for arg in item.funcFirstArg
-                (*it).funcFirstArg |> emplace(arg)
+                it.funcFirstArg |> emplace(arg)
         delete item
     if !found
         disableLocks(item)

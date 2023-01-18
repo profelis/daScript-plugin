@@ -300,7 +300,7 @@ class TelnetServer : Server
         var found = false
         configs |> find_for_edit_if_exists(path) <| $(config)
             found = true
-            invoke(cb, *config)
+            invoke(cb, unsafe(reinterpret<PluginConfig?> config))
             delete cb
         if found
             return
@@ -324,7 +324,7 @@ class TelnetServer : Server
             delete cb
 
         found = configReqs |> find_if_exists(path) <| $(reqId)
-            self->onRequest(*reqId, localCb)
+            self->onRequest(reqId, localCb)
         if found
             return
         var item <- [[ConfigurationItem section = "dascript", scopeUri = path_to_uri(path) ]]
@@ -410,10 +410,10 @@ class TelnetServer : Server
             self->validate(path, /*withContent*/false, /*first*/true)
 
         var found = false
-        registry |> find_for_edit_if_exists(path) <| $(data)
+        registry |> find_if_exists(path) <| $(data)
             if data.validated
                 found = true
-                cb |> invoke(data)
+                cb |> invoke(unsafe(addr(data)))
         if found
             return
 
@@ -485,12 +485,12 @@ class TelnetServer : Server
         if toValidate |> empty
             return
 
-        var data = validateQueue |> find(toValidate)
+        var data = unsafe(validateQueue?[toValidate])
         self->validate(toValidate, data.withContent, data.first)
 
 
     def validate(path : string; withContent : bool = true; first : bool = false)
-        let data = registry |> find(path)
+        let data = unsafe(registry?[path])
         let changeId = data.changeId
         let valid = data != null && data.validated
         if valid
@@ -625,7 +625,7 @@ class TelnetServer : Server
             validateQueue |> erase(path)
         if length(validDataReqs) == 0
             return
-        var data = registry |> find(path)
+        var data = unsafe(registry?[path])
         var idx = 0
         while idx < length(validDataReqs)
             assume req = validDataReqs[idx]
@@ -1255,7 +1255,7 @@ class TelnetServer : Server
                             foundIdx = -1
                         break
 
-                    if foundIdx >= 0 && find(usedIndexes, foundIdx) ?? "" != tok.resultType
+                    if foundIdx >= 0 && usedIndexes?[foundIdx] ?? "" != tok.resultType
                         usedIndexes[foundIdx] = tok.resultType
                         res |> emplace([[InlayHint
                                 position=index_to_pos(foundIdx, data.text),
@@ -1265,7 +1265,7 @@ class TelnetServer : Server
                                 kind=InlayHintKind Type]])
                 elif tok.kind == AstTokenKind Constant && length(tok.callArgument) > 0
                     let idx = pos_to_index(tok._range.start, data.text)
-                    if find(usedIndexes, idx) ?? "" != tok.callArgument
+                    if usedIndexes?[idx] ?? "" != tok.callArgument
                         usedIndexes[idx] = tok.callArgument
                         res |> emplace([[InlayHint
                             position=tok._range.start,
@@ -1304,7 +1304,7 @@ class TelnetServer : Server
                         if akaIdx > 0
                             endIdx = akaIdx
 
-                    if find(usedIndexes, endIdx) ?? "" == tok._type
+                    if usedIndexes?[endIdx] ?? "" == tok._type
                         return
                     var insertHint = false
                     var idx = endIdx
@@ -1382,7 +1382,7 @@ class TelnetServer : Server
                 var found = false
                 edit.changes |> find_for_edit_if_exists(it.uri) <| $(edits)
                     found = true
-                    *edits |> emplace <| [[TextEdit _range = it._range, newText = ini.newName]]
+                    edits |> emplace <| [[TextEdit _range = it._range, newText = ini.newName]]
                 if !found
                     edit.changes[it.uri] <- [{auto[] [[TextEdit _range = it._range, newText = ini.newName]] }]
             self->sendResponse(id, JV(edit))
