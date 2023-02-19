@@ -74,7 +74,7 @@ let
 def private addItem(var item : Completion; var items : Completions; once = false)
     var found = false
     let key = "{item.desc}{int(item.kind)}"
-    items |> find_for_edit_if_exists(key) <| $(it)
+    items |> get(key) <| $(it)
         found = true
         if !once
             for impl in item.impls

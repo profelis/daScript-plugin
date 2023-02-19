@@ -161,7 +161,7 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
                         extra += "\n{err.fixme}"
                     var info = [[DiagnosticRelatedInformation location = [[Location _range = at, uri = localUri ]], message = extra ]]
                     diag.relatedInformation <- [{ auto[] info }]
-                let found = find_for_edit_if_exists(cloneData.diag, localUri) <| $(var list)
+                let found = get(cloneData.diag, localUri) <| $(var list)
                     list |> emplace(diag)
                 if !found
                     cloneData.diag[localUri] <- [{ auto[] diag }]
@@ -297,7 +297,7 @@ class TelnetServer : Server
 
     def getConfig(path : string; var cb : lambda<(var config : PluginConfig?) : void>)
         var found = false
-        configs |> find_for_edit_if_exists(path) <| $(config)
+        configs |> get(path) <| $(config)
             found = true
             invoke(cb, unsafe(reinterpret<PluginConfig?> config))
             delete cb
@@ -497,7 +497,7 @@ class TelnetServer : Server
             return
         if length(validatingFiles) >= jobsNum
             var found = false
-            validateQueue |> find_for_edit_if_exists(path) <| $(var item)
+            validateQueue |> get(path) <| $(var item)
                 found = true
                 item.changeId = changeId
                 item.withContent ||= withContent
@@ -521,7 +521,7 @@ class TelnetServer : Server
         if !config.project.scanWorkspace
             var t0 = ref_time_ticks()
             var cloneData : ValidateResult
-            let found = registry |> find_for_edit_if_exists(path) <| $(var data)
+            let found = registry |> get(path) <| $(var data)
                 data.validated = true
                 info("> validate '{path}' project: '{config.project.file}'\n")
                 cloneData <- compile(path, data.text, withContent, data.changeId, config, workspaceFolders, completionData.globalCompletion)
@@ -563,7 +563,7 @@ class TelnetServer : Server
 
         var isOpen = false
         var isActualData = true
-        registry |> find_for_edit_if_exists(path) <| $(var data)
+        registry |> get(path) <| $(var data)
             isActualData = item.changeId == data.changeId
             info("validation done: {path}\nchangeId:{data.changeId} compiler changeId:{item.changeId}\n")
             isOpen = data.isOpen
@@ -641,7 +641,7 @@ class TelnetServer : Server
         defer_delete(ini)
         let path = uri_to_path(ini.textDocument.uri)
         var found = false
-        registry |> find_for_edit_if_exists(path) <| $(var data)
+        registry |> get(path) <| $(var data)
             found = true
             data.isOpen = true
             if data.validated
@@ -659,7 +659,7 @@ class TelnetServer : Server
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
         info("> save file {path} {doc}. len {length(doc.text)}, total files {length(registry)}\n")
-        let found = registry |> find_for_edit_if_exists(path) <| $(var data)
+        let found = registry |> get(path) <| $(var data)
             if data.validated
                 data.validated = false
                 data.changeId += 1
@@ -675,7 +675,7 @@ class TelnetServer : Server
             return
 
         let path = uri_to_path(doc.textDocument.uri)
-        let found = registry |> find_for_edit_if_exists(path) <| $(var data)
+        let found = registry |> get(path) <| $(var data)
             data.text <- doc.contentChanges[0].text
             data.version = doc.textDocument.version
             data.changeId += 1
@@ -686,7 +686,7 @@ class TelnetServer : Server
         self->getConfig(path) <| @(var config : PluginConfig?)
             if !(config?.project?.scanWorkspace ?? false)
                 return
-            registry |> find_for_edit_if_exists(path) <| $(var data2)
+            registry |> get(path) <| $(var data2)
                 if data2.validated
                     data2.validated = false
                     self->validate(path, /*withContent*/true, /*first*/true)
@@ -695,7 +695,7 @@ class TelnetServer : Server
         var doc = DidCloseTextDocumentParams(params)
         defer_delete(doc)
         let path = uri_to_path(doc.textDocument.uri)
-        registry |> find_for_edit_if_exists(path) <| $(var data)
+        registry |> get(path) <| $(var data)
             data.isOpen = false
             data.program := null
             data.fs := null
@@ -1377,7 +1377,7 @@ class TelnetServer : Server
                 if length(it._range) != tokenLength
                     continue
                 var found = false
-                edit.changes |> find_for_edit_if_exists(it.uri) <| $(edits)
+                edit.changes |> get(it.uri) <| $(edits)
                     found = true
                     edits |> emplace <| [[TextEdit _range = it._range, newText = ini.newName]]
                 if !found
