@@ -109,7 +109,7 @@ def build_document_symbol(ast : AstToken?; path : string; var res : array<JsonVa
             it |> build_document_symbol(path, children)
         if children |> length() > 0
             data["children"] = JV(children)
-    res |> emplace(JV(data))
+    res |> push(JV(data))
 
 def build_symbol_information(ast : AstToken?; query : string; limit : int; var res : array<JsonValue?>) : void
     if !ast.topLevel || length(res) >= limit || ast.name |> starts_with("builtin`") || int(ast.kind) >= int(AstTokenKind Annotation)
@@ -121,7 +121,7 @@ def build_symbol_information(ast : AstToken?; query : string; limit : int; var r
             "kind" => JV(int(ast.kind));
             "location" => JV({{ "range" => JV(ast._range); "uri" => JV(path_to_uri(ast.path)) }})
         }}
-        res |> emplace(JV(data))
+        res |> push(JV(data))
     for it in ast.children
         it |> build_symbol_information(query, limit, res)
 

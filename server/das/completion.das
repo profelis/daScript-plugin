@@ -139,7 +139,7 @@ def private getTypeName(info; var items : Completions)
                     res |> write(">")
                     variantStr |> write("\n>")
                 for it in all
-                    it.impls |> emplace(variantDesc)
+                    it.impls |> push(variantDesc)
                     addItem(it, items, true)
                 delete all
             else
@@ -208,7 +208,7 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
                 if offset != -1u
                     fields |> emplace([[auto offset, "\n\t{name}: {field} @ {offset}]"]])
                 else
-                    props |> emplace("\n\t{name}: {field}]")
+                    props |> push("\n\t{name}: {field}]")
                 let fullItemName = "{fullModuleName}{structName}.{name}"
                 all |> emplace([[Completion name = "{name}", fullName = fullItemName,
                                         desc = "{fullItemName}: {field}", kind = CompletionItemKind Field]])
@@ -232,7 +232,7 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
                 impls <- [{auto[] structDesc }], kind = CompletionItemKind Struct]], items)
         for it in all
             if verbose
-                it.impls |> emplace(structDesc)
+                it.impls |> push(structDesc)
             addItem(it, items)
 
         delete all
@@ -281,7 +281,7 @@ def private parseFunction(info; fullModuleName : string; var items : Completions
             impl |> write(" [")
             impl |> write(info.cppName)
             impl |> write("]")
-    res.impls |> emplace(imp)
+    res.impls |> push(imp)
     addItem(res, items)
 
 
@@ -316,11 +316,11 @@ def private parseModule(pMod; var items : Completions)
         if structDesc |> length() >= hugeStructDescSize
             structDesc = shortStructDesc
             for it in all
-                it.impls |> emplace("{structDesc}\n\t...\n\t{it.desc}\n\t...")
+                it.impls |> push("{structDesc}\n\t...\n\t{it.desc}\n\t...")
                 addItem(it, items)
         else
             for it in all
-                it.impls |> emplace(structDesc)
+                it.impls |> push(structDesc)
                 addItem(it, items)
         delete all
 
@@ -348,7 +348,7 @@ def private parseModule(pMod; var items : Completions)
 
         addItem([[Completion name = enumName, fullName = fullName, desc = "enum {fullName}", impls <- [{auto[] enumDesc}], kind = CompletionItemKind Enum]], items)
         for it in all
-            it._1.impls |> emplace(enumDesc)
+            it._1.impls |> push(enumDesc)
             addItem(it._1, items)
         delete all
 

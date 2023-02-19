@@ -903,9 +903,9 @@ class TelnetServer : Server
 
             if list |> length() == 0
                 for it in values(data.completionData)
-                    list |> emplace <| JV(it)
+                    list |> push <| JV(it)
                 for val in values(completionData.globalCompletion)
-                    list |> emplace <| JV(val)
+                    list |> push <| JV(val)
                 info("< merge program completion {length(data.completionData)} with global {length(completionData.globalCompletion)} => {length(list)}\n")
                 var tokensList : table<string; void?>
                 collect_token(data.ast, path) <| $(token : AstToken?)
@@ -916,7 +916,7 @@ class TelnetServer : Server
                     )
                         return
                     tokensList[token.name] = null
-                    list |> emplace(JV({{ "label" => JV(token.name); "kind" => JV(CompletionItemKind Text) }}))
+                    list |> push(JV({{ "label" => JV(token.name); "kind" => JV(CompletionItemKind Text) }}))
                 delete tokensList
 
             var res <- JV({{ "isIncomplete" => JV(false); "items" => JV(list)}})
