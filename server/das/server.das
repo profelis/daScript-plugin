@@ -322,7 +322,7 @@ class TelnetServer : Server
             invoke(cb, dummy)
             delete cb
 
-        found = configReqs |> find_if_exists(path) <| $(reqId)
+        found = configReqs |> get(path) <| $(reqId)
             self->onRequest(reqId, localCb)
         if found
             return
@@ -409,7 +409,7 @@ class TelnetServer : Server
             self->validate(path, /*withContent*/false, /*first*/true)
 
         var found = false
-        registry |> find_if_exists(path) <| $(data)
+        registry |> get(path) <| $(data)
             if data.validated
                 found = true
                 cb |> invoke(unsafe(addr(data)))
@@ -539,7 +539,7 @@ class TelnetServer : Server
         var changeId = 0
         if withContent
             var found = false
-            registry |> find_if_exists(path) <| $(var data)
+            registry |> get(path) <| $(var data)
                 found = true
                 changeId = data.changeId
                 dataText = data.text
@@ -596,7 +596,7 @@ class TelnetServer : Server
             if isActualData
                 for k, v in keys(item.diag), values(item.diag)
                     let localPath = uri_to_path(k)
-                    registry |> find_if_exists(localPath) <| $(fileData)
+                    registry |> get(localPath) <| $(fileData)
                         collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", JV(params))
