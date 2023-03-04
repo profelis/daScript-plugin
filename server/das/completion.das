@@ -373,8 +373,7 @@ def private addKeywords(var items : Completions)
 
 
 def private first_part(str : string; del : string)
-    var parts <- split(str, del)
-    defer_delete(parts)
+    var inscope parts <- split(str, del)
     return parts[0]
 
 

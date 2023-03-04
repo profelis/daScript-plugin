@@ -755,9 +755,9 @@ class AstData : AstVisitor
         fun.annotations |> annotations_to_tokens(*tokens)
         funcHeaderEndRange = line_info_to_range(fun.at)
 
-    def override visitFunction(fun : FunctionPtr) : FunctionPtr
+    def override visitFunction(var fun : FunctionPtr) : FunctionPtr
         skipExprs = false
-        return fun
+        return <- fun
 
     [unused_argument(fun, lastArg)] def override preVisitFunctionArgument(fun:FunctionPtr;arg:VariablePtr;lastArg:bool) : void
         if !arg.flags.generated
@@ -928,12 +928,12 @@ class AstData : AstVisitor
         callArgumentIdx |> push(0)
         call_to_token(expr) <| $(var token : AstToken?)
             *tokens |> emplace(token)
-    def override visitExprCall(expr:smart_ptr<ExprCall>) : ExpressionPtr
+    def override visitExprCall(var expr:smart_ptr<ExprCall>) : ExpressionPtr
         if skipExprs || expr == null || expr.genFlags.generated
-            return expr
+            return <- expr
         if length(callArgumentIdx) > 0
             callArgumentIdx |> pop()
-        return expr
+        return <- expr
     [unused_argument(last)] def override preVisitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool): void
         if skipExprs || expr == null || expr.genFlags.generated
             return
@@ -941,16 +941,16 @@ class AstData : AstVisitor
         if (argIdx >= 0 && arg.flags.constexpression && length(expr.func.arguments) > argIdx
             && expr.func != null && !is_operator("{expr.func.name}"))
             callArgument |> push("{expr.func.arguments[argIdx].name}")
-    [unused_argument(last)] def override visitExprCallArgument(expr:smart_ptr<ExprCall>;arg:ExpressionPtr;last:bool) : ExpressionPtr
+    [unused_argument(last)] def override visitExprCallArgument(expr:smart_ptr<ExprCall>;var arg:ExpressionPtr;last:bool) : ExpressionPtr
         if skipExprs || expr == null || expr.genFlags.generated
-            return arg
+            return <- arg
         let argIdx = length(callArgumentIdx) > 0 ? callArgumentIdx[length(callArgumentIdx) - 1] : -1
         if (argIdx >= 0 && arg.flags.constexpression && length(expr.func.arguments) > argIdx
             && expr.func != null && !is_operator("{expr.func.name}"))
             callArgument |> pop()
         if length(callArgumentIdx) > 0
             callArgumentIdx[length(callArgumentIdx) - 1] += 1
-        return arg
+        return <- arg
 // null coalescing
     def override preVisitExprNullCoalescing(expr : smart_ptr<ExprNullCoalescing>) : void
         if skipExprs || expr == null || expr.genFlags.generated
@@ -990,7 +990,7 @@ class AstData : AstVisitor
             return
         var name = "{expr.op}"
         var desc = name
-        var call & = unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        var inscope call := unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
         if call != null && call.func != null
             desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
         var token <- new [[AstToken
@@ -1010,7 +1010,7 @@ class AstData : AstVisitor
             return
         var name = "{expr.op}"
         var desc = name
-        var call & = unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        var inscope call := unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
         if call != null && call.func != null
             // desc = "{module_name(call.func._module)}{describe(reinterpret<smart_ptr<Function>> call.func)}"
             desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
