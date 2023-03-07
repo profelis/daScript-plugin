@@ -298,7 +298,7 @@ def like_call_to_token(expr; blk : block<(var token : AstToken?) : void>)
     // info(expr._type)
     var typ = "def {expr.name}"
     var firstArg : string
-    if expr.arguments.length > 0
+    if length(expr.arguments) > 0
         typ += "("
         var idx = 1
         for arg in expr.arguments
@@ -344,7 +344,7 @@ def call_to_token(expr; blk : block<(var token : AstToken?) : void>)
     if expr.func != null
         typ += module_name(expr.func._module)
         typ += "{expr.func.name}"
-        if expr.func.arguments.length > 0
+        if length(expr.func.arguments) > 0
             typ += "("
             var idx = 1
             for arg in expr.func.arguments
@@ -499,13 +499,13 @@ def parse(t; var res : AstCompletionData; depth = 0)
             // info(comp)
             res.res |> emplace(comp)
 
-    if t.argTypes.length > 0 || t.argNames.length > 0
+    if length(t.argTypes) > 0 || length(t.argNames) > 0
         res.found = true
         res.types[describe(t)] = true
-        for i in range(max(t.argTypes.length, t.argNames.length))
-            let name = t.argNames.length > i ? "{t.argNames[i]}" : "_{i}"
+        for i in range(max(length(t.argTypes), length(t.argNames)))
+            let name = length(t.argNames) > i ? "{t.argNames[i]}" : "_{i}"
             var desc = name
-            if t.argTypes.length > i && t.argTypes[i] != null
+            if length(t.argTypes) > i && t.argTypes[i] != null
                 desc += " : {describe(t.argTypes[i])}"
             if t.baseType == Type tBitfield
                 desc += " // bitfield"
@@ -769,7 +769,7 @@ class AstData : AstVisitor
         if fun == null || skipExprs
             return
         var desc = "def {module_name(fun._module)}{fun.name}"
-        if fun.arguments.length >= 0
+        if length(fun.arguments) >= 0
             desc += "("
             var first = true
             for arg in fun.arguments
