@@ -826,7 +826,7 @@ class AstData : AstVisitor
         if skipExprs || blk == null || blk.genFlags.generated
             return
         var desc : string //"def {module_name(blk._module)}{blk.name}"
-        if blk.arguments.length >= 0
+        if length(blk.arguments) >= 0
             desc = "("
             var first = true
             for arg in blk.arguments
