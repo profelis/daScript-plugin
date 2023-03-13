@@ -452,13 +452,28 @@ class CompletionData
         if length(n) == 0
             return
         info("--- {n} / {name} ----")
+        let nLen = length(n)
         for it in values(completions)
             if it.kind != CompletionItemKind Keyword && it.fullName == n
                 invoke(blk, it)
+            elif it.kind == CompletionItemKind Field
+                for arg in it.funcFirstArg
+                    if (arg |> starts_with(name) &&
+                            (length(it.funcFirstArg) == nLen || !isalnum_at(arg, nLen))
+                        )
+                        invoke(blk, it)
+                        break
 
         for it in values(globalCompletion)
             if it.kind != CompletionItemKind Keyword && it.fullName == n
                 invoke(blk, it)
+            elif it.kind == CompletionItemKind Field
+                for arg in it.funcFirstArg
+                    if (arg |> starts_with(name) &&
+                            (length(it.funcFirstArg) == nLen || !isalnum_at(arg, nLen))
+                        )
+                        invoke(blk, it)
+                        break
 
     def findFuncCompletion(completions : Completions; name : string; blk : block<(val : Completion) : void>)
         var n = name |> strip_left("smart_ptr<") |> strip_left("__::`")
