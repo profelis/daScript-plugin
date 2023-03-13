@@ -883,18 +883,18 @@ class TelnetServer : Server
                             for _type in keys(visitor.types)
                                 completionData->findFuncCompletion(data.completionData, _type) <| $(val : Completion)
                                     var comp = JV(val)
-                                    let isOperator = is_operator(val.name)
-                                    assume obj = comp.value as _object
-                                    var addEdit <- [[TextEdit
-                                        _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
-                                        newText = " "
-                                    ]]
-                                    obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
-                                    var edit <- [[TextEdit
-                                        _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
-                                        newText = isOperator ? "{val.name} " : "|> {val.name}("
-                                    ]]
-                                    obj["textEdit"] = JV(edit)
+                                    if val.kind != CompletionItemKind Field
+                                        assume obj = comp.value as _object
+                                        var addEdit <- [[TextEdit
+                                            _range = Range(ini.position.line, ini.position.character - beforeSpacesPos, ini.position.line, ini.position.character),
+                                            newText = " "
+                                        ]]
+                                        obj["additionalTextEdits"] = JV([{ auto[] JV(addEdit) }])
+                                        var edit <- [[TextEdit
+                                            _range = Range(ini.position.line, ini.position.character, ini.position.line, ini.position.character + 1),
+                                            newText = is_operator(val.name) ? "{val.name} " : "|> {val.name}("
+                                        ]]
+                                        obj["textEdit"] = JV(edit)
                                     list |> emplace(comp)
 
                         unsafe

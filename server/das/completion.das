@@ -252,12 +252,15 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
 
 
 def private parseFunction(info; fullModuleName : string; var items : Completions)
-    var res <- [[Completion name = "{info.name}", desc = "def {fullModuleName}{info.name}", kind = CompletionItemKind Function]]
-    res.fullName = "{fullModuleName}{info.name}"
+    let nameStr = "{info.name}"
+    let isProperty = nameStr |> starts_with(".`")
+    let shortName = isProperty? nameStr |> slice(2, length(nameStr)) : nameStr
+    var res <- [[Completion name = shortName, desc = "def {fullModuleName}{shortName}", kind = isProperty ? CompletionItemKind Field : CompletionItemKind Function]]
+    res.fullName = "{fullModuleName}{shortName}"
     let imp = build_string() <| $(impl)
         impl |> write("def ")
         impl |> write(fullModuleName)
-        impl |> write(info.name)
+        impl |> write(shortName)
         impl |> write("(")
         var firstArg = true
         for it in info
@@ -325,8 +328,8 @@ def private parseModule(pMod; var items : Completions)
         delete all
 
     module_for_each_function(pMod) <| $(info)
-        if find(info.name, "`") == -1 // generic
-            parseFunction(info, fullModuleName, items)
+        // if find(info.name, "`") == -1 // generic
+        parseFunction(info, fullModuleName, items)
 
     module_for_each_generic(pMod) <| $(info)
         parseFunction(info, fullModuleName, items)
