@@ -1111,6 +1111,15 @@ class TelnetServer : Server
     def documentColor(id : double; var params : JsonValue?)
         var inscope ini <- DocumentColorParams(params)
         let path = uri_to_path(ini.textDocument.uri)
+        self->getConfig(path) <| @ [[ <- ini]] (var config : PluginConfig?)
+            if config == null
+                warning("unknowm file {path}.\n")
+                self->sendResponse(id, JVNull())
+                return
+            self->documentColor_with_config(id, ini, config)
+
+    def documentColor_with_config(id : double; var ini : DocumentColorParams; config : PluginConfig ?)
+        let path = uri_to_path(ini.textDocument.uri)
         self->getValidData(path) <| @(data : Dascript const?)
             if data == null
                 self->sendResponse(id, JVNull())
@@ -1149,10 +1158,17 @@ class TelnetServer : Server
                                 let h = currentNum[k++]
                                 let l = currentNum[k++]
                                 color |> push(double(h * 16 + l) / 255lf)
-                            res |> emplace([[ColorInformation
-                                _range = Range(line, charPos - len - 2, line, charPos),
-                                color = [[Color alpha=color[0], red = color[1], green = color[2], blue = color[3]]]
-                            ]])
+                            var _range = Range(line, charPos - len - 2, line, charPos)
+                            if config.colorPreviewFormat == ColorPreviewFormat RGBA
+                                res |> emplace([[ColorInformation
+                                    _range <- _range,
+                                    color = [[Color alpha=color[3], red = color[0], green = color[1], blue = color[2]]]
+                                ]])
+                            else
+                                res |> emplace([[ColorInformation
+                                    _range <- _range,
+                                    color = [[Color alpha=color[0], red = color[1], green = color[2], blue = color[3]]]
+                                ]])
                             delete color
                         step = -1
                         clear(currentNum)

@@ -62,11 +62,16 @@ def PluginConfigProject(val : JsonValue?)
         fileAccessRoots <- fileAccessRoots
     ]]
 
+enum ColorPreviewFormat
+    ARGB
+    RGBA
+
 struct PluginConfig
     hovers : PluginConfigHovers
     // compiler : string // unused
     project : PluginConfigProject
     experimental : bool
+    colorPreviewFormat : ColorPreviewFormat
     policies : PluginConfigPolicies
     // server : { args : array<string> } // unused
 
@@ -75,7 +80,8 @@ def PluginConfig(val : JsonValue?)
         hovers <- PluginConfigHovers(joj(val, "hovers")),
         project <- PluginConfigProject(joj(val, "project")),
         policies <- PluginConfigPolicies(joj(val, "policies")),
-        experimental = job(val, "experimental")
+        experimental = job(val, "experimental"),
+        colorPreviewFormat = jos(val, "colorPreviewFormat") == "RGBA" ? ColorPreviewFormat RGBA : ColorPreviewFormat ARGB,
     ]]
 
 
