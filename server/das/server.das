@@ -1132,12 +1132,6 @@ class TelnetServer : Server
             var currentNum : array<int>
             // defer_delete(currentNum)
             for i, ch in iter_range(data.text), data.text
-                if ch == '\n'
-                    line++
-                    charPos = 0
-                    step = -1
-                    clear(currentNum)
-                    continue
                 if step == -1
                     step = ch == '0' ? 0 : -1
                 elif step == 0
@@ -1173,9 +1167,17 @@ class TelnetServer : Server
                         step = -1
                         clear(currentNum)
                 charPos++
+                if ch == '\n'
+                    line++
+                    charPos = 0
+                    step = -1
+                    clear(currentNum)
+                    continue
             if length(res) > 0
                 var arr <- [{ for it in res; JV(it)}]
                 self->sendResponse(id, JV(arr))
+            else
+                self->sendResponse(id, JVNull())
             delete currentNum
             delete res
 
