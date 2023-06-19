@@ -14,7 +14,7 @@ require lib
 require dapLogger
 require config
 
-[skip_field_lock_check]
+
 struct Completion
     name : string              // label
     desc : string              // detail
@@ -23,10 +23,6 @@ struct Completion
     kind : CompletionItemKind
     funcFirstArg : array<string>
 
-def disableLocks(var it : Completion)
-    unsafe
-        disableLocks(it.funcFirstArg)
-        disableLocks(it.impls)
 
 typedef
     Completions = table<string; Completion>
@@ -83,7 +79,6 @@ def private addItem(var item : Completion; var items : Completions; once = false
                 it.funcFirstArg |> emplace(arg)
         delete item
     if !found
-        disableLocks(item)
         items[key] <- item
 
 
@@ -123,7 +118,6 @@ def private getTypeName(info; var items : Completions)
             if info.argTypes != null && info.argNames != null
                 res |> write("variant<")
                 var all : array<Completion>
-                disableLocks(all)
                 let variantDesc = build_string() <| $(variantStr)
                     variantStr |> write("variant<")
                     var f = true
@@ -196,13 +190,10 @@ def parseAnnotation(ann : Annotation; fullModuleName : string; var items : Compl
         let structName = "{sann.name}"
         let fullName = "{fullModuleName}{structName}"
         var all : array<Completion>
-        disableLocks(all)
         let structDesc = build_string() <| $(structStr)
             structStr |> write("struct {fullName} [{sann.cppName}] fields: {sann.fieldCount}")
             var props : array<string>
-            disableLocks(props)
             var fields : array<tuple<uint; string>>
-            disableLocks(fields)
             basic_struct_for_each_field(sann) <| $(name, cppName, xtype, offset)
                 let field = "{getTypeName(xtype, items)} [{cppName}"
                 if offset != -1u
@@ -308,7 +299,6 @@ def private parseModule(pMod; var items : Completions)
             shortDesc |> write("struct {fullName}")
         var structDesc = shortStructDesc
         var all : array<Completion>
-        disableLocks(all)
         for it in info
             let desc = "{it.name}: {getTypeName(it, items)}{getValue(get_variable_value(it))}"
             if structDesc |> length() < hugeStructDescSize
@@ -338,7 +328,6 @@ def private parseModule(pMod; var items : Completions)
         let enumName = "{info.name}"
         let fullName = "{fullModuleName}{enumName}"
         var all : array< tuple < int64; Completion > >
-        disableLocks(all)
         let enumDesc = build_string() <| $(enumStr)
             enumStr |> write("enum {fullName}")
             for it in info
@@ -415,13 +404,12 @@ def JV(it : Completion) : JsonValue?
 
 def JV(items : Completions) : JsonValue?
     var list <- [{ for it in values(items); JV(it) }]
-    disableLocks(list)
     return JV <| {{ "isIncomplete" => JV(false); "items" => JV(list)}}
 
 def is_operator(str : string)
     return operators |> key_exists(str)
 
-[skip_field_lock_check]
+
 class CompletionData
     globalCompletionUpdate : clock
     globalCompletion : Completions

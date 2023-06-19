@@ -51,7 +51,7 @@ enum AstTokenKind
     AnnotationArgument = 28
     Block = 29
 
-[skip_field_lock_check]
+
 struct AstToken
     topLevel : bool
     _range : Range
@@ -563,7 +563,7 @@ def parse(t; var res : AstCompletionData; depth = 0)
         res.found = true
         res.types[describe(t)] = true
 
-[skip_field_lock_check]
+
 class AstCompletionData : AstVisitor
     path : string
     pos : Position
@@ -644,7 +644,7 @@ class AstCompletionData : AstVisitor
         // info(_range)
         parse(expr._type, self)
 
-[skip_field_lock_check]
+
 class AstData : AstVisitor
     tokens : AstTokens?
     skipExprs : bool = false
