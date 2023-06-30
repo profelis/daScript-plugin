@@ -370,7 +370,7 @@
 	"dependencies": {
 		"minimatch": "^5.1.0",
 		"run-in-terminal": "^0.0.3",
-		"semver": "^7.3.2",
+		"semver": "^7.5.2",
 		"@vscode/debugadapter": "^1.48.0"
 	}
 }
