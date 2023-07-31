@@ -423,7 +423,7 @@ class TelnetServer : Server
         if !inited // wait initialization
             return
         if !outChannel.isEmpty
-            for item in each(outChannel, type<ValidateResult>)
+            for item in each_clone(outChannel, type<ValidateResult>)
                 if true
                     var inscope cloneData : ValidateResult
                     cloneData.ok = item.ok
