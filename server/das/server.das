@@ -109,8 +109,7 @@ def compile(path, dataText : string; withContent : bool; changeId : int; config 
         cp.no_unused_block_arguments = config.policies.noUnusedBlockArguments
         cp.no_unused_function_arguments = config.policies.noUnusedFunctionArguments
         cp.fail_on_lack_of_aot_export = config.policies.failOnLackOfAotExport
-        static_if typeinfo(has_field <export_all> cp)
-            cp.export_all = true
+        cp.export_all = true
         cp.aot_module = true
         cp.completion = true
         try
