@@ -279,7 +279,8 @@ class TelnetServer : Server
     def sendErrorWithData(id : double; var data : ResponseError)
         warning("send error {id}: {data.code}: {data.message}")
         self->sendRawData(JV({{ "jsonrpc" => JV("2.0"); "id" => JV(id); "error" => JV(data) }}))
-        delete data
+        unsafe
+            delete data
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#notificationMessage
     def sendNotification(method : string; var data : JsonValue?)
@@ -572,12 +573,14 @@ class TelnetServer : Server
             data.compiledOk = item.ok && item.program != null
 
             if data.compiledOk // otherwise keeps previous ast and completion data
-                delete data.ast
+                unsafe
+                    delete data.ast
                 data.ast <- item.ast
                 delete data.completionData
                 data.completionData <- item.completionData
             else
-                delete item.ast
+                unsafe
+                    delete item.ast
                 delete item.completionData
 
             unsafe
@@ -602,12 +605,14 @@ class TelnetServer : Server
                         collect_diag(fileData.ast, localPath, v)
                     var params <- [[PublishDiagnosticsParams uri = k, diagnostics <- v ]]
                     self->sendNotification("textDocument/publishDiagnostics", JV(params))
-                    delete params
+                    unsafe
+                        delete params
             else
                 for k in keys(item.diag)
                     var params <- [[PublishDiagnosticsParams uri = k ]]
                     self->sendNotification("textDocument/publishDiagnostics", JV(params))
-                    delete params
+                    unsafe
+                        delete params
 
         delete item.program
         delete item.fs
@@ -707,7 +712,8 @@ class TelnetServer : Server
 
         var res <- [[PublishDiagnosticsParams uri = path_to_uri(path) ]]
         self->sendNotification("textDocument/publishDiagnostics", JV(res))
-        delete res
+        unsafe
+            delete res
 
     def hover(id : double; params : JsonValue?)
         var ini = HoverParams(params)
@@ -921,7 +927,8 @@ class TelnetServer : Server
             self->sendResponse(id, res)
             let sec = double(get_time_usec(t0)) / 1000000.0lf
             info("< completion time {sec}s")
-            delete list
+            unsafe
+                delete list
 
 
     def resolveCompletion(id : double; var params : JsonValue?)
@@ -1000,7 +1007,8 @@ class TelnetServer : Server
 
     // https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeConfiguration
     [unused_argument(id, params)] def didChangeConfiguration(id : double; var params : JsonValue ?)
-        delete configs
+        unsafe
+            delete configs
 
     def getToken(data : Dascript const?; path : string; position : Position) : AstToken?
         var token = find_token(data, path, position) <| $(tok : AstToken?)
@@ -1495,7 +1503,8 @@ class TelnetServer : Server
 
             self->sendResponse(id, JV(res))
             tokens |> clear()
-            delete tokens
+            unsafe
+                delete tokens
             delete res
 
 
