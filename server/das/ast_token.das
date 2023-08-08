@@ -986,11 +986,12 @@ class AstData : AstVisitor
     // def override preVisitExprIsType(expr:smart_ptr<ExprAt>;typeDecl:TypeDeclPtr): void
 // op1
     def override preVisitExprOp1(expr : smart_ptr<ExprOp1>) : void
+        var inscope call : smart_ptr<ExprCallFunc>
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "{expr.op}"
         var desc = name
-        var inscope call := unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        call <- unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
         if call != null && call.func != null
             desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
         var token <- new [[AstToken
@@ -1006,11 +1007,12 @@ class AstData : AstVisitor
     // def override visitExprOp1(expr:smart_ptr<ExprOp1>) : ExpressionPtr
 // op2
     def override preVisitExprOp2(expr : smart_ptr<ExprOp2>) : void
+        var inscope call : smart_ptr<ExprCallFunc>
         if skipExprs || expr == null || expr.genFlags.generated
             return
         var name = "{expr.op}"
         var desc = name
-        var inscope call := unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
+        call <- unsafe(reinterpret<smart_ptr<ExprCallFunc>> expr)
         if call != null && call.func != null
             // desc = "{module_name(call.func._module)}{describe(reinterpret<smart_ptr<Function>> call.func)}"
             desc = "{describe(unsafe(reinterpret<smart_ptr<Function>> call.func))}"
