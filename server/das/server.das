@@ -1692,7 +1692,7 @@ def mainLoop(fn : string)
 
             telnet.outChannel = outChannel
 
-            var inscope session : smart_ptr<NetworkServer> <- gc0_restore_smart_ptr("telnet-session")
+            var inscope session : smart_ptr<NetworkServer> <- unsafe( reinterpret<smart_ptr<NetworkServer>> gc0_restore_smart_ptr("telnet-session") )
             if session != null
                 info("restoring server after restart\n")
                 telnet->restore(session)
