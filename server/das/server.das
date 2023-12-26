@@ -196,7 +196,7 @@ class TelnetServer : Server
     hasConfigurationCapability : bool
     hasDiagnosticRelatedInformationCapability : bool
 
-    completionData <- CompletionData() // global completion data
+    completionData <- new CompletionData() // global completion data
 
     workspaceFolders : array<WorkspaceFolder> // workspace data
     workspaceFiles : table<string; void?>
