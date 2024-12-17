@@ -51,8 +51,7 @@ def main()
             if idx + 1 < length(args)
                 var inscope parts <- args[idx + 1] |> split(":")
                 if length(parts) == 2
-                    unsafe
-                        config.fileAccessRoots[parts[0]] = parts[1]
+                    config.fileAccessRoots |> insert(parts[0], parts[1])
 
     config.compiler = args[0]
     config.file = args |> arg_value("--file", "")

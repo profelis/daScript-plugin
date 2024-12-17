@@ -254,8 +254,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
     if foundIdx >= 0
         return
     foundIdx = res.result.typeDecls |> length()
-    unsafe
-        res.typeDecls[tdk] = foundIdx
+    res.typeDecls |> insert(tdk, foundIdx)
     // if t.argNames |> length() > 0
     var td <- [[CompletionTypeDecl() tdk=tdk, baseType=BaseTypeString(t.baseType)]]
     td.canCopy = t.canCopy
@@ -435,8 +434,7 @@ def parse_module(var res : CompletionContext; mod : rtti::Module?)
 
     var inscope funcCppNames : table<string; string>
     mod |> module_for_each_function() <| $(f)
-        unsafe
-            funcCppNames[f.name] = clone_string(f.cppName)
+        funcCppNames |> insert(f.name, clone_string(f.cppName))
 
     mod |> for_each_generic() <| $(f)
         // debug(f)
