@@ -1859,13 +1859,15 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	args.push('--file', tempFilePath)
 	args.push('--original-file', filePath)
 	args.push('--result', resultFilePath)
-	if(settings.compiler) {
-		settings.compiler = settings.compiler.replace('${workspaceFolder}', workspaceFolder)
+	var compiler = settings.compiler
+	if(compiler) {
+		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
 	}
-	if (settings.project.file)
+	var projectFile = settings.project.file
+	if (projectFile)
 	{
-		settings.project.file = settings.project.file.replace('${workspaceFolder}', workspaceFolder)
-		args.push('--project-file', settings.project.file)
+		projectFile = projectFile.replace('${workspaceFolder}', workspaceFolder)
+		args.push('--project-file', projectFile)
 	}	
 	if (settings.policies?.ignore_shared_modules)
 		args.push('--ignore-shared-modules')
@@ -1890,8 +1892,8 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	const cwd = path.dirname(path.dirname(scriptPath))
 	console.log(`> validating ${textDocument.uri} version ${textDocument.version}`)
 	console.log('> cwd', cwd)
-	console.log('> exec', settings.compiler, args.join(' '))
-	const child = spawn(settings.compiler, args, { cwd: cwd })
+	console.log('> exec', compiler, args.join(' '))
+	const child = spawn(compiler, args, { cwd: cwd })
 	vp.process = child
 
 	const diagnostics: Map<string, Diagnostic[]> = new Map()
