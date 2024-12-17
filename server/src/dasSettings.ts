@@ -30,7 +30,7 @@ export interface DasSettings {
 }
 
 export const defaultSettings: DasSettings = {
-	compiler: "daScript", server: { args: ["${file}", "--", "--port", "${port}"] },
+	compiler: "daScript", server: { args: ["${file}"] },
 	policies: { ignore_shared_modules: true, }
 }
 

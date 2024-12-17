@@ -261,12 +261,9 @@
 					"scope": "resource",
 					"type": "array",
 					"default": [
-						"${file}",
-						"--",
-						"--port",
-						"${port}"
+						"${file}"
 					],
-					"description": "LSP server run arguments\n- ${file} - current file\n${port} - port"
+					"description": "LSP server run arguments\n- ${file} - current file"
 				},
 				"dascript.server.connectTimeout": {
 					"type": "number",
@@ -336,7 +333,10 @@
 				"dascript.colorPreviewFormat": {
 					"scope": "resource",
 					"type": "string",
-					"enum": [ "ARGB", "RGBA" ],
+					"enum": [
+						"ARGB",
+						"RGBA"
+					],
 					"default": "ARGB",
 					"description": "Color preview format"
 				},
