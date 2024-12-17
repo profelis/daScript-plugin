@@ -270,12 +270,6 @@
 					"description": "Socket connection delay in seconds",
 					"default": 4
 				},
-				"dascript.server.unity": {
-					"scope": "resource",
-					"type": "boolean",
-					"default": false,
-					"description": "Use one language server for all workspaces"
-				},
 				"dascript.project.file": {
 					"scope": "resource",
 					"type": "string",

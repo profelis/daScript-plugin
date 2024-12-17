@@ -4,7 +4,6 @@ export interface DasSettings {
 	compiler: string;
 	server: {
 		args: string[];
-		unity?: boolean;
 	};
 	project?: {
 		file?: string;
