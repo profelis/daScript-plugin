@@ -284,9 +284,9 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
     if t._module != null
         td.mod = t._module.name |> string()
     // TODO: disable this only for generic functions
-    // if skipTypeDescSize |> find_index(t.baseType) == -1
-    //     td.sizeOf = t.sizeOf
-    //     td.alignOf = t.alignOf
+    if skipTypeDescSize |> find_index(t.baseType) == -1
+        td.sizeOf = t.sizeOf
+        td.alignOf = t.alignOf
     if t.enumType != null
         td.enumName = t.enumType.name |> string()
         td.mod = t.enumType._module != null ? t.enumType._module.name |> string() : ""

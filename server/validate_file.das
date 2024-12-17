@@ -269,7 +269,7 @@ struct DasToken : CompletionAt
     parentTdk : string
     isUnused : bool
     isConst : bool
-    // ptr : uint64
+    // ptr : string
 
 
 [unused_argument(completion)] def DasToken(expr; var completion : CompletionContext ?) : DasToken
@@ -319,25 +319,39 @@ class AstData : AstVisitor
             token |> fill_at(ann.at)
             res.tokens |> emplace(token)
 
+    // visitedStructures : table<uint64>
+
     def override preVisitStructure(str : StructurePtr) : void
         if str == null
             return
         str.annotations |> annotation_to_tokens()
+        let mod = str._module != null ? "{str._module.name}" : ""
         var token <- DasToken()
         token.kind = "struct"
         token.name = "{str.name}"
-        token.mod = str._module != null ? "{str._module.name}" : ""
+        token.mod = mod
         token |> fill_at(str.at)
         res.tokens |> emplace(token)
 
+        let stName = str._module != null ? "{str._module.name}::{str.name}" : "{str.name}"
+
+        var inscope fields : table<string>
+        var parent = str.parent
+        while parent != null
+            for fld in parent.fields
+                fields |> insert("{fld.name}")
+            parent = parent.parent
+
         for fld in str.fields
+            if fields.key_exists("{fld.name}")
+                continue
             var token2 <- DasToken()
             token2.kind = "field"
             token2.name = "{fld.name}"
             token2.tdk = TypeDeclKey(fld._type)
             token2.isConst = fld._type.flags.constant
             *completion |> parse_typedecl(token2.tdk, fld._type)
-            token2.mod = token.mod
+            token2.mod = mod
             token2 |> fill_at(fld.at)
             res.tokens |> emplace(token2)
 
@@ -346,15 +360,15 @@ class AstData : AstVisitor
         if length(skipExprs) > 0 || expr == null || expr.genFlags.generated
             return
         var token <- DasToken()
-        token.kind = "field"
+        token.kind = "fieldDecl"
         token.name = "{decl.name}"
         token.value = decl.value |> describe()
         token.tdk = TypeDeclKey(decl.value._type)
         token.parentTdk = TypeDeclKey(expr._type)
         // token.isConst = decl.flags.
         *completion |> parse_typedecl(token.tdk, decl.value._type)
-        token |> fill_at(decl.at)
-        // token.declAt |> fill_at(expr._type.at)
+        token |> fill_at(expr.at)
+        // token.declAt |> fill_at(decl.at)
         res.tokens |> emplace(token)
 
 

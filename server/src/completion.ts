@@ -91,6 +91,7 @@ export enum TokenKind {
     ExprVar = 'ExprVar',
     ExprLet = 'ExprLet',
     Field = 'field',
+    FieldDecl = 'fieldDecl',
     Handle = 'handle',
     ExprAddr = 'ExprAddr',
     ExprGoto = 'ExprGoto',
@@ -136,7 +137,7 @@ export interface DasToken extends CompletionAt {
     value: string
     mod: string
     tdk: string
-    parentTdk: string // only when kind == 'field'
+    parentTdk: string // only when kind == 'fieldDecl'
     isUnused: boolean // todo: show warning
     isConst: boolean
     declAt: CompletionAt
@@ -627,6 +628,8 @@ export function typeDeclDocs(td: CompletionTypeDecl, cr: CompletionResult, cr2: 
         if (td.fields.length > 0)
             res += `\n${td.fields.map(f => `  ${f.name}: ${f.tdk}`).join('\n')}`
     }
+
+    res += `\n\nsizeOf: ${td.sizeOf}, alignOf: ${td.alignOf}`
 
     return res
 }
