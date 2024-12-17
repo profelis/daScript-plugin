@@ -1859,8 +1859,14 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	args.push('--file', tempFilePath)
 	args.push('--original-file', filePath)
 	args.push('--result', resultFilePath)
+	if(settings.compiler) {
+		settings.compiler = settings.compiler.replace('${workspaceFolder}', workspaceFolder)
+	}
 	if (settings.project.file)
+	{
+		settings.project.file = settings.project.file.replace('${workspaceFolder}', workspaceFolder)
 		args.push('--project-file', settings.project.file)
+	}	
 	if (settings.policies?.ignore_shared_modules)
 		args.push('--ignore-shared-modules')
 	if (settings.policies?.no_global_variables)
