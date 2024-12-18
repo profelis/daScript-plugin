@@ -150,7 +150,7 @@ def parse_global(var res : CompletionContext; g : smart_ptr<ast::Variable>&)
     if g._module != null
         gl.mod = g._module.name |> string()
     gl.tdk = TypeDeclKey(g._type)
-    res |> parse_typedecl(gl.tdk, g._type)
+    res |> parse_typedecl(gl.tdk, g._type, /*is_generic*/false)
     gl.gen = g.flags.generated
     if g.init != null
         gl.value = g.init |> describe()
@@ -207,7 +207,7 @@ def parse_struct(var res : CompletionContext; var s : smart_ptr<Structure>& | St
         field.gen = f.flags.generated
         field.offset = f.offset
         field.tdk = TypeDeclKey(f._type)
-        res |> parse_typedecl(field.tdk, f._type)
+        res |> parse_typedecl(field.tdk, f._type, /*is_generic*/false)
         // field.mn = f._type |> get_mangled_name()
         st.fields |> emplace(field)
     res.result.structs |> emplace(st)
@@ -247,9 +247,10 @@ struct CompletionTypeDecl : CompletionAt
     canMove : bool
     canClone : bool
 
-let skipTypeDescSize = [[auto[] Type none; Type autoinfer; Type fakeLineInfo; Type fakeContext; Type alias; Type anyArgument]]
+let skipTypeDescSize = fixed_array(Type none, Type.autoinfer, Type alias, Type.fakeLineInfo,
+    Type fakeContext, Type alias, Type.typeDecl, Type.typeMacro, Type.option)
 
-def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<TypeDecl>&) : void
+def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<TypeDecl>&; is_generic : bool) : void
     var foundIdx = res.typeDecls?[tdk] ?? -1
     if foundIdx >= 0
         return
@@ -264,7 +265,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
     for idx, argN, argT in count(), t.argNames, t.argTypes
         var tf <- [[CompletionTypeDeclField() name=length(argN) > 0 ? "{argN}" : "_{idx}"]]
         tf.tdk = TypeDeclKey(argT)
-        res |> parse_typedecl(tf.tdk, argT)
+        res |> parse_typedecl(tf.tdk, argT, is_generic)
         td.fields |> emplace(tf)
     for idx in totalArgs..length(t.argNames)
         assume argN = t.argNames[idx]
@@ -274,7 +275,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
         assume argT = t.argTypes[idx]
         var tf <- [[CompletionTypeDeclField() name="_{idx}"]]
         tf.tdk = TypeDeclKey(argT)
-        res |> parse_typedecl(tf.tdk, argT)
+        res |> parse_typedecl(tf.tdk, argT, is_generic)
         td.fields |> emplace(tf)
     td |> fill_at(t.at)
     td.alias = t.alias |> string()
@@ -282,8 +283,8 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
         td.dim |> push(i)
     if t._module != null
         td.mod = t._module.name |> string()
-    // TODO: disable this only for generic functions
-    if skipTypeDescSize |> find_index(t.baseType) == -1
+
+    if !is_generic && skipTypeDescSize |> find_index(t.baseType) == -1
         td.sizeOf = t.sizeOf
         td.alignOf = t.alignOf
     if t.enumType != null
@@ -297,15 +298,15 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
         td.mod = t.annotation._module != null ? t.annotation._module.name |> string() : ""
     if t.firstType != null
         td.tdk1 = TypeDeclKey(t.firstType)
-        res |> parse_typedecl(td.tdk1, t.firstType)
+        res |> parse_typedecl(td.tdk1, t.firstType, is_generic)
     elif length(t.dim) > 0
         var inscope sub <- t |> clone_type()
         sub.dim |> pop()
-        parse_typedecl(res, TypeDeclKey(sub), sub)
+        parse_typedecl(res, TypeDeclKey(sub), sub, is_generic)
         td.tdk1 = TypeDeclKey(sub)
     if t.secondType != null
         td.tdk2 = TypeDeclKey(t.secondType)
-        res |> parse_typedecl(td.tdk2, t.secondType)
+        res |> parse_typedecl(td.tdk2, t.secondType, is_generic)
     res.result.typeDecls |> emplace(td)
     // return foundIdx
 
@@ -321,7 +322,7 @@ def parse_typedef(var res : CompletionContext; mod : Module?; n : string#; t : s
     td |> fill_at(t.at)
     td.mod = mod.name |> string()
     td.tdk = TypeDeclKey(t)
-    res |> parse_typedecl(td.tdk, t)
+    res |> parse_typedecl(td.tdk, t, /*is_generic*/false)
     res.result.typeDefs |> emplace(td)
 
 /// function
@@ -363,7 +364,7 @@ def parse_function(var res : CompletionContext; f : smart_ptr<Function>&; cpp : 
         fn.origMod = origin._module.name |> string()
     if f.result != null
         fn.tdk = TypeDeclKey(f.result)
-        res |> parse_typedecl(fn.tdk, f.result)
+        res |> parse_typedecl(fn.tdk, f.result, is_generic)
     fn.decl |> fill_at(f.atDecl)
     fn.gen = f.flags.generated
     fn.isClassMethod = f.flags.isClassMethod
@@ -374,10 +375,10 @@ def parse_function(var res : CompletionContext; f : smart_ptr<Function>&; cpp : 
         if arg._type.baseType == Type option
             for argType in arg._type.argTypes
                 fa.tdk.push(TypeDeclKey(argType))
-                res |> parse_typedecl(fa.tdk.back(), argType)
+                res |> parse_typedecl(fa.tdk.back(), argType, is_generic)
         else
             fa.tdk.push(TypeDeclKey(arg._type))
-            res |> parse_typedecl(fa.tdk[0], arg._type)
+            res |> parse_typedecl(fa.tdk[0], arg._type, is_generic)
         fa.alias = arg._aka |> string()
         if arg.init != null
             fa.value = arg.init |> describe()
@@ -394,7 +395,7 @@ def parse_annotation(var res : CompletionContext; ann : Annotation&)
         for_each_field(sann) <| $ [unused_argument(cppName)] (name, cppName, xtype, offset)
             var field <- [[CompletionStructField() name="{name}"]]
             field.tdk = TypeDeclKey(xtype)
-            res |> parse_typedecl(field.tdk, xtype)
+            res |> parse_typedecl(field.tdk, xtype, /*is_generic*/false)
             field.offset = int(offset)
             st.fields |> emplace(field)
         res.result.structs |> emplace(st)

@@ -1860,15 +1860,14 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	args.push('--original-file', filePath)
 	args.push('--result', resultFilePath)
 	var compiler = settings.compiler
-	if(compiler) {
+	if (compiler) {
 		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
 	}
 	var projectFile = settings.project.file
-	if (projectFile)
-	{
+	if (projectFile) {
 		projectFile = projectFile.replace('${workspaceFolder}', workspaceFolder)
 		args.push('--project-file', projectFile)
-	}	
+	}
 	if (settings.policies?.ignore_shared_modules)
 		args.push('--ignore-shared-modules')
 	if (settings.policies?.no_global_variables)
@@ -1935,13 +1934,6 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 			return
 		}
 
-		let doc = documents.get(textDocument.uri)
-		if (doc == null) {
-			console.log('document was closed, ignore result', textDocument.uri)
-			thisResolve()
-			return
-		}
-
 		if (extra.autoFormat) {
 			autoFormatResult.set(textDocument.uri, validateTextResult)
 			thisResolve()
@@ -1950,7 +1942,12 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 
 		if (textDocument.uri != globalCompletionFile.uri) {
 			let prev = documents.get(textDocument.uri);
-			if (prev && prev.version !== textDocument.version) {
+			if (prev == null) {
+				console.log('document was closed, ignore result', textDocument.uri)
+				thisResolve()
+				return;
+			}
+			if (prev.version !== textDocument.version) {
 				console.log('document version changed, ignore prev result. Current', prev.version, "got", textDocument.version, textDocument.uri)
 				thisResolve()
 				return
@@ -2496,11 +2493,13 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				f.name = f.name.substring(8)
 			}
 			else {
-				let prefixIdx = f.name.indexOf('`')
-				if (prefixIdx >= 0) {
-					if (prefixIdx == 0 || usedModules.has(f.name.substring(0, prefixIdx)))
-						f.name = f.name.substring(prefixIdx + 1)
-				}
+				// let prefixIdx = f.name.indexOf('`')
+				// if (prefixIdx >= 0) {
+				// 	if (prefixIdx == 0 || usedModules.has(f.name.substring(0, prefixIdx)))
+				// 		f.name = f.name.substring(prefixIdx + 1)
+				// }
+				if (f.name.charAt(0) == '`')
+					f.name = f.name.substring(1)
 			}
 
 			addCompletionItem(completionMap, {
