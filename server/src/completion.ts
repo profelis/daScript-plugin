@@ -87,6 +87,7 @@ export enum TokenKind {
     ExprCall = 'ExprCall',
     Func = 'func',
     Struct = 'struct',
+    Enum = 'enum',
     Typedecl = 'typedecl',
     ExprVar = 'ExprVar',
     ExprLet = 'ExprLet',

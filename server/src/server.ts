@@ -2131,6 +2131,26 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 					sortText: MODULE_SORT,
 				})
 			}
+			// TODO: rethink how to handle enum values
+			res.tokens.push({
+				...e,
+				declAt: {
+					file: '',
+					line: 0,
+					column: 0,
+					lineEnd: 0,
+					columnEnd: 0,
+					_range: undefined,
+					_uri: '',
+					_originalText: ''
+				},
+				kind: TokenKind.Enum,
+				alias: '',
+				value: '',
+				parentTdk: '',
+				isUnused: false,
+				isConst: true,
+			})
 		}
 		for (const s of res.completion.structs) {
 			s.column++ // magic number to fix column
