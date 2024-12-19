@@ -35,7 +35,7 @@ import {
 
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import { URI } from 'vscode-uri'
-import { AtToRange, AtToUri, BEFORE_ALL_SORT, BaseType, Brackets, CompletionAt, CompletionEnum, CompletionResult, CompletionStruct, DasToken, Delimiter, EXTENSION_FN_SORT, FIELD_SORT, FixedValidationResult, MODULE_SORT, ModuleRequirement, OPERATOR_SORT, PROPERTY_PREFIX, PROPERTY_SORT, TokenKind, ValidationResult, addUniqueLocation, addValidLocation, closedBracketPos, describeToken, enumDetail, enumDocs, enumValueDetail, enumValueDocs, findEnum, findFunction, findStruct, findTypeDecl, findTypeDef, findTypeDefNoMod, fixPropertyName, funcArgDetail, funcArgDocs, funcDetail, funcDocs, getParentStruct, globalDetail, globalDocs, isPositionLess, isPositionLessOrEqual, isRangeEqual, isRangeLengthZero, isRangeLess, isRangeZeroEmpty, isSpaceChar, isValidIdChar, isValidLocation, posInRange, primitiveBaseType, rangeCenter, rangeLength, tdkName, structDetail, structDocs, structFieldDetail, structFieldDocs, typeDeclCompletion, typeDeclDefinition, typeDeclDetail, typeDeclDocs, typeDeclFieldDetail, typeDeclIter, typedeclAssignOperator, typedefDetail, typedefDocs, CompletionTypeDef } from './completion'
+import { AtToRange, AtToUri, BEFORE_ALL_SORT, BaseType, Brackets, CompletionAt, CompletionEnum, CompletionResult, CompletionStruct, DasToken, Delimiter, EXTENSION_FN_SORT, FIELD_SORT, FixedValidationResult, MODULE_SORT, ModuleRequirement, OPERATOR_SORT, PROPERTY_PREFIX, PROPERTY_SORT, TokenKind, ValidationResult, addUniqueLocation, addValidLocation, closedBracketPos, describeToken, enumDetail, enumDocs, enumValueDetail, enumValueDocs, findEnum, findFunction, findStruct, findTypeDecl, findTypeDef, findTypeDefNoMod, fixPropertyName, funcArgDetail, funcArgDocs, funcDetail, funcDocs, getParentStruct, globalDetail, globalDocs, isPositionLess, isPositionLessOrEqual, isRangeEqual, isRangeLengthZero, isRangeLess, isRangeZeroEmpty, isSpaceChar, isValidIdChar, isValidLocation, posInRange, primitiveBaseType, rangeCenter, rangeLength, tdkName, structDetail, structDocs, structFieldDetail, structFieldDocs, typeDeclCompletion, typeDeclDefinition, typeDeclDetail, typeDeclDocs, typeDeclFieldDetail, typeDeclIter, typedeclAssignOperator, typedefDetail, typedefDocs, CompletionTypeDef, CompletionFunction } from './completion'
 import { DasSettings, defaultSettings, documentSettings } from './dasSettings'
 import path = require('path')
 import fs = require('fs')
@@ -710,7 +710,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 				}
 			}
 			else if (call.brackets == Brackets.Round) {
-				let fnCb = (fn) => {
+				let fnCb = (fn: CompletionFunction) => {
 					if (fn.name === call.obj && fn.tdk.length > 0) {
 						call.tdks.add(fn.tdk);
 					}
@@ -904,28 +904,33 @@ connection.onCompletion(async (textDocumentPosition) => {
 					if (tdk == call.obj || tdk.endsWith(tdkSuffix))
 						continue;
 					// fill extension functions
-					const extFn = (fn) => {
+					const extFn = (fn: CompletionFunction) => {
 						if (fn.isClassMethod) {
 							return;
 						}
 						if (fn.name.startsWith(PROPERTY_PREFIX)) {
 							return;
 						}
+						if (fn.args.length == 0) {
+							return;
+						}
 						// TODO: ignore const cases: Foo const == Foo
-						if (fn.args.length > 0 && fn.args[0].tdk === tdk) {
-							const propertyName = fixPropertyName(fn.name);
-							const isProperty = propertyName != null;
-							const isOperator = !isProperty && OPERATORS.includes(fn.name);
-							const c = CompletionItem.create(isProperty ? propertyName : fn.name);
-							c.detail = funcDetail(fn);
-							c.documentation = funcDocs(fn);
-							c.kind = isProperty ? CompletionItemKind.Property : isOperator ? CompletionItemKind.Operator : CompletionItemKind.Function;
-							const newText = isProperty ? c.label : isOperator ? OPERATOR_REMAP.get(c.label) ?? c.label : `.${fn.name}(`;
-							fixCompletion(c, newText, replaceStart, textDocumentPosition.position);
-							c.sortText = isProperty ? PROPERTY_SORT : isOperator ? OPERATOR_SORT : EXTENSION_FN_SORT;
-							const prev = items.find((it) => it.label === c.label && it.kind === c.kind && it.detail === c.detail && it.documentation === c.documentation);
-							if (prev == null) {
-								addCompletionItem(res, c);
+						for (const argTdk of fn.args[0].tdk) {
+							if (fn.args.length > 0 && argTdk === tdk) {
+								const propertyName = fixPropertyName(fn.name);
+								const isProperty = propertyName != null;
+								const isOperator = !isProperty && OPERATORS.includes(fn.name);
+								const c = CompletionItem.create(isProperty ? propertyName : fn.name);
+								c.detail = funcDetail(fn);
+								c.documentation = funcDocs(fn);
+								c.kind = isProperty ? CompletionItemKind.Property : isOperator ? CompletionItemKind.Operator : CompletionItemKind.Function;
+								const newText = isProperty ? c.label : isOperator ? OPERATOR_REMAP.get(c.label) ?? c.label : `.${fn.name}(`;
+								fixCompletion(c, newText, replaceStart, textDocumentPosition.position);
+								c.sortText = isProperty ? PROPERTY_SORT : isOperator ? OPERATOR_SORT : EXTENSION_FN_SORT;
+								const prev = items.find((it) => it.label === c.label && it.kind === c.kind && it.detail === c.detail && it.documentation === c.documentation);
+								if (prev == null) {
+									addCompletionItem(res, c);
+								}
 							}
 						}
 					}
@@ -964,7 +969,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.structs.forEach(structCb)
 
-			let fnCb = (fn) => {
+			let fnCb = (fn: CompletionFunction) => {
 				if (fn.mod == call.obj) {
 					const c = CompletionItem.create(fn.name)
 					c.detail = funcDetail(fn)
