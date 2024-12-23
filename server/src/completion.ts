@@ -1034,8 +1034,8 @@ function AtToUri_(at: CompletionAt, filePath: string, settings: DasSettings, ws:
 
 export function AtToRange(at: CompletionAt) {
     const res = Range.create(
-        Math.max(0, at.line - 1), at.column,
-        Math.max(0, at.lineEnd - 1), at.columnEnd
+        Math.max(0, at.line - 1), Math.max(0, at.column),
+        Math.max(0, at.lineEnd - 1), Math.max(0, at.columnEnd)
     )
     // if (res.end.character > 0 && at.line === at.lineEnd)
     //     res.end.character += 1 // magic, don't ask, it works
