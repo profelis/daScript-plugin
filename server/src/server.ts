@@ -1380,9 +1380,11 @@ connection.onDocumentFormatting(async (formatParams) => {
 	if (!doc)
 		return null
 	await validateTextDocument(doc, { autoFormat: true })
+	if (!autoFormatResult.has(formatParams.textDocument.uri))
+		return null
 	const newText = autoFormatResult.get(formatParams.textDocument.uri)
 	autoFormatResult.delete(globalCompletionFile.uri)
-	if (newText == null)
+	if (newText == null || (newText.length == 0 && doc.getText().length > 0))
 		return null
 	const fixedText = newText.replace(/\r\n/g, '\n')
 	const allTextRange = Range.create(Position.create(0, 0), doc.positionAt(doc.getText().length))
