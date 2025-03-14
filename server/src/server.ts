@@ -1885,6 +1885,11 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		args.push('--no-unused-function-arguments')
 	if (settings.policies?.fail_on_lack_of_aot_export)
 		args.push('--fail-on-lack-of-aot-export')
+	if (settings.policies?.gen2_make_syntax)
+		args.push('--gen2-make-syntax')
+	if (settings.policies?.version_2_syntax)
+		args.push('--version-2-syntax')
+	
 	if (textDocument == globalCompletionFile)
 		args.push('--global-completion')
 	for (const rootName in settings.project.fileAccessRoots) {

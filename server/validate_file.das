@@ -1,4 +1,5 @@
 options indenting = 4
+options gen2 = false
 options no_global_variables
 options no_unused_function_arguments
 options no_unused_block_arguments
@@ -33,6 +34,8 @@ struct ValidateConfig
     noUnusedBlockArguments : bool
     noUnusedFunctionArguments : bool
     failOnLackOfAotExport : bool
+    version2syntax : bool
+    gen2MakeSyntax : bool
     globalCompletion : bool
     autoFormat : bool
 
@@ -64,6 +67,8 @@ def main()
     config.noUnusedBlockArguments = args |> has_value("--no-unused-block-arguments")
     config.noUnusedFunctionArguments = args |> has_value("--no-unused-function-arguments")
     config.failOnLackOfAotExport = args |> has_value("--fail-on-lack-of-aot-export")
+    config.version2syntax = args |> has_value("--version-2-syntax")
+    config.gen2MakeSyntax = args |> has_value("--gen2-make-syntax")
     config.globalCompletion = args |> has_value("--global-completion")
     config.autoFormat = args |> has_value("--auto-format")
 
@@ -150,6 +155,8 @@ def compile(var res : ValidationResult; config : ValidateConfig)
                 cp.no_unused_block_arguments = config.noUnusedBlockArguments
                 cp.no_unused_function_arguments = config.noUnusedFunctionArguments
                 cp.fail_on_lack_of_aot_export = config.failOnLackOfAotExport
+                cp.version_2_syntax = config.version2syntax
+                cp.gen2_make_syntax = config.gen2MakeSyntax
                 cp.export_all = true
                 cp.aot_module = true
                 cp.completion = true

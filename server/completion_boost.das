@@ -1,4 +1,5 @@
 options indenting = 4
+options gen2 = false
 options no_global_variables
 options no_unused_function_arguments
 options no_unused_block_arguments

@@ -20,6 +20,8 @@ export interface DasSettings {
 		no_unused_block_arguments?: boolean;
 		no_unused_function_arguments?: boolean;
 		fail_on_lack_of_aot_export?: boolean;
+		version_2_syntax?: boolean;
+		gen2_make_syntax?: boolean;
 	};
 	debug?: {
 		port: integer;
