@@ -1,71 +1,90 @@
+options gen2
 options indenting = 4
 require fio
 require strings
 require daslib/strings_boost
 
-variant Tokens
+variant Tokens {
     status : bool
     tokens : array<string>
+}
 
 [export]
-def main
+def main {
     // let data <- getKeywords()
     let data <- getOperators()
     // let data <- getBasicTypes()
-    if data is status
+    if (data is status) {
         debug("get tokens status: {data}")
         return
+    }
     let res = buildString(data as tokens, "[[string ", "]]", "\"", "; ") // das
     // let res = buildString(data as tokens, "", "", "", " | ", 60) // tm syntax
     print(res)
+}
 
-def buildString(data : array<string>; prefix, postfix, decorator, delimeter : string; maxLen = 120)
-    if length(data) == 0
+def buildString(data : array<string>; prefix, postfix, decorator, delimeter : string; maxLen = 120) {
+    if (length(data) == 0) {
         return prefix + postfix
-    else
+    } else {
         var res = ""
         var line = prefix
-        for i in iter_range(data)
+        for (i in iter_range(data)) {
             let it = data[i]
-            if length(line) + length(delimeter) + 2 * length(decorator) >= maxLen
+            if (length(line) + length(delimeter) + 2 * length(decorator) >= maxLen) {
                 res += (length(res) > 0 ? "\n" : "") + line
                 line = repeat(" ", prefix |> length())
+            }
             line += "{decorator}{it}{decorator}"
-            if i < length(data) - 1
+            if (i < length(data) - 1) {
                 line += delimeter
-        if length(line) > 0
+            }
+        }
+        if (length(line) > 0) {
             res += "\n{line}"
+        }
         res += postfix
         return res
+    }
+}
 
-def getKeywords()
+def getKeywords() {
     return <- getTokens("/* keywords */")
+}
 
-def getBasicTypes()
+def getBasicTypes() {
     return <- getTokens("/* basic types */")
+}
 
-def getOperators()
+def getOperators() {
     return <- getTokens("DAS_OPERATOR '!'")
+}
 
-def getTokens(from : string) : Tokens
+def getTokens(from : string) : Tokens {
     let path = get_das_root() + "/src/parser/ds_parser.ypp"
-    var res <- [[Tokens status = false]]
-    fio::fopen(path, "rb") <| $(f)
-        if f == null
+    var res <- Tokens(status = false)
+    fio::fopen(path, "rb") <| $(f) {
+        if (f == null) {
             debug("error: can't open {path}")
             return
+        }
         let data = fio::fread(f)
         let start = find(data, from) + length(from) + 2
-        if start == -1
+        if (start == -1) {
             debug("error: can't find bounds")
             return
+        }
         let sub = slice(data, start, length(data) - 1)
         let tokens <- split(sub, "\r\n\r\n")[0] |> replace("\n\r", "\n") |> split("\n") // workaround split
         var list : array<string>
-        for it in tokens
-            if it |> strip() |> length() == 0 || find(it, "\"") == -1
+        for (it in tokens) {
+            if (it |> strip() |> length() == 0 || find(it, "\"") == -1) {
                 break
+            }
             let b = find(it, "\"") + 1
             list |> push(slice(it, b, find(it, "\"", b)))
-        res <- [[Tokens tokens <- list]]
+        }
+        res <- Tokens(tokens <- list)
+    }
     return <- res
+}

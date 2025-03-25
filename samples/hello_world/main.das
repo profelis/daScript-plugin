@@ -1,4 +1,6 @@
+options gen2
 
 [export]
-def main
+def main {
     print("Hello World!")
+}
