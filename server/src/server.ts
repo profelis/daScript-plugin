@@ -1889,6 +1889,8 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		args.push('--gen2-make-syntax')
 	if (settings.policies?.version_2_syntax)
 		args.push('--version-2-syntax')
+	if (settings.policies?.always_report_candidates_threshold)
+		args.push('--always-report-candidates-threshold', settings.policies.always_report_candidates_threshold.toString())
 	
 	if (textDocument == globalCompletionFile)
 		args.push('--global-completion')

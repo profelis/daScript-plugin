@@ -39,6 +39,7 @@ struct ValidateConfig {
     failOnLackOfAotExport : bool
     version2syntax : bool
     gen2MakeSyntax : bool
+    alwaysReportCandidatesThreshold : int
     globalCompletion : bool
     autoFormat : bool
 
@@ -77,6 +78,7 @@ def main() {
     config.failOnLackOfAotExport = args |> has_value("--fail-on-lack-of-aot-export")
     config.version2syntax = args |> has_value("--version-2-syntax")
     config.gen2MakeSyntax = args |> has_value("--gen2-make-syntax")
+    config.alwaysReportCandidatesThreshold = args |> arg_value("--always-report-candidates-threshold", 6)
     config.globalCompletion = args |> has_value("--global-completion")
     config.autoFormat = args |> has_value("--auto-format")
 
@@ -181,6 +183,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                 cp.fail_on_lack_of_aot_export = config.failOnLackOfAotExport
                 cp.version_2_syntax = config.version2syntax
                 cp.gen2_make_syntax = config.gen2MakeSyntax
+                cp.always_report_candidates_threshold = config.alwaysReportCandidatesThreshold
                 cp.export_all = true
                 cp.aot_module = true
                 cp.completion = true

@@ -22,6 +22,7 @@ export interface DasSettings {
 		fail_on_lack_of_aot_export?: boolean;
 		version_2_syntax?: boolean;
 		gen2_make_syntax?: boolean;
+		always_report_candidates_threshold?: integer;
 	};
 	debug?: {
 		port: integer;

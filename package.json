@@ -4,7 +4,7 @@
 	"description": "daScript language support",
 	"author": "Dmitri Granetchi",
 	"license": "MIT",
-	"version": "1.1.43",
+	"version": "1.1.44",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/profelis/daScript-plugin"
@@ -369,7 +369,7 @@
 				"dascript.policies.version_2_syntax": {
 					"scope": "resource",
 					"type": "boolean",
-					"default": false,
+					"default": true,
 					"description": "version_2_syntax policy"
 				},
 				"dascript.policies.gen2_make_syntax": {
@@ -377,6 +377,12 @@
 					"type": "boolean",
 					"default": false,
 					"description": "gen2_make_syntax policy"
+				},
+				"dascript.policies.always_report_candidates_threshold": {
+					"scope": "resource",
+					"type": "integer",
+					"default": 6,
+					"description": "always_report_candidates_threshold policy"
 				}
 			}
 		},
