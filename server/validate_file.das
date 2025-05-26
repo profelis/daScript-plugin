@@ -1,4 +1,5 @@
 options gen2
+options rtti
 options indenting = 4
 options gen2 = false
 options no_global_variables
@@ -313,16 +314,16 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
 
 
 struct DasToken : CompletionAt {
-    declAt : CompletionAt = CompletionAt(line = -1, column = -1)
+    declAt : CompletionAt = CompletionAt(line = 0, column = 0)
     kind : string
-    mod : string
-    name : string
-    value : string
-    alias : string
+    @optional mod : string
+    @optional name : string
+    @optional value : string
+    @optional alias : string
     tdk : string
-    parentTdk : string
-    isUnused : bool
-    isConst : bool
+    @optional parentTdk : string
+    @optional isUnused : bool
+    @optional isConst : bool
 }
     // ptr : string
 

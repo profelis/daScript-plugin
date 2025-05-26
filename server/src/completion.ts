@@ -117,7 +117,7 @@ export function isSpaceChar(ch: string) {
 }
 
 function modPrefix(mod: string) {
-    if (mod.length === 0)
+    if (mod === undefined || mod.length === 0)
         return ''
     return mod + '::'
 }
@@ -139,7 +139,7 @@ export interface DasToken extends CompletionAt {
     mod: string
     tdk: string
     parentTdk: string // only when kind == 'fieldDecl'
-    isUnused: boolean // todo: show warning
+    isUnused?: boolean // todo: show warning
     isConst: boolean
     declAt: CompletionAt
 }
@@ -288,11 +288,11 @@ export function describeToken(tok: DasToken, cr: CompletionResult, cr2: Completi
 }
 
 export interface CompletionAt {
-    file: string
-    line: integer
-    column: integer
-    lineEnd: integer
-    columnEnd: integer
+    file?: string
+    line?: integer
+    column?: integer
+    lineEnd?: integer
+    columnEnd?: integer
 
     _range: Range
     _uri: string
@@ -322,11 +322,11 @@ export interface CompletionEnumValue extends CompletionAt {
 }
 
 export function enumValueDetail(ev: CompletionEnumValue) {
-    return `${ev.name} = ${ev.value}`
+    return `${ev.name} = ${ev.value || ""}`
 }
 
 export function enumValueDocs(ev: CompletionEnumValue, e: CompletionEnum) {
-    return `${modPrefix(e.mod)}${e.name} ${ev.name} = ${ev.value}`
+    return `${modPrefix(e.mod)}${e.name} ${ev.name} = ${ev.value || ""}`
 }
 
 export interface CompletionEnum extends CompletionAt {
@@ -352,7 +352,7 @@ export interface CompletionGlobal extends CompletionAt {
     value: string
     mod: string
     gen: boolean
-    isUnused: boolean // TODO: show warning
+    isUnused?: boolean // TODO: show warning
 }
 
 export function globalDetail(g: CompletionGlobal) {
@@ -963,7 +963,9 @@ export interface ValidationResult {
 }
 
 export function AtToUri(at: CompletionAt, filePath: string, settings: DasSettings, ws: WorkspaceFolder[], dasRoot: string, cache: Map<string, string> = null) {
-    if (at.file?.length == 0)
+    if (at.file === undefined)
+        at.file = ""
+    if (at?.file?.length == 0)
         return ''
 
     if (cache && cache.has(at.file)) {
@@ -1034,8 +1036,8 @@ function AtToUri_(at: CompletionAt, filePath: string, settings: DasSettings, ws:
 
 export function AtToRange(at: CompletionAt) {
     const res = Range.create(
-        Math.max(0, at.line - 1), Math.max(0, at.column),
-        Math.max(0, at.lineEnd - 1), Math.max(0, at.columnEnd)
+        Math.max(0, (at.line || 0) - 1), Math.max(0, (at.column || 0)),
+        Math.max(0, (at.lineEnd || 0) - 1), Math.max(0, (at.columnEnd || 0))
     )
     // if (res.end.character > 0 && at.line === at.lineEnd)
     //     res.end.character += 1 // magic, don't ask, it works

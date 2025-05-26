@@ -1891,7 +1891,7 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		args.push('--version-2-syntax')
 	if (settings.policies?.always_report_candidates_threshold)
 		args.push('--always-report-candidates-threshold', settings.policies.always_report_candidates_threshold.toString())
-	
+
 	if (textDocument == globalCompletionFile)
 		args.push('--global-completion')
 	for (const rootName in settings.project.fileAccessRoots) {
@@ -2091,7 +2091,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		let modules = new Set<string>()
 		let usedModules: Set<string> = new Set()
 		function addUsedModule(mod: string) {
-			if (mod.length > 0)
+			if (mod?.length > 0)
 				usedModules.add(mod)
 		}
 		const completionMap = new Array<Map<string, CompletionItem>>()
@@ -2167,7 +2167,32 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			})
 		}
 		for (const s of res.completion.structs) {
-			s.column++ // magic number to fix column
+			if (s.column !== undefined)
+				s.column++ // magic number to fix column
+			if (s.parentName === undefined)
+				s.parentName = ''
+			if (s.parentMod === undefined)
+				s.parentMod = ''
+			if (s.mod === undefined)
+				s.mod = ''
+			if (s.fields === undefined)
+				s.fields = []
+			if (s.isClass === undefined)
+				s.isClass = false
+			if (s.isLambda === undefined)
+				s.isLambda = false
+			if (s.isGenerator === undefined)
+				s.isGenerator = false
+			if (s.gen === undefined)
+				s.gen = false
+
+			for (const f of s.fields) {
+				if (f.isPrivate === undefined)
+					f.isPrivate = false
+				if (f.gen === undefined)
+					f.gen = false
+			}
+
 			s._range = AtToRange(s)
 			s._uri = AtToUri(s, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			addCompletionItem(completionMap, {
@@ -2195,6 +2220,29 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			}
 		}
 		for (const t of res.completion.typeDecls) {
+			if (t.fields === undefined)
+				t.fields = []
+			if (t.dim === undefined)
+				t.dim = []
+			if (t.alias === undefined)
+				t.alias = ''
+			if (t.enumName === undefined)
+				t.enumName = ''
+			if (t.structName === undefined)
+				t.structName = ''
+			if (t.mod === undefined)
+				t.mod = ''
+			if (t.tdk1 === undefined)
+				t.tdk1 = ''
+			if (t.tdk2 === undefined)
+				t.tdk2 = ''
+			if (t.canCopy === undefined)
+				t.canCopy = false
+			if (t.canMove === undefined)
+				t.canMove = false
+			if (t.canClone === undefined)
+				t.canClone = false
+
 			t._range = AtToRange(t)
 			t._uri = AtToUri(t, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			//SKIP it, a lot of data, to reduce completion items
@@ -2243,6 +2291,31 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			addMod(g.mod, g)
 		}
 		for (const f of res.completion.functions) {
+			if (f.mod === undefined)
+				f.mod = ''
+			if (f.origMod === undefined)
+				f.origMod = ''
+			if (f.cpp === undefined)
+				f.cpp = ''
+			if (f.args === undefined)
+				f.args = []
+			if (f.gen === undefined)
+				f.gen = false
+			if (f.isClassMethod === undefined)
+				f.isClassMethod = false
+			if (f.isGeneric === undefined)
+				f.isGeneric = false
+
+			for (let arg of f.args) {
+				if (arg.alias === undefined)
+					arg.alias = ''
+				if (arg.variable === undefined)
+					arg.variable = false
+				if (arg.value === undefined)
+					arg.value = ''
+			}
+		}
+		for (const f of res.completion.functions) {
 			f._range = AtToRange(f)
 			f._uri = AtToUri(f, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			f.decl._range = AtToRange(f.decl)
@@ -2277,10 +2350,10 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 										_uri: f._uri,
 										gen: f.gen,
 										file: f.file,
-										line: f.line,
-										lineEnd: f.lineEnd,
-										column: f.column,
-										columnEnd: f.columnEnd,
+										line: f.line || 0,
+										lineEnd: f.lineEnd || 0,
+										column: f.column || 0,
+										columnEnd: f.columnEnd || 0,
 										_originalText: f._originalText,
 										_property: true,
 										_readFn: !writeProp ? f : null,
@@ -2317,6 +2390,20 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		var prevToken: DasToken = null
 		for (const token of tokens) {
 			tokenIdx++
+			if (token.mod === undefined)
+				token.mod = ""
+			if (token.name === undefined)
+				token.name = ""
+			if (token.value === undefined)
+				token.value = ""
+			if (token.alias === undefined)
+				token.alias = ""
+			if (token.parentTdk === undefined)
+				token.parentTdk = ""
+			if (token.isUnused === undefined)
+				token.isUnused = false
+			if (token.isConst === undefined)
+				token.isConst = false
 			token._uri = AtToUri(token, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			if (token._uri != uri) // filter out tokens from other files
 				continue
@@ -2348,7 +2435,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				}
 			}
 			// declAt is negative for tokens that are not declared in the source code
-			if (token.declAt.line >= 0) {
+			if (token.declAt.line !== undefined && token.declAt.line >= 0) {
 				token.declAt._range = AtToRange(token.declAt)
 				token.declAt._uri = AtToUri(token.declAt, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			}
@@ -2580,10 +2667,10 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				isUnused: false,
 				isConst: false,
 				file: mod.file,
-				line: mod.line,
-				column: mod.column,
-				lineEnd: mod.lineEnd,
-				columnEnd: mod.columnEnd,
+				line: mod.line || 0,
+				column: mod.column || 0,
+				lineEnd: mod.lineEnd || 0,
+				columnEnd: mod.columnEnd || 0,
 			})
 			allReq.set(mod.mod, { origin: mod, depth: 0 })
 			for (const req of mod.dependencies) {

@@ -1,4 +1,5 @@
 options gen2
+options rtti
 options indenting = 4
 options gen2 = false
 options no_global_variables
@@ -15,11 +16,11 @@ require daslib/strings_boost
 
 
 struct CompletionAt {
-    file : string
-    line : int
-    column : int
-    lineEnd : int
-    columnEnd : int
+    @optional file : string
+    @optional line : int
+    @optional column : int
+    @optional lineEnd : int
+    @optional columnEnd : int
 }
 
 
@@ -120,16 +121,16 @@ def BaseTypeString(t : rtti::Type) : string {
 
 struct CompletionEnumValue : CompletionAt {
     name : string
-    value : string
+    @optional value : string
 }
 
 struct CompletionEnum : CompletionAt {
     name : string
-    mod : string
-    cpp : string
-    tdk : string
-    baseType : string
-    values : array<CompletionEnumValue>
+    @optional mod : string
+    @optional cpp : string
+    @optional tdk : string
+    @optional baseType : string
+    @optional values : array<CompletionEnumValue>
 }
 
 def parse_enum(var res : CompletionContext; e : smart_ptr<Enumeration>&) {
@@ -154,11 +155,11 @@ def parse_enum(var res : CompletionContext; e : smart_ptr<Enumeration>&) {
 
 struct CompletionGlobal : CompletionAt {
     name : string
-    tdk : string
-    value : string
-    mod : string
-    gen : bool
-    isUnused : bool
+    @optional tdk : string
+    @optional value : string
+    @optional mod : string
+    @optional gen : bool
+    @optional isUnused : bool
 }
 
 def parse_global(var res : CompletionContext; g : smart_ptr<ast::Variable>&) {
@@ -184,21 +185,21 @@ struct CompletionStructField : CompletionAt {
     // mn : string
     tdk : string
     offset : int
-    isPrivate : bool
-    gen : bool
+    @optional isPrivate : bool
+    @optional gen : bool
 }
 
 struct CompletionStruct : CompletionAt {
     name : string
-    parentName : string
-    parentMod : string
-    mod : string
-    fields : array<CompletionStructField>
-    isClass : bool
-    isLambda : bool
-    isMacro : bool
-    isGenerator : bool
-    gen : bool
+    @optional parentName : string
+    @optional parentMod : string
+    @optional mod : string
+    @optional fields : array<CompletionStructField>
+    @optional isClass : bool
+    @optional isLambda : bool
+    @optional isMacro : bool
+    @optional isGenerator : bool
+    @optional gen : bool
 }
 
 def resolve_str(var s : smart_ptr<Structure>&) : Structure? {
@@ -265,19 +266,19 @@ struct CompletionTypeDeclField {
 struct CompletionTypeDecl : CompletionAt {
     baseType : string
     tdk : string
-    fields : array<CompletionTypeDeclField>
-    dim : array<int>
-    alias : string
+    @optional fields : array<CompletionTypeDeclField>
+    @optional dim : array<int>
+    @optional alias : string
     sizeOf : int
     alignOf : int
-    enumName : string
-    structName : string
-    mod : string // enum name or struct name
-    tdk1 : string
-    tdk2 : string
-    canCopy : bool
-    canMove : bool
-    canClone : bool
+    @optional enumName : string
+    @optional structName : string
+    @optional mod : string // enum name or struct name
+    @optional tdk1 : string
+    @optional tdk2 : string
+    @optional canCopy : bool
+    @optional canMove : bool
+    @optional canClone : bool
 }
 
 let skipTypeDescSize = fixed_array(Type.none, Type.autoinfer, Type.alias, Type.fakeLineInfo,
@@ -377,23 +378,23 @@ def parse_typedef(var res : CompletionContext; mod : Module?; n : string#; t : s
 
 struct CompletionFuncArg : CompletionAt {
     name : string
-    alias : string
-    variable : bool
+    @optional alias : string
+    @optional variable : bool
     tdk : array<string>
-    value : string
+    @optional value : string
 }
 
 struct CompletionFunction : CompletionAt {
     name : string
-    mod : string
-    origMod : string
-    cpp : string
+    @optional mod : string
+    @optional origMod : string
+    @optional cpp : string
     tdk : string
     decl : CompletionAt
-    args : array<CompletionFuncArg>
-    gen : bool
-    isClassMethod : bool
-    isGeneric : bool
+    @optional args : array<CompletionFuncArg>
+    @optional gen : bool
+    @optional isClassMethod : bool
+    @optional isGeneric : bool
 }
 
 [nodiscard]
