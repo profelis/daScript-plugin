@@ -2107,7 +2107,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				})
 		}
 		function addMod(name: string, at: CompletionAt) {
-			if (name?.length == 0)
+			if (name === undefined || name.length == 0)
 				return
 			if (!modules.has(name)) {
 				modules.add(name)
