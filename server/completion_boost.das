@@ -35,7 +35,7 @@ struct CompletionResult {
 
 
 struct CompletionContext {
-    typeDecls : table<string; int>
+    typeDecls : table<uint64>
     result : CompletionResult
 }
 
@@ -285,12 +285,13 @@ let skipTypeDescSize = fixed_array(Type.none, Type.autoinfer, Type.alias, Type.f
     Type.fakeContext, Type.alias, Type.typeDecl, Type.typeMacro, Type.option)
 
 def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<TypeDecl>&; is_generic : bool) : void {
-    var foundIdx = res.typeDecls?[tdk] ?? -1
-    if (foundIdx >= 0) {
+    let tdkHash = hash(tdk)
+    if (res.typeDecls.key_exists(tdkHash)) {
         return
     }
-    foundIdx = res.result.typeDecls |> length()
-    res.typeDecls |> insert(tdk, foundIdx)
+    res.typeDecls.insert(tdkHash)
+    let resIdx = res.result.typeDecls |> length()
+    res.result.typeDecls |> emplace(CompletionTypeDecl())
     // if t.argNames |> length() > 0
     var td <- CompletionTypeDecl(tdk = tdk, baseType = BaseTypeString(t.baseType))
     td.canCopy = t.canCopy
@@ -353,7 +354,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
         td.tdk2 = TypeDeclKey(t.secondType)
         res |> parse_typedecl(td.tdk2, t.secondType, is_generic)
     }
-    res.result.typeDecls |> emplace(td)
+    res.result.typeDecls[resIdx] <- td
 }
     // return foundIdx
 

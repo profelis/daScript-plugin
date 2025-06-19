@@ -444,11 +444,12 @@ class AstData : AstVisitor {
         if (typ == null) {
             return -1
         }
-        if (key_exists(visitedTypedecls, intptr(typ))) {
+        let tdk = TypeDeclKey(typ)
+        let tdkHash = hash((tdk, hash(typ.at)))
+        if (key_exists(visitedTypedecls, tdkHash)) {
             return -1
         }
-        visitedTypedecls |> insert(intptr(typ))
-        let tdk = TypeDeclKey(typ)
+        visitedTypedecls |> insert(tdkHash)
         *completion |> parse_typedecl(tdk, typ, false)
         var token <- DasToken()
         token.kind = "typedecl"
