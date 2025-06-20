@@ -1494,6 +1494,7 @@ let globalSettings = defaultSettings
 connection.onDidChangeConfiguration(change => {
 	if (hasConfigurationCapability) {
 		// Reset all cached document settings
+		console.log('Resetting document settings due to configuration change')
 		documentSettings.clear()
 	} else {
 		globalSettings = <DasSettings>((change.settings || defaultSettings))
@@ -1810,9 +1811,9 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 				console.log('document version not changed, waiting for previous process', textDocument.uri)
 				return prevProcess.promise
 			}
-			prevProcess.process?.kill()
+			const killed = prevProcess.process?.kill() ?? false
 			validatingProcesses.delete(textDocument.uri)
-			console.log('killed process for', textDocument.uri, 'prev version', prevProcess.version, 'new version', textDocument.version)
+			console.log('killed process for', textDocument.uri, 'prev version', prevProcess.version, 'new version', textDocument.version, 'killed', killed)
 		}
 		const validResult = validatingResults.get(textDocument.uri)
 		if (validResult?.fileVersion === textDocument.version) {
@@ -1832,23 +1833,25 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	if (registerValidatingResult)
 		validatingProcesses.set(textDocument.uri, vp)
 
+	const fileVersion = textDocument.version // cache version, because it can be changed while we are waiting for settings
+
 	const settings = await getDocumentSettings(textDocument.uri)
 
 	if (registerValidatingResult) {
 		var prevProcess = validatingProcesses.get(textDocument.uri)
-		if (prevProcess != null && prevProcess.version > textDocument.version) {
+		if (prevProcess == null || prevProcess.version > fileVersion) {
 			// version was changed while we were waiting for settings
-			return prevProcess.promise
+			return prevProcess ? prevProcess.promise : Promise.resolve()
 		}
 		const validResult = validatingResults.get(textDocument.uri)
-		if (validResult != null && validResult.fileVersion > textDocument.version) {
+		if (validResult != null && validResult.fileVersion > fileVersion) {
 			// version was changed while we were waiting for settings
 			return Promise.resolve()
 		}
 	}
 
 	const filePath = URI.parse(textDocument.uri).fsPath
-	const tempFilePrefix = `${stringHashCode(textDocument.uri).toString(16)}_${validateId.toString(16)}_${textDocument.version.toString(16)}`
+	const tempFilePrefix = `${stringHashCode(textDocument.uri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
 	const tempFileName = `${tempFilePrefix}_${path.basename(filePath)}`
 	const resultFileName = `${tempFileName}_res`
 	validateId++
@@ -1903,7 +1906,7 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 
 	const scriptPath = process.argv[1]
 	const cwd = path.dirname(path.dirname(scriptPath))
-	console.log(`> validating ${textDocument.uri} version ${textDocument.version}`)
+	console.log(`> validating ${textDocument.uri} version ${fileVersion}`)
 	console.log('> cwd', cwd)
 	console.log('> exec', compiler, args.join(' '))
 	const child = spawn(compiler, args, { cwd: cwd })
@@ -1942,8 +1945,8 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 			return
 		}
 
-		if (vp.version !== textDocument.version) {
-			console.log('document version changed, ignore result. Current', vp.version, "got", textDocument.version, textDocument.uri)
+		if (vp.version !== fileVersion) {
+			console.log('document version changed, ignore result. Current', vp.version, "got", fileVersion, textDocument.uri)
 			thisResolve()
 			return
 		}
@@ -1961,8 +1964,8 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 				thisResolve()
 				return;
 			}
-			if (prev.version !== textDocument.version) {
-				console.log('document version changed, ignore prev result. Current', prev.version, "got", textDocument.version, textDocument.uri)
+			if (prev.version !== fileVersion) {
+				console.log('document version changed, ignore prev result. Current', prev.version, "got", fileVersion, textDocument.uri)
 				thisResolve()
 				return
 			}
