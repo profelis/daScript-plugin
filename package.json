@@ -336,12 +336,6 @@
 					"default": "ARGB",
 					"description": "Color preview format"
 				},
-				"dascript.policies.ignore_shared_modules": {
-					"scope": "resource",
-					"type": "boolean",
-					"default": true,
-					"description": "ignore_shared_modules policy"
-				},
 				"dascript.policies.no_global_variables": {
 					"scope": "resource",
 					"type": "boolean",

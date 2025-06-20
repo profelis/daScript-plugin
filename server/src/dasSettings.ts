@@ -15,7 +15,6 @@ export interface DasSettings {
 		verbose?: boolean;
 	};
 	policies?: {
-		ignore_shared_modules?: boolean;
 		no_global_variables?: boolean;
 		no_unused_block_arguments?: boolean;
 		no_unused_function_arguments?: boolean;
@@ -33,7 +32,6 @@ export interface DasSettings {
 
 export const defaultSettings: DasSettings = {
 	compiler: "daScript", server: { args: ["${file}"] },
-	policies: { ignore_shared_modules: true, }
 }
 
 // Cache the settings of all open documents

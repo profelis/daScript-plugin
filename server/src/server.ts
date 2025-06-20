@@ -1801,29 +1801,31 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 }
 
 async function validateTextDocument(textDocument: TextDocument, extra: { autoFormat?: boolean, force?: boolean } = { autoFormat: false, force: false }): Promise<void> {
+	const fileUri = textDocument.uri
+	const fileVersion = textDocument.version // cache version, because it can be changed while we are waiting for settings
 	const registerValidatingResult = !extra.autoFormat
 	// TODO: limit validating processes
 	if (registerValidatingResult) {
-		const prevProcess = validatingProcesses.get(textDocument.uri)
+		const prevProcess = validatingProcesses.get(fileUri)
 		if (prevProcess) {
-			if (prevProcess.version === textDocument.version) {
+			if (prevProcess.version === fileVersion) {
 				// TODO: remove
-				console.log('document version not changed, waiting for previous process', textDocument.uri)
+				console.log('document version not changed, waiting for previous process', fileUri)
 				return prevProcess.promise
 			}
 			const killed = prevProcess.process?.kill() ?? false
-			validatingProcesses.delete(textDocument.uri)
-			console.log('killed process for', textDocument.uri, 'prev version', prevProcess.version, 'new version', textDocument.version, 'killed', killed)
+			validatingProcesses.delete(fileUri)
+			console.log('killed process for', fileUri, 'prev version', prevProcess.version, 'new version', fileVersion, 'killed', killed)
 		}
-		const validResult = validatingResults.get(textDocument.uri)
-		if (validResult?.fileVersion === textDocument.version) {
+		const validResult = validatingResults.get(fileUri)
+		if (validResult?.fileVersion === fileVersion) {
 			// TODO: remove
-			console.log('document version not changed, ignoring', textDocument.uri)
+			console.log('document version not changed, ignoring', fileUri)
 			return Promise.resolve()
 		}
 	}
 
-	const vp: ValidatingProcess = { process: null, version: textDocument.version, promise: null }
+	const vp: ValidatingProcess = { process: null, version: fileVersion, promise: null }
 	var thisResolve: () => void
 	var thisReject: (any) => void
 	vp.promise = new Promise<void>((resolve, reject) => {
@@ -1831,27 +1833,25 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		thisReject = reject
 	})
 	if (registerValidatingResult)
-		validatingProcesses.set(textDocument.uri, vp)
+		validatingProcesses.set(fileUri, vp)
 
-	const fileVersion = textDocument.version // cache version, because it can be changed while we are waiting for settings
-
-	const settings = await getDocumentSettings(textDocument.uri)
+	const settings = await getDocumentSettings(fileUri)
 
 	if (registerValidatingResult) {
-		var prevProcess = validatingProcesses.get(textDocument.uri)
+		var prevProcess = validatingProcesses.get(fileUri)
 		if (prevProcess == null || prevProcess.version > fileVersion) {
 			// version was changed while we were waiting for settings
 			return prevProcess ? prevProcess.promise : Promise.resolve()
 		}
-		const validResult = validatingResults.get(textDocument.uri)
+		const validResult = validatingResults.get(fileUri)
 		if (validResult != null && validResult.fileVersion > fileVersion) {
 			// version was changed while we were waiting for settings
 			return Promise.resolve()
 		}
 	}
 
-	const filePath = URI.parse(textDocument.uri).fsPath
-	const tempFilePrefix = `${stringHashCode(textDocument.uri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
+	const filePath = URI.parse(fileUri).fsPath
+	const tempFilePrefix = `${stringHashCode(fileUri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
 	const tempFileName = `${tempFilePrefix}_${path.basename(filePath)}`
 	const resultFileName = `${tempFileName}_res`
 	validateId++
@@ -1878,8 +1878,6 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		projectFile = projectFile.replace('${workspaceFolder}', workspaceFolder)
 		args.push('--project-file', projectFile)
 	}
-	if (settings.policies?.ignore_shared_modules)
-		args.push('--ignore-shared-modules')
 	if (settings.policies?.no_global_variables)
 		args.push('--no-global-variables')
 	if (settings.policies?.no_unused_block_arguments)
@@ -1906,28 +1904,28 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 
 	const scriptPath = process.argv[1]
 	const cwd = path.dirname(path.dirname(scriptPath))
-	console.log(`> validating ${textDocument.uri} version ${fileVersion}`)
+	console.log(`> validating ${fileUri} version ${fileVersion}`)
 	console.log('> cwd', cwd)
 	console.log('> exec', compiler, args.join(' '))
 	const child = spawn(compiler, args, { cwd: cwd })
 	vp.process = child
 
 	const diagnostics: Map<string, Diagnostic[]> = new Map()
-	diagnostics.set(textDocument.uri, [])
+	diagnostics.set(fileUri, [])
 	let output = ''
 	child.stdout.on('data', (data: any) => {
 		output += data
 	})
 	child.stderr.on('data', (data: any) => {
-		diagnostics.get(textDocument.uri).push({ range: Range.create(0, 0, 0, 0), message: `${data}` })
+		diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${data}` })
 	})
 	child.on('error', (error: any) => {
-		diagnostics.get(textDocument.uri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
+		diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
 		thisReject(error)
 	})
 	child.on('close', (exitCode: any) => {
 		if (registerValidatingResult) {
-			validatingProcesses.delete(textDocument.uri)
+			validatingProcesses.delete(fileUri)
 		}
 		const validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
 		// console.log('remove temp files', tempFilePath, resultFilePath)
@@ -1946,26 +1944,26 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		}
 
 		if (vp.version !== fileVersion) {
-			console.log('document version changed, ignore result. Current', vp.version, "got", fileVersion, textDocument.uri)
+			console.log('document version changed, ignore result. Current', vp.version, "got", fileVersion, fileUri)
 			thisResolve()
 			return
 		}
 
 		if (extra.autoFormat) {
-			autoFormatResult.set(textDocument.uri, validateTextResult)
+			autoFormatResult.set(fileUri, validateTextResult)
 			thisResolve()
 			return
 		}
 
-		if (textDocument.uri != globalCompletionFile.uri) {
-			let prev = documents.get(textDocument.uri);
+		if (fileUri != globalCompletionFile.uri) {
+			let prev = documents.get(fileUri);
 			if (prev == null) {
-				console.log('document was closed, ignore result', textDocument.uri)
+				console.log('document was closed, ignore result', fileUri)
 				thisResolve()
 				return;
 			}
 			if (prev.version !== fileVersion) {
-				console.log('document version changed, ignore prev result. Current', prev.version, "got", fileVersion, textDocument.uri)
+				console.log('document version changed, ignore prev result. Current', prev.version, "got", fileVersion, fileUri)
 				thisResolve()
 				return
 			}
@@ -1986,7 +1984,7 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 				error._range = AtToRange(error)
 				error._uri = AtToUri(error, filePath, settings, workspaceFolders, result.dasRoot)
 				if (error._uri.length === 0)
-					error._uri = textDocument.uri
+					error._uri = fileUri
 
 				let msg = error.what.trim()
 				if (error.extra?.length > 0 || error.fixme?.length > 0) {
@@ -2009,14 +2007,14 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 				diagnostics.get(error._uri).push(diag)
 			}
 			console.time('storeValidationResult')
-			// console.log("validatingResults uri", textDocument.uri, "version", vp.version, "exitCode", exitCode, "actual version", textDocument.version)
+			// console.log("validatingResults uri", fileUri, "version", vp.version, "exitCode", exitCode, "actual version", textDocument.version)
 			storeValidationResult(settings, textDocument, result, diagnostics)
 
 			console.timeEnd('storeValidationResult')
 		} else { // result == null
-			if (!diagnostics.has(textDocument.uri))
-				diagnostics.set(textDocument.uri, [])
-			diagnostics.get(textDocument.uri).push({ range: Range.create(0, 0, 0, 0), message: `internal error: Validation process exited with code ${exitCode}.` })
+			if (!diagnostics.has(fileUri))
+				diagnostics.set(fileUri, [])
+			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `internal error: Validation process exited with code ${exitCode}.` })
 			console.log(`internal error: Validation process exited with code ${exitCode}. But no errors were reported. Please report this issue.`)
 			console.log('"""', output, '"""')
 			console.log('"""', args, '"""')

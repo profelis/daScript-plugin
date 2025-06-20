@@ -33,7 +33,6 @@ struct ValidateConfig {
     originalFile : string
     projectFile : string
     resultFile : string
-    ignoreSharedModules : bool
     noGlobalVariables : bool
     noUnusedBlockArguments : bool
     noUnusedFunctionArguments : bool
@@ -72,7 +71,6 @@ def main() {
     config.projectFile = args |> arg_value("--project-file", "")
     config.resultFile = args |> arg_value("--result", "")
 
-    config.ignoreSharedModules = args |> has_value("--ignore-shared-modules")
     config.noGlobalVariables = args |> has_value("--no-global-variables")
     config.noUnusedBlockArguments = args |> has_value("--no-unused-block-arguments")
     config.noUnusedFunctionArguments = args |> has_value("--no-unused-function-arguments")
@@ -177,7 +175,6 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
 
             using() <| $(var mg : ModuleGroup) {
                 var cp = CodeOfPolicies()
-                cp.ignore_shared_modules = config.ignoreSharedModules
                 cp.no_global_variables = config.noGlobalVariables
                 cp.no_unused_block_arguments = config.noUnusedBlockArguments
                 cp.no_unused_function_arguments = config.noUnusedFunctionArguments
