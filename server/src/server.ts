@@ -1924,8 +1924,22 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		thisReject(error)
 	})
 	child.on('close', (exitCode: any) => {
+		// process was killed
+		if (exitCode === null) {
+			console.log('Validation process exited with code', exitCode)
+			thisResolve()
+			return
+		}
+
 		if (registerValidatingResult) {
-			validatingProcesses.delete(fileUri)
+			const prevProcess = validatingProcesses.get(fileUri)
+			if (prevProcess == vp) {
+				validatingProcesses.delete(fileUri)
+			} else {
+				console.error('internal error: Validation process for', fileUri, 'was replaced by another process', prevProcess?.version, '!=', vp.version)
+				thisResolve()
+				return
+			}
 		}
 		const validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
 		// console.log('remove temp files', tempFilePath, resultFilePath)
@@ -1935,16 +1949,6 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		}
 		catch (e) {
 			console.log('failed to remove temp files', e)
-		}
-
-		if (exitCode === null) {
-			console.log('Validation process exited with code', exitCode)
-			thisResolve()
-			return
-		}
-
-		if (vp.version !== fileVersion) {
-			console.log('document version changed, ignore result. Current', vp.version, "got", fileVersion, fileUri)
 			thisResolve()
 			return
 		}
@@ -1962,8 +1966,8 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 				thisResolve()
 				return;
 			}
-			if (prev.version !== fileVersion) {
-				console.log('document version changed, ignore prev result. Current', prev.version, "got", fileVersion, fileUri)
+			else if (prev.version !== fileVersion) {
+				console.error('internal error: document version changed, ignore prev result. Current', prev.version, "got", fileVersion, fileUri)
 				thisResolve()
 				return
 			}
