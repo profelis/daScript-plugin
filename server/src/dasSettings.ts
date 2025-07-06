@@ -28,6 +28,7 @@ export interface DasSettings {
 	};
 	experimental?: boolean;
 	colorPreviewFormat?: string; // ARGB (default) or RGBA
+	validationConcurrency?: integer; // Max number of concurrent validation processes (default 10)
 }
 
 export const defaultSettings: DasSettings = {

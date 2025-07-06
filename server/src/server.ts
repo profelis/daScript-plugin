@@ -127,13 +127,8 @@ documents.onDidSave(async (event) => {
 })
 
 documents.onDidClose(e => {
-	// documentSettings.delete(e.document.uri)
-	// const prevProcess = validatingProcesses.get(e.document.uri)
-	// if (prevProcess != null) {
-	// 	prevProcess.process?.kill()
-	// 	console.log('killed process for', e.document.uri)
-	// 	validatingProcesses.delete(e.document.uri)
-	// }
+	documentSettings.delete(e.document.uri)
+	// Process cleanup is now handled by ValidatingQueue
 	// validatingResults.delete(e.document.uri) // TODO: remove only tokens?
 	let diagnostics = new Map<string, Diagnostic[]>()
 	diagnostics.set(e.document.uri, [])
@@ -1268,8 +1263,10 @@ connection.onDefinition(async (declarationParams) => {
 
 connection.onDocumentSymbol(async (documentSymbolParams) => {
 	const fileData = await getDocumentDataFast(documentSymbolParams.textDocument.uri)
-	if (!fileData)
+	if (!fileData) {
+		console.log(`onDocumentSymbol: ${documentSymbolParams.textDocument.uri} no fileData`)
 		return null
+	}
 	const globalCompletion = getGlobalCompletion()
 	const res: DocumentSymbol[] = []
 	for (const glob of fileData.completion.globals) {
@@ -1479,6 +1476,8 @@ connection.onInitialized(async () => {
 	if (config?.project?.scanWorkspace) {
 		validateWorkspaceCommand({});
 	}
+
+	updateValidationQueueSettings()
 })
 
 connection.onExecuteCommand(async (params: any) => {
@@ -1492,6 +1491,10 @@ connection.onExecuteCommand(async (params: any) => {
 let globalSettings = defaultSettings
 
 connection.onDidChangeConfiguration(change => {
+	if (change == null) {
+		return
+	}
+	console.log('Configuration changed', JSON.stringify(change.settings, null, 2))
 	if (hasConfigurationCapability) {
 		// Reset all cached document settings
 		console.log('Resetting document settings due to configuration change')
@@ -1501,6 +1504,7 @@ connection.onDidChangeConfiguration(change => {
 	}
 
 	forceUpdateAllDocuments()
+	updateValidationQueueSettings()
 })
 
 function getDocumentSettings(resource: string): Thenable<DasSettings> {
@@ -1531,67 +1535,67 @@ function stringHashCode(str: string) {
 
 let validateId = 0
 
-interface ValidatingProcess {
-	version: integer
-	process: ChildProcessWithoutNullStreams
-	promise: Promise<void>
-}
 
 const globalCompletionFile = TextDocument.create('$$$completion$$$.das', 'dascript', 1, '// empty')
-const validatingProcesses = new Map<string, ValidatingProcess>()
+let globalValidatingQueue = new ValidatingQueue(10)
 
-// async function getDocumentDataRaw(uri: string, doc: TextDocument): Promise<FixedValidationResult> {
-// 	const data = validatingResults.get(uri)
-// 	if (data && data.fileVersion === doc.version)
-// 		return data
-// 	const loadingData = validatingProcesses.get(uri)
-// 	if (loadingData) {
-// 		return loadingData.promise.then(() => {
-// 			return validatingResults.get(uri)
-// 		})
-// 	}
-// 	return validateTextDocument(doc).then(() => {
-// 		return validatingResults.get(uri)
-// 	})
-// }
+async function updateValidationQueueSettings(): Promise<void> {
+	if (workspaceFolders && workspaceFolders.length > 0) {
+		const settings = await getDocumentSettings(workspaceFolders[0].uri)
+		const maxConcurrency = settings.validationConcurrency || 10
+
+		// If settings changed, create new queue
+		if (globalValidatingQueue.maxConcurrency !== maxConcurrency) {
+			console.log(`[queue] Updating validation queue concurrency from ${globalValidatingQueue.maxConcurrency} to ${maxConcurrency}`)
+			globalValidatingQueue.maxConcurrency = maxConcurrency
+		}
+	}
+}
+
 
 function forceUpdateAllDocuments() {
 	validatingResults.clear() // workspace was changes, restart all validations
 	connection.languages.inlayHint.refresh()
-	// documents.all().forEach(doc => getDocumentData(doc.uri))
 }
 
 async function updateTextDocumentData(doc: TextDocument) {
 	connection.languages.inlayHint.refresh()
-	return validateTextDocument(globalCompletionFile).then(() => {
-		validateTextDocument(doc, { force: true })
-	})
+
+	// Temporarily set concurrency to 1 to ensure globalCompletion runs first
+	const originalConcurrency = globalValidatingQueue.maxConcurrency
+	globalValidatingQueue.setMaxConcurrency(1)
+
+	try {
+		// Queue globalCompletion first
+		await validateTextDocument(globalCompletionFile)
+
+		// Restore original concurrency
+		globalValidatingQueue.setMaxConcurrency(originalConcurrency)
+
+		// Queue document validation
+		await validateTextDocument(doc)
+	} catch (error) {
+		// Make sure to restore concurrency even if there's an error
+		globalValidatingQueue.setMaxConcurrency(originalConcurrency)
+		throw error
+	}
 }
 
 async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> {
 	const data = validatingResults.get(uri)
 	if (data)
 		return data
-	const req = validatingProcesses.get(uri)
-	if (req) {
-		return req.promise.then(() => {
-			return getDocumentDataFast(uri)
-		})
-	}
-	return null
 
+	// Wait for validation if file is currently being validated
+	await globalValidatingQueue.waitForFile(uri)
+
+	// Try to get data again after waiting
+	const dataAfterWait = validatingResults.get(uri)
+	if (dataAfterWait)
+		return dataAfterWait
+
+	return null
 }
-// async function getDocumentData(uri: string): Promise<FixedValidationResult> {
-// 	return validateTextDocument(globalCompletionFile).then(() => {
-// 		let doc = documents.get(uri)
-// 		if (doc) {
-// 			return validateTextDocument(doc).then(() => {
-// 				return validatingResults.get(uri)
-// 			})
-// 		}
-// 		return null
-// 	})
-// }
 
 async function validateWorkspaceCommand(args: any = {}): Promise<void> {
 
@@ -1789,7 +1793,7 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 				}
 			}
 		);
-		await validatingQueue.enqueue(file.fsPath, async () => await startQueueValidationJob(dir, file.fsPath, params));
+		await validatingQueue.enqueue(file.fsPath, i, async () => await startQueueValidationJob(dir, file.fsPath, params));
 		i++
 	}
 
@@ -1800,55 +1804,33 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 	);
 }
 
-async function validateTextDocument(textDocument: TextDocument, extra: { autoFormat?: boolean, force?: boolean } = { autoFormat: false, force: false }): Promise<void> {
+async function validateTextDocument(textDocument: TextDocument, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
 	const fileUri = textDocument.uri
-	const fileVersion = textDocument.version // cache version, because it can be changed while we are waiting for settings
+	const fileVersion = textDocument.version
 	const registerValidatingResult = !extra.autoFormat
-	// TODO: limit validating processes
+
+	// Check if we already have result for this version
 	if (registerValidatingResult) {
-		const prevProcess = validatingProcesses.get(fileUri)
-		if (prevProcess) {
-			if (prevProcess.version === fileVersion) {
-				// TODO: remove
-				console.log('document version not changed, waiting for previous process', fileUri)
-				return prevProcess.promise
-			}
-			const killed = prevProcess.process?.kill() ?? false
-			validatingProcesses.delete(fileUri)
-			console.log('killed process for', fileUri, 'prev version', prevProcess.version, 'new version', fileVersion, 'killed', killed)
-		}
 		const validResult = validatingResults.get(fileUri)
 		if (validResult?.fileVersion === fileVersion) {
-			// TODO: remove
 			console.log('document version not changed, ignoring', fileUri)
 			return Promise.resolve()
 		}
 	}
 
-	const vp: ValidatingProcess = { process: null, version: fileVersion, promise: null }
-	var thisResolve: () => void
-	var thisReject: (any) => void
-	vp.promise = new Promise<void>((resolve, reject) => {
-		thisResolve = resolve
-		thisReject = reject
-	})
-	if (registerValidatingResult)
-		validatingProcesses.set(fileUri, vp)
+	// Use new validation queue with priority
+	// Completion file gets higher priority (10) than regular files (0)
+	const priority = fileUri == globalCompletionFile.uri ? 10 : 0
+	return globalValidatingQueue.enqueue(fileUri, fileVersion, async () => {
+		await validateTextDocumentInternal(textDocument, extra)
+	}, priority)
+}
+
+async function validateTextDocumentInternal(textDocument: TextDocument, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
+	const fileUri = textDocument.uri
+	const fileVersion = textDocument.version
 
 	const settings = await getDocumentSettings(fileUri)
-
-	if (registerValidatingResult) {
-		var prevProcess = validatingProcesses.get(fileUri)
-		if (prevProcess == null || prevProcess.version > fileVersion) {
-			// version was changed while we were waiting for settings
-			return prevProcess ? prevProcess.promise : Promise.resolve()
-		}
-		const validResult = validatingResults.get(fileUri)
-		if (validResult != null && validResult.fileVersion > fileVersion) {
-			// version was changed while we were waiting for settings
-			return Promise.resolve()
-		}
-	}
 
 	const filePath = URI.parse(fileUri).fsPath
 	const tempFilePrefix = `${stringHashCode(fileUri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
@@ -1907,128 +1889,138 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	console.log(`> validating ${fileUri} version ${fileVersion}`)
 	console.log('> cwd', cwd)
 	console.log('> exec', compiler, args.join(' '))
-	const child = spawn(compiler, args, { cwd: cwd })
-	vp.process = child
 
-	const diagnostics: Map<string, Diagnostic[]> = new Map()
-	diagnostics.set(fileUri, [])
-	let output = ''
-	child.stdout.on('data', (data: any) => {
-		output += data
-	})
-	child.stderr.on('data', (data: any) => {
-		diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${data}` })
-	})
-	child.on('error', (error: any) => {
-		diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
-		thisReject(error)
-	})
-	child.on('close', (exitCode: any) => {
-		// process was killed
-		if (exitCode === null) {
-			console.log('Validation process exited with code', exitCode)
-			thisResolve()
-			return
-		}
+	let child: ChildProcessWithoutNullStreams
+	try {
+		child = spawn(compiler, args, { cwd: cwd })
+		// Notify queue about the process
+		globalValidatingQueue.setProcess(fileUri, child)
+		console.log(`[PROCESS] New process spawned for ${fileUri}: pid=${child.pid}, version=${fileVersion}`)
+	} catch (error) {
+		console.error(`[PROCESS] Failed to spawn process for ${fileUri}:`, error)
+		throw error
+	}
 
-		if (registerValidatingResult) {
-			const prevProcess = validatingProcesses.get(fileUri)
-			if (prevProcess == vp) {
-				validatingProcesses.delete(fileUri)
-			} else {
-				console.error('internal error: Validation process for', fileUri, 'was replaced by another process', prevProcess?.version, '!=', vp.version)
-				thisResolve()
+	return new Promise<void>((resolve, reject) => {
+		const diagnostics: Map<string, Diagnostic[]> = new Map()
+		diagnostics.set(fileUri, [])
+		let output = ''
+		child.stdout.on('data', (data: any) => {
+			output += data
+		})
+		child.stderr.on('data', (data: any) => {
+			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${data}` })
+		})
+		child.on('error', (error: any) => {
+			console.error(`[PROCESS] Validation process error for ${fileUri}: pid=${child.pid}, error=${error}`)
+			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
+			reject(error)
+		})
+		child.on('close', (exitCode: any) => {
+			// Check if this process is still current in the queue
+			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+				console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
+				resolve()
 				return
 			}
-		}
-		const validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
-		// console.log('remove temp files', tempFilePath, resultFilePath)
-		try {
-			fs.rmSync(tempFilePath)
-			fs.rmSync(resultFilePath)
-		}
-		catch (e) {
-			console.log('failed to remove temp files', e)
-			thisResolve()
-			return
-		}
 
-		if (extra.autoFormat) {
-			autoFormatResult.set(fileUri, validateTextResult)
-			thisResolve()
-			return
-		}
-
-		if (fileUri != globalCompletionFile.uri) {
-			let prev = documents.get(fileUri);
-			if (prev == null) {
-				console.log('document was closed, ignore result', fileUri)
-				thisResolve()
-				return;
-			}
-			else if (prev.version !== fileVersion) {
-				console.error('internal error: document version changed, ignore prev result. Current', prev.version, "got", fileVersion, fileUri)
-				thisResolve()
+			// process was killed
+			if (exitCode === null) {
+				console.log(`[PROCESS] Validation process for ${fileUri} was killed (exitCode: null), pid=${child.pid}`)
+				resolve()
 				return
 			}
-		}
 
-		// console.log(validateTextResult)
-		let result: ValidationResult = null
-		try {
-			if (validateTextResult.length > 0)
-				result = JSON.parse(validateTextResult) as ValidationResult
-		}
-		catch (e) {
-			console.log('failed to parse result', e)
-			console.log('"""', validateTextResult, '"""')
-		}
-		if (result != null) {
-			for (const error of result.errors) {
-				error._range = AtToRange(error)
-				error._uri = AtToUri(error, filePath, settings, workspaceFolders, result.dasRoot)
-				if (error._uri.length === 0)
-					error._uri = fileUri
+			console.log(`[PROCESS] Validation process for ${fileUri} exited normally: exitCode=${exitCode}, pid=${child.pid}, version=${fileVersion}`)
 
-				let msg = error.what.trim()
-				if (error.extra?.length > 0 || error.fixme?.length > 0) {
-					var suffix = ''
-					if (error.extra?.length > 0)
-						suffix += error.extra.trim()
-					if (error.fixme?.length > 0)
-						suffix += (suffix.length > 0 ? '\n' : '') + error.fixme.trim()
-
-					msg = `${msg}\n\n${suffix}`
-				}
-				const diag: Diagnostic = {
-					range: error._range,
-					message: msg,
-					code: error.cerr,
-					severity: error.level === 0 ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
-				}
-				if (!diagnostics.has(error._uri))
-					diagnostics.set(error._uri, [])
-				diagnostics.get(error._uri).push(diag)
+			const validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
+			// console.log('remove temp files', tempFilePath, resultFilePath)
+			try {
+				fs.rmSync(tempFilePath)
+				fs.rmSync(resultFilePath)
 			}
-			console.time('storeValidationResult')
-			// console.log("validatingResults uri", fileUri, "version", vp.version, "exitCode", exitCode, "actual version", textDocument.version)
-			storeValidationResult(settings, textDocument, result, diagnostics)
+			catch (e) {
+				console.log('failed to remove temp files', e)
+				resolve()
+				return
+			}
 
-			console.timeEnd('storeValidationResult')
-		} else { // result == null
-			if (!diagnostics.has(fileUri))
-				diagnostics.set(fileUri, [])
-			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `internal error: Validation process exited with code ${exitCode}.` })
-			console.log(`internal error: Validation process exited with code ${exitCode}. But no errors were reported. Please report this issue.`)
-			console.log('"""', output, '"""')
-			console.log('"""', args, '"""')
-		}
-		for (const [uri, diags] of diagnostics.entries()) {
-			connection.sendDiagnostics({ uri: uri, diagnostics: diags })
-		}
-		thisResolve()
+			if (extra.autoFormat) {
+				autoFormatResult.set(fileUri, validateTextResult)
+				resolve()
+				return
+			}
+
+			if (fileUri != globalCompletionFile.uri) {
+				let prev = documents.get(fileUri);
+				if (prev == null) {
+					console.log('document was closed, ignore result', fileUri)
+					resolve()
+					return;
+				}
+				else if (prev.version !== fileVersion) {
+					console.error('internal error: Document version changed during validation, ignoring result. Current', prev.version, "got", fileVersion, fileUri)
+					resolve()
+					return
+				}
+			}
+
+			// console.log(validateTextResult)
+			let result: ValidationResult = null
+			try {
+				if (validateTextResult.length > 0)
+					result = JSON.parse(validateTextResult) as ValidationResult
+			}
+			catch (e) {
+				console.log('failed to parse result', e)
+				console.log('"""', validateTextResult, '"""')
+			}
+			if (result != null) {
+				for (const error of result.errors) {
+					error._range = AtToRange(error)
+					error._uri = AtToUri(error, filePath, settings, workspaceFolders, result.dasRoot)
+					if (error._uri.length === 0)
+						error._uri = fileUri
+
+					let msg = error.what.trim()
+					if (error.extra?.length > 0 || error.fixme?.length > 0) {
+						var suffix = ''
+						if (error.extra?.length > 0)
+							suffix += error.extra.trim()
+						if (error.fixme?.length > 0)
+							suffix += (suffix.length > 0 ? '\n' : '') + error.fixme.trim()
+
+						msg = `${msg}\n\n${suffix}`
+					}
+					const diag: Diagnostic = {
+						range: error._range,
+						message: msg,
+						code: error.cerr,
+						severity: error.level === 0 ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+					}
+					if (!diagnostics.has(error._uri))
+						diagnostics.set(error._uri, [])
+					diagnostics.get(error._uri).push(diag)
+				}
+				console.time('storeValidationResult')
+				// console.log("validatingResults uri", fileUri, "version", vp.version, "exitCode", exitCode, "actual version", textDocument.version)
+				storeValidationResult(settings, textDocument, result, diagnostics)
+
+				console.timeEnd('storeValidationResult')
+			} else { // result == null
+				if (!diagnostics.has(fileUri))
+					diagnostics.set(fileUri, [])
+				diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `internal error: Validation process exited with code ${exitCode}.` })
+				console.log(`internal error: Validation process exited with code ${exitCode}. But no errors were reported. Please report this issue.`)
+				console.log('"""', output, '"""')
+				console.log('"""', args, '"""')
+			}
+			for (const [uri, diags] of diagnostics.entries()) {
+				connection.sendDiagnostics({ uri: uri, diagnostics: diags })
+			}
+			resolve()
+		})
 	})
-	return vp.promise
 }
 
 function addCompletionItem(map: Array<Map<string, CompletionItem>>, item: CompletionItem) {
