@@ -1491,10 +1491,10 @@ connection.onExecuteCommand(async (params: any) => {
 let globalSettings = defaultSettings
 
 connection.onDidChangeConfiguration(change => {
-	if (change == null) {
+	if (change.settings == null) {
 		return
 	}
-	console.log('Configuration changed', JSON.stringify(change.settings, null, 2))
+	console.log('Configuration changed', JSON.stringify(change, null, 2))
 	if (hasConfigurationCapability) {
 		// Reset all cached document settings
 		console.log('Resetting document settings due to configuration change')
