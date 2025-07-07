@@ -133,6 +133,9 @@ export class ValidatingQueue {
             // Kill immediately with SIGKILL
             const killed = task.process.kill('SIGKILL');
             console.log(`[queue] SIGKILL sent to pid ${task.process.pid}: ${killed}`);
+            
+            // Mark process as killed to prevent further handling
+            task.process = undefined;
         }
     }
 
@@ -192,7 +195,11 @@ export class ValidatingQueue {
             return false;
         }
         if (!task.process || task.process.pid !== processId) {
-            // Process mismatch
+            // Process mismatch or process was killed
+            return false;
+        }
+        if (task.process.killed) {
+            // Process was killed
             return false;
         }
         return true;

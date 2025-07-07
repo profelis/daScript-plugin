@@ -1818,19 +1818,20 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		}
 	}
 
+	// Get settings before enqueuing to avoid async operations in queue callback
+	const settings = await getDocumentSettings(fileUri)
+	
 	// Use new validation queue with priority
 	// Completion file gets higher priority (10) than regular files (0)
 	const priority = fileUri == globalCompletionFile.uri ? 10 : 0
 	return globalValidatingQueue.enqueue(fileUri, fileVersion, async () => {
-		await validateTextDocumentInternal(textDocument, extra)
+		await validateTextDocumentInternal(textDocument, settings, extra)
 	}, priority)
 }
 
-async function validateTextDocumentInternal(textDocument: TextDocument, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
+async function validateTextDocumentInternal(textDocument: TextDocument, settings: DasSettings, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
 	const fileUri = textDocument.uri
 	const fileVersion = textDocument.version
-
-	const settings = await getDocumentSettings(fileUri)
 
 	const filePath = URI.parse(fileUri).fsPath
 	const tempFilePrefix = `${stringHashCode(fileUri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
@@ -1839,8 +1840,8 @@ async function validateTextDocumentInternal(textDocument: TextDocument, extra: {
 	validateId++
 	const tempFilePath = path.join(os.tmpdir(), tempFileName)
 	const resultFilePath = path.join(os.tmpdir(), resultFileName)
-	await fs.promises.writeFile(tempFilePath, textDocument.getText())
-	await fs.promises.writeFile(resultFilePath, '')
+	fs.writeFileSync(tempFilePath, textDocument.getText())
+	fs.writeFileSync(resultFilePath, '')
 
 	const workspaceFolder = URI.parse(workspaceFolders![0].uri).fsPath
 	const args = settings.server.args.map(
@@ -1893,13 +1894,14 @@ async function validateTextDocumentInternal(textDocument: TextDocument, extra: {
 	let child: ChildProcessWithoutNullStreams
 	try {
 		child = spawn(compiler, args, { cwd: cwd })
-		// Notify queue about the process
-		globalValidatingQueue.setProcess(fileUri, child)
 		console.log(`[PROCESS] New process spawned for ${fileUri}: pid=${child.pid}, version=${fileVersion}`)
 	} catch (error) {
 		console.error(`[PROCESS] Failed to spawn process for ${fileUri}:`, error)
 		throw error
 	}
+	
+	// Notify queue about the process immediately after spawn
+	globalValidatingQueue.setProcess(fileUri, child)
 
 	return new Promise<void>((resolve, reject) => {
 		const diagnostics: Map<string, Diagnostic[]> = new Map()
@@ -1912,17 +1914,23 @@ async function validateTextDocumentInternal(textDocument: TextDocument, extra: {
 			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${data}` })
 		})
 		child.on('error', (error: any) => {
+			// Check if this process is still current
+			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+				console.error(`[PROCESS] internal error: Received error from stale process: pid=${child.pid}, version=${fileVersion}, error=${error}`)
+				resolve()
+				return
+			}
 			console.error(`[PROCESS] Validation process error for ${fileUri}: pid=${child.pid}, error=${error}`)
 			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
 			reject(error)
 		})
 		child.on('close', (exitCode: any) => {
 			// Check if this process is still current in the queue
-			// if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
-			// 	console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
-			// 	resolve()
-			// 	return
-			// }
+			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+				console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
+				resolve()
+				return
+			}
 
 			// process was killed
 			if (exitCode === null) {
