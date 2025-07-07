@@ -12,13 +12,13 @@ variant Tokens {
 [export]
 def main {
     // let data <- getKeywords()
-    let data <- getOperators()
-    // let data <- getBasicTypes()
+    // let data <- getOperators()
+    let data <- getBasicTypes()
     if (data is status) {
         debug("get tokens status: {data}")
         return
     }
-    let res = buildString(data as tokens, "[[string ", "]]", "\"", "; ") // das
+    let res = buildString(data as tokens, "[", "]", "'", ", ") // das
     // let res = buildString(data as tokens, "", "", "", " | ", 60) // tm syntax
     print(res)
 }

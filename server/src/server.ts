@@ -1918,11 +1918,11 @@ async function validateTextDocumentInternal(textDocument: TextDocument, extra: {
 		})
 		child.on('close', (exitCode: any) => {
 			// Check if this process is still current in the queue
-			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
-				console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
-				resolve()
-				return
-			}
+			// if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+			// 	console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
+			// 	resolve()
+			// 	return
+			// }
 
 			// process was killed
 			if (exitCode === null) {
@@ -2711,11 +2711,12 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		if (uri == globalCompletionFile.uri) {
 			// add global completion items
 			// src\parser\ds_parser.ypp:143
-			const keywords = ["struct", "class", "let", "def", "while", "if", "static_if", "else", "for", "recover", "true", "false", "new",
-				"typeinfo", "type", "in", "is", "as", "elif", "static_elif", "array", "return", "null", "break", "try", "options",
-				"table", "expect", "const", "require", "operator", "enum", "finally", "delete", "deref", "typedef", "with", "aka", "assume",
-				"cast", "override", "abstract", "upcast", "iterator", "var", "addr", "continue", "where", "pass", "reinterpret",
-				"module", "public", "label", "goto", "implicit", "explicit", "shared", "private", "smart_ptr", "unsafe", "inscope", "static"]
+			const keywords = ['capture', 'struct', 'class', 'let', 'def', 'while', 'if', 'static_if', 'else', 'for', 'recover', 'true', 'false',
+				'new', 'typeinfo', 'type', 'in', 'is', 'as', 'elif', 'static_elif', 'array', 'return', 'null', 'break', 'try', 'options',
+				'table', 'expect', 'const', 'require', 'operator', 'enum', 'finally', 'delete', 'deref', 'typedef', 'typedecl', 'with',
+				'aka', 'assume', 'cast', 'override', 'abstract', 'upcast', 'iterator', 'var', 'addr', 'continue', 'where', 'pass',
+				'reinterpret', 'module', 'public', 'label', 'goto', 'implicit', 'explicit', 'shared', 'private', 'smart_ptr', 'unsafe',
+				'inscope', 'static', 'fixed_array', 'default', 'uninitialized']
 
 			for (const kw of keywords) {
 				addCompletionItem(completionMap, {
@@ -2727,9 +2728,9 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				})
 			}
 
-			const basicTypes = ["bool", "void", "string", "auto", "int", "int2", "int3", "int4", "uint", "bitfield", "uint2",
-				"uint3", "uint4", "float", "float2", "float3", "float4", "range", "urange", "range64", "urange64", "block", "int64",
-				"uint64", "double", "function", "lambda", "int8", "uint8", "int16", "uint16", "tuple", "variant", "generator", "yield", "sealed"]
+			const basicTypes = ['bool', 'void', 'string', 'auto', 'int', 'int2', 'int3', 'int4', 'uint', 'bitfield', 'uint2', 'uint3', 'uint4', 'float',
+				'float2', 'float3', 'float4', 'range', 'urange', 'range64', 'urange64', 'block', 'int64', 'uint64', 'double', 'function',
+				'lambda', 'int8', 'uint8', 'int16', 'uint16', 'tuple', 'variant', 'generator', 'yield', 'sealed', 'template']
 
 			for (const bt of basicTypes) {
 				addCompletionItem(completionMap, {
