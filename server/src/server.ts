@@ -143,7 +143,7 @@ documents.onDidClose(e => {
 	documentSettings.delete(e.document.uri)
 	// Process cleanup is now handled by ValidatingQueue
 	// validatingResults.delete(e.document.uri) // TODO: remove only tokens?
-	let diagnostics = new Map<string, Diagnostic[]>()
+	const diagnostics = new Map<string, Diagnostic[]>()
 	diagnostics.set(e.document.uri, [])
 	const prev = validatingResults.get(e.document.uri)
 	if (prev != null) {
@@ -373,7 +373,7 @@ function findCallChain_(doc: TextDocument, fileData: FixedValidationResult, pos:
 	let key = ''
 	let keyRange: Range
 	let i = line.length - 1
-	let tokens: DasToken[] = []
+	const tokens: DasToken[] = []
 	if (fileData.errors.length == 0) {
 		// lets try to find token under cursor
 		const cursorTokens = findTokensUnderCursor(doc, fileData, pos)
@@ -437,7 +437,7 @@ function findCallChain_(doc: TextDocument, fileData: FixedValidationResult, pos:
 	let res: CallChain[] = [keyData]
 	while (i > 0) {
 		del = Delimiter.None
-		let delimiterRange = Range.create(pos.line, i, pos.line, i)
+		const delimiterRange = Range.create(pos.line, i, pos.line, i)
 		// '.' ' ' '?.' '->' 'as' 'is' '?as' '|>'
 
 		// space can be delimiter only when chain is just started
@@ -504,7 +504,7 @@ function findCallChain_(doc: TextDocument, fileData: FixedValidationResult, pos:
 			if (!isSpaceChar(ch))
 				break
 		}
-		let tokenEnd = i + 1 // token + brackets
+		const tokenEnd = i + 1 // token + brackets
 
 		let brackets = Brackets.None
 		if (i >= 0) {
@@ -608,7 +608,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 	let prevTdks: Set<string>
 	let prevDelimiter: Delimiter = Delimiter.None
 	let prevDelimiterRange: Range
-	var idx = 0
+	let idx = 0
 	while (idx < callChain.length) {
 		if (idx > 0) {
 			prevDelimiter = callChain[idx - 1].delimiter
@@ -650,9 +650,9 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 		if (prevTdks && prevTdks.size > 0) {
 			// resolve tdk for type decls
 			for (const prevTdk of prevTdks) {
-				let typeDeclData = findTypeDecl(prevTdk, fileData.completion, globalCompletion)
+				const typeDeclData = findTypeDecl(prevTdk, fileData.completion, globalCompletion)
 				if (typeDeclData != null) {
-					var next: CompletionItem[] = []
+					const next: CompletionItem[] = []
 					if (call.obj.length == 0 && call.brackets == Brackets.Square) {
 						const nextTdk = typeDeclCompletion(typeDeclData, fileData.completion, globalCompletion, call.delimiter, call.brackets, call.obj, next)
 						if (nextTdk.tdk != prevTdk) {
@@ -683,7 +683,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 			if (call.delimiter == Delimiter.Space || call.delimiter == Delimiter.Dot) {
 				// maybe enum or bitfield
 				let found = false
-				let enumCb = (en: CompletionEnum) => {
+				const enumCb = (en: CompletionEnum) => {
 					if (en.name === call.obj && en.tdk.length > 0) {
 						call.tdks.add(en.tdk)
 						found = true
@@ -702,7 +702,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 				if (globalCompletion)
 					globalCompletion.enums.forEach(enumCb)
 				// or alias
-				let aliasCb = (td: CompletionTypeDef) => {
+				const aliasCb = (td: CompletionTypeDef) => {
 					if (td.name === call.obj && td.tdk.length > 0) {
 						call.tdks.add(td.tdk)
 						found = true
@@ -718,7 +718,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 				}
 			}
 			else if (call.brackets == Brackets.Round) {
-				let fnCb = (fn: CompletionFunction) => {
+				const fnCb = (fn: CompletionFunction) => {
 					if (fn.name === call.obj && fn.tdk.length > 0) {
 						call.tdks.add(fn.tdk)
 					}
@@ -777,7 +777,7 @@ function findNearestTokensAt(doc: TextDocument, fileData: FixedValidationResult,
 		}
 	}
 	if (nearestToken != null) {
-		var res: DasToken[] = [nearestToken]
+		const res: DasToken[] = [nearestToken]
 		for (const t of fileData.tokens) {
 			// ignore fields, we need only top level tokens
 			if (t.kind == TokenKind.ExprField || t == nearestToken)
@@ -794,7 +794,7 @@ function findNearestTokensAt(doc: TextDocument, fileData: FixedValidationResult,
 }
 
 function findTokensUnderCursor(doc: TextDocument, fileData: FixedValidationResult, position: Position): DasToken[] {
-	let res: DasToken[] = []
+	const res: DasToken[] = []
 	for (const tok of fileData.tokens) {
 		if (tok._uri == fileData.uri
 			&& tok._range.start.line == tok._range.end.line
@@ -887,16 +887,16 @@ connection.onCompletion(async (textDocumentPosition) => {
 	if (callChain.length > 0 && !ignoreCallCain && callChain[0].delimiter != Delimiter.Assign) {
 		const call = callChain.length >= 2 ? callChain[callChain.length - 2] : callChain[callChain.length - 1] // ignore last key (obj.key - we need obj)
 		const replaceStart = call.objRange.end
-		for (let completionTdk of call.tdks) {
+		for (const completionTdk of call.tdks) {
 			let actualTdk = completionTdk
-			let typeDeclData = findTypeDecl(completionTdk, fileData.completion, globalCompletion)
+			const typeDeclData = findTypeDecl(completionTdk, fileData.completion, globalCompletion)
 			const items: CompletionItem[] = []
 			if (typeDeclData != null) {
-				let resTd = typeDeclCompletion(typeDeclData, fileData.completion, globalCompletion, call.delimiter, call.brackets, call.obj, items)
+				const resTd = typeDeclCompletion(typeDeclData, fileData.completion, globalCompletion, call.delimiter, call.brackets, call.obj, items)
 				if (resTd.tdk.length > 0)
 					actualTdk = resTd.tdk
 
-				for (let it of items) {
+				for (const it of items) {
 					fixCompletionSelf(it, replaceStart, textDocumentPosition.position)
 					addCompletionItem(res, it)
 				}
@@ -949,7 +949,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			}
 		}
 		if (call.delimiter == Delimiter.ColonColon && call.obj.length > 0) {
-			let enumCb = (en: CompletionEnum) => {
+			const enumCb = (en: CompletionEnum) => {
 				if (en.mod == call.obj) {
 					const c = CompletionItem.create(en.name)
 					c.detail = enumDetail(en)
@@ -963,7 +963,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.enums.forEach(enumCb)
 
-			let structCb = (st) => {
+			const structCb = (st) => {
 				if (st.mod === call.obj) {
 					const c = CompletionItem.create(st.name)
 					c.detail = structDetail(st)
@@ -977,7 +977,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.structs.forEach(structCb)
 
-			let fnCb = (fn: CompletionFunction) => {
+			const fnCb = (fn: CompletionFunction) => {
 				if (fn.mod == call.obj) {
 					const c = CompletionItem.create(fn.name)
 					c.detail = funcDetail(fn)
@@ -991,7 +991,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.functions.forEach(fnCb)
 
-			let tdCb = td => {
+			const tdCb = td => {
 				if (td.mod == call.obj) {
 					const c = CompletionItem.create(td.name)
 					c.detail = typedefDetail(td)
@@ -1007,9 +1007,9 @@ connection.onCompletion(async (textDocumentPosition) => {
 		}
 	}
 	if (res.length == 0 && structCtor.name.length > 0 && (callChain.length == 0 || callChain[0].delimiter != Delimiter.Assign)) {
-		let td = findTypeDefNoMod(structCtor.name, fileData.completion, globalCompletion)
-		let tdName = td ? tdkName(td.tdk) : null
-		let structCb = (st: CompletionStruct) => {
+		const td = findTypeDefNoMod(structCtor.name, fileData.completion, globalCompletion)
+		const tdName = td ? tdkName(td.tdk) : null
+		const structCb = (st: CompletionStruct) => {
 			if (st.name == structCtor.name || (tdName && tdName == st.name)) {
 				for (const f of st.fields) {
 					const c = CompletionItem.create(f.name)
@@ -1029,7 +1029,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			globalCompletion.structs.forEach(structCb)
 	}
 	if (res.length > 0) {
-		var items: CompletionItem[] = []
+		const items: CompletionItem[] = []
 		for (const m of res) {
 			items.push(...m.values())
 		}
@@ -1039,7 +1039,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 		return items
 	}
 	if (findRequirement(doc, fileData, textDocumentPosition.position)) {
-		let items: CompletionItem[] = []
+		const items: CompletionItem[] = []
 		for (const it of fileData.completionItems) {
 			if (it.kind == CompletionItemKind.Module)
 				items.push(it)
@@ -1062,7 +1062,7 @@ connection.onHover(async (textDocumentPosition) => {
 	// console.log(JSON.stringify(callChain))
 	const last = callChain[callChain.length - 1]
 	const settings = await getDocumentSettings(textDocumentPosition.textDocument.uri)
-	let globalCompletion = getGlobalCompletion()
+	const globalCompletion = getGlobalCompletion()
 	let res = ''
 	let first = true
 	for (const tok of last.tokens) {
@@ -1112,6 +1112,7 @@ connection.onHover(async (textDocumentPosition) => {
 				}
 			}
 		}
+		// eslint-disable-next-line no-constant-condition
 		if (false) {
 			res += `\n// ${tok.kind}`
 			if (tok.parentTdk.length > 0)
@@ -1174,7 +1175,7 @@ connection.onTypeDefinition(async (typeDefinitionParams) => {
 	if (callChain.length === 0)
 		return null
 	const last = callChain[callChain.length - 1]
-	let res: Location[] = []
+	const res: Location[] = []
 	const globalCompletion = getGlobalCompletion()
 
 	const resTdks = last.tdks
@@ -1220,9 +1221,9 @@ connection.onReferences(async (referencesParams) => {
 	if (callChain.length === 0)
 		return null
 
-	let result: Location[] = []
+	const result: Location[] = []
 	for (const res of callChain[callChain.length - 1].tokens) {
-		let declAt = isValidLocation(res.declAt) && res.kind !== TokenKind.Func
+		const declAt = isValidLocation(res.declAt) && res.kind !== TokenKind.Func
 			? res.declAt
 			: res
 		if (!isValidLocation(declAt)) {
@@ -1251,7 +1252,7 @@ connection.onDefinition(async (declarationParams) => {
 	const callChain = findCallChain(doc, fileData, declarationParams.position, /*forAutocompletion*/false)
 	if (callChain.length === 0)
 		return null
-	let res: Location[] = []
+	const res: Location[] = []
 	const last = callChain[callChain.length - 1]
 	for (const tok of last.tokens) {
 		addValidLocation(res, tok.declAt)
@@ -1259,7 +1260,7 @@ connection.onDefinition(async (declarationParams) => {
 	if (last.tokens.length === 0 && last.delimiter != Delimiter.Pipe && last.delimiter != Delimiter.ColonColon) {
 		const prev = callChain.length > 1 ? callChain[callChain.length - 2] : null
 		if (prev) {
-			let globalCompletion = getGlobalCompletion()
+			const globalCompletion = getGlobalCompletion()
 			for (const tdk of prev.tdks) {
 				const typeDecl = findTypeDecl(tdk, fileData.completion, globalCompletion)
 				if (typeDecl) {
@@ -1347,7 +1348,7 @@ connection.onDocumentSymbol(async (documentSymbolParams) => {
 	for (const td of fileData.completion.typeDefs) {
 		if (td._uri != documentSymbolParams.textDocument.uri)
 			continue
-		let tdRes: DocumentSymbol = {
+		const tdRes: DocumentSymbol = {
 			name: td.name,
 			kind: SymbolKind.Interface,
 			detail: typedefDetail(td),
@@ -1436,7 +1437,7 @@ connection.languages.inlayHint.on(async (inlayHintParams) => {
 			}
 			if (token.kind == TokenKind.Func) {
 				if (nextToken.kind == TokenKind.FuncArg) {
-					var skip = 0
+					let skip = 0
 					while (nextToken.kind == TokenKind.FuncArg) {
 						skip += 2
 						if (idx + skip >= n)
@@ -1481,7 +1482,7 @@ connection.onInitialized(async () => {
 		})
 	}
 
-	let config = await connection.workspace.getConfiguration({
+	const config = await connection.workspace.getConfiguration({
 		scopeUri: 'resource',
 		section: 'dascript'
 	})
@@ -1550,7 +1551,7 @@ let validateId = 0
 
 
 const globalCompletionFile = TextDocument.create('$$$completion$$$.das', 'dascript', 1, '// empty')
-let globalValidatingQueue = new ValidatingQueue(10)
+const globalValidatingQueue = new ValidatingQueue(10)
 
 async function updateValidationQueueSettings(): Promise<void> {
 	if (workspaceFolders && workspaceFolders.length > 0) {
@@ -1606,19 +1607,19 @@ async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> 
 
 async function validateWorkspaceCommand(args: any = {}): Promise<void> {
 
-	let config = await connection.workspace.getConfiguration({
+	const config = await connection.workspace.getConfiguration({
 		scopeUri: 'resource',
 		section: 'dascript'
 	})
 
-	let params = setWorkspaceValidationParams(config)
+	const params = setWorkspaceValidationParams(config)
 
-	let timerName: string = 'validateWorkspace'
+	const timerName: string = 'validateWorkspace'
 
 	console.time(timerName)
 	console.log('Validation data cache folder', params.cacheFolder)
 
-	let folders = args?.folder ? [<WorkspaceFolder>{ uri: args?.folder, name: '' }] : workspaceFolders
+	const folders = args?.folder ? [<WorkspaceFolder>{ uri: args?.folder, name: '' }] : workspaceFolders
 
 	for (const folder of folders.map(f => URI.parse(f.uri).fsPath)) {
 		console.log("Validating workspace folder", folder)
@@ -1629,12 +1630,12 @@ async function validateWorkspaceCommand(args: any = {}): Promise<void> {
 }
 
 async function clearCachedValidationDataCommand(): Promise<void> {
-	let config = await connection.workspace.getConfiguration({
+	const config = await connection.workspace.getConfiguration({
 		scopeUri: 'resource',
 		section: 'dascript'
 	})
 
-	let params = setWorkspaceValidationParams(config)
+	const params = setWorkspaceValidationParams(config)
 
 	for (const folder of workspaceFolders.map(f => URI.parse(f.uri).fsPath)) {
 		fs.rmSync(
@@ -1707,8 +1708,8 @@ async function loadCachedValidationData(validationCacheFile: string): Promise<Va
 }
 
 async function collectWorkspaceFiles(dir: string) {
-	let foldersToVisit: string[] = [dir]
-	let result: URI[] = []
+	const foldersToVisit: string[] = [dir]
+	const result: URI[] = []
 
 	while (foldersToVisit.length !== 0) {
 		const files = await promisify(readdir)(foldersToVisit[0])
@@ -1745,7 +1746,7 @@ async function startQueueValidationJob(dir: string, file: string, params: Worksp
 		(await fs.promises.readFile(file)).toString()
 	)
 
-	let validationResult = params.saveCache ? await loadCachedValidationData(cacheFilePath) : null
+	const validationResult = params.saveCache ? await loadCachedValidationData(cacheFilePath) : null
 	if (!validationResult) {
 		await validateTextDocument(textDocument)
 
@@ -1760,8 +1761,8 @@ async function startQueueValidationJob(dir: string, file: string, params: Worksp
 }
 
 async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationParams): Promise<void> {
-	return; // TODO: temporary disable scanning
-	let validatingQueue: ValidatingQueue = new ValidatingQueue(params?.queueCapacity)
+	return // TODO: temporary disable scanning
+	const validatingQueue: ValidatingQueue = new ValidatingQueue(params?.queueCapacity)
 	const token = `validation/${dir}`
 
 	await connection.sendRequest("window/workDoneProgress/create", { token })
@@ -1780,7 +1781,7 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 	const files = await collectWorkspaceFiles(dir)
 
 	if (params?.saveCache) {
-		let cacheFolder = path.join(params.cacheFolder, path.basename(dir))
+		const cacheFolder = path.join(params.cacheFolder, path.basename(dir))
 
 		if (!await fs.existsSync(cacheFolder)) {
 			await fs.promises.mkdir(cacheFolder, { recursive: true })
@@ -1859,11 +1860,11 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 	args.push('--file', tempFilePath)
 	args.push('--original-file', filePath)
 	args.push('--result', resultFilePath)
-	var compiler = settings.compiler
+	let compiler = settings.compiler
 	if (compiler) {
 		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
 	}
-	var projectFile = settings.project.file
+	let projectFile = settings.project.file
 	if (projectFile) {
 		projectFile = projectFile.replace('${workspaceFolder}', workspaceFolder)
 		args.push('--project-file', projectFile)
@@ -1978,7 +1979,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			}
 
 			if (fileUri != globalCompletionFile.uri) {
-				let prev = documents.get(fileUri)
+				const prev = documents.get(fileUri)
 				if (prev == null) {
 					console.log('document was closed, ignore result', fileUri)
 					resolve()
@@ -2010,7 +2011,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 
 					let msg = error.what.trim()
 					if (error.extra?.length > 0 || error.fixme?.length > 0) {
-						var suffix = ''
+						let suffix = ''
 						if (error.extra?.length > 0)
 							suffix += error.extra.trim()
 						if (error.fixme?.length > 0)
@@ -2066,14 +2067,14 @@ function addCompletionItem(map: Array<Map<string, CompletionItem>>, item: Comple
 			}
 			if (wasDoc != newDoc) {
 				if (typeof item.documentation != 'string') {
-					let prefixLen = '```dascript\n'.length
+					const prefixLen = '```dascript\n'.length
 					newDoc = newDoc.substring(prefixLen, newDoc.length - 3)
 				}
 				if (typeof it.documentation == 'string') {
 					it.documentation += '\n\n' + newDoc
 				}
 				else {
-					let mk = it.documentation as MarkupContent
+					const mk = it.documentation as MarkupContent
 					mk.value = mk.value.substring(0, mk.value.length - 3) + '\n\n' + newDoc + '\n```'
 				}
 			}
@@ -2107,12 +2108,13 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		fixedResults.tokens = prev.tokens
 	}
 	else {
-		let globalCompletionRes = uri != globalCompletionFile.uri ? validatingResults.get(globalCompletionFile.uri) : null
-		let globalCompletion = globalCompletionRes ? globalCompletionRes.completion : null
-		let isGlobalCompletion = uri == globalCompletionFile.uri
+		const globalCompletionRes = uri != globalCompletionFile.uri ? validatingResults.get(globalCompletionFile.uri) : null
+		const globalCompletion = globalCompletionRes ? globalCompletionRes.completion : null
+		const isGlobalCompletion = uri == globalCompletionFile.uri
 
-		let modules = new Set<string>()
-		let usedModules: Set<string> = new Set()
+		const modules = new Set<string>()
+		const usedModules: Set<string> = new Set()
+		// eslint-disable-next-line no-inner-declarations
 		function addUsedModule(mod: string) {
 			if (mod?.length > 0)
 				usedModules.add(mod)
@@ -2129,6 +2131,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 					sortText: MODULE_SORT,
 				})
 		}
+		// eslint-disable-next-line no-inner-declarations
 		function addMod(name: string, at: CompletionAt) {
 			if (name === undefined || name.length == 0)
 				return
@@ -2329,7 +2332,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			if (f.isGeneric === undefined)
 				f.isGeneric = false
 
-			for (let arg of f.args) {
+			for (const arg of f.args) {
 				if (arg.alias === undefined)
 					arg.alias = ''
 				if (arg.variable === undefined)
@@ -2357,7 +2360,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 									name = name.substring(0, name.length - 6)
 									writeProp = true
 								}
-								let prop = st.fields.find(f => f.name === name && f._property)
+								const prop = st.fields.find(f => f.name === name && f._property)
 								if (prop) {
 									if (writeProp)
 										prop._writeFn = f
@@ -2409,8 +2412,8 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		const tokens = fixedResults.tokens
 		fixedResults.tokens = []
 
-		var tokenIdx = -1
-		var prevToken: DasToken = null
+		let tokenIdx = -1
+		let prevToken: DasToken = null
 		for (const token of tokens) {
 			tokenIdx++
 			if (token.mod === undefined)
@@ -2587,7 +2590,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 							prevIdx--
 						}
 						if (!found) {
-							var nextIdx = tokenIdx + 1
+							let nextIdx = tokenIdx + 1
 							while (nextIdx < tokens.length) {
 								const nextToken = tokens[nextIdx]
 								if (nextToken.kind == TokenKind.ExprLabel && nextToken.name == label && nextToken._uri == uri) {
@@ -2655,7 +2658,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			})
 		}
 
-		var allReq = new Map<string, { origin: ModuleRequirement, depth: number }>()
+		const allReq = new Map<string, { origin: ModuleRequirement, depth: number }>()
 
 		for (const mod of fixedResults.requirements) {
 			mod._uri = uri
@@ -2697,7 +2700,7 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			})
 			allReq.set(mod.mod, { origin: mod, depth: 0 })
 			for (const req of mod.dependencies) {
-				let sub = allReq.get(req.mod)
+				const sub = allReq.get(req.mod)
 				if (sub != null) {
 					if (req.depth < sub.depth) {
 						sub.depth = req.depth
@@ -2846,11 +2849,11 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 }
 
 function collectDiagnostics(uri: string, ignoreUri: string): Array<Diagnostic> {
-	let res = new Array<Diagnostic>()
+	const res = new Array<Diagnostic>()
 	for (const [errUri, it] of validatingResults) {
 		if (ignoreUri == errUri)
 			continue
-		let errors = it.diagnostics.get(uri)
+		const errors = it.diagnostics.get(uri)
 		if (errors)
 			res.push(...errors)
 	}

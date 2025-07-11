@@ -145,7 +145,7 @@ export interface DasToken extends CompletionAt {
 }
 
 export function findStruct(name: string, mod: string, cr: CompletionResult, cr2: CompletionResult): CompletionStruct {
-    let cond = s => s.name === name && s.mod === mod
+    const cond = s => s.name === name && s.mod === mod
     let res = cr.structs.find(cond)
     if (!res && cr2)
         res = cr2.structs.find(cond)
@@ -153,14 +153,14 @@ export function findStruct(name: string, mod: string, cr: CompletionResult, cr2:
 }
 
 export function findEnumTdk(tdk: string, cr: CompletionResult, cr2: CompletionResult): CompletionEnum {
-    let cond = e => e.tdk == tdk
+    const cond = e => e.tdk == tdk
     let res = cr.enums.find(cond)
     if (!res && cr2)
         res = cr2.enums.find(cond)
     return res
 }
 export function findEnum(name: string, mod: string, cr: CompletionResult, cr2: CompletionResult): CompletionEnum {
-    let cond = e => e.name === name && e.mod === mod
+    const cond = e => e.name === name && e.mod === mod
     let res = cr.enums.find(cond)
     if (!res && cr2)
         res = cr2.enums.find(cond)
@@ -168,7 +168,7 @@ export function findEnum(name: string, mod: string, cr: CompletionResult, cr2: C
 }
 
 export function findTypeDefNoMod(name: string, cr: CompletionResult, cr2: CompletionResult): CompletionTypeDef {
-    let cond = t => t.name === name
+    const cond = t => t.name === name
     let res = cr.typeDefs.find(cond)
     if (!res && cr2)
         res = cr2.typeDefs.find(cond)
@@ -176,7 +176,7 @@ export function findTypeDefNoMod(name: string, cr: CompletionResult, cr2: Comple
 }
 
 export function findTypeDef(name: string, mod: string, cr: CompletionResult, cr2: CompletionResult): CompletionTypeDef {
-    let cond = t => t.name === name && t.mod === mod
+    const cond = t => t.name === name && t.mod === mod
     let res = cr.typeDefs.find(cond)
     if (!res && cr2)
         res = cr2.typeDefs.find(cond)
@@ -196,12 +196,12 @@ export function typedeclAssignOperator(t: CompletionTypeDecl): string {
 }
 
 export function findTypeDecl(tdk: string, cr: CompletionResult, cr2: CompletionResult): CompletionTypeDecl {
-    let cond = t => t.tdk === tdk
+    const cond = t => t.tdk === tdk
     let res = cr.typeDecls.find(cond)
     if (!res && cr2)
         res = cr2.typeDecls.find(cond)
     if (!res) {
-        let en = findEnumTdk(tdk, cr, cr2)
+        const en = findEnumTdk(tdk, cr, cr2)
         if (en != null) {
             res = {
                 ...en,
@@ -226,7 +226,7 @@ export function findTypeDecl(tdk: string, cr: CompletionResult, cr2: CompletionR
 }
 
 export function findFunction(name: string, mod: string, cr: CompletionResult, cr2: CompletionResult): CompletionFunction {
-    let cond = f => f.name === name && f.mod === mod
+    const cond = f => f.name === name && f.mod === mod
     let res = cr.functions.find(cond)
     if (res)
         return res
@@ -763,8 +763,8 @@ function typeDeclCompletion_(td: CompletionTypeDecl, cr: CompletionResult, cr2: 
             || td.baseType == BaseType.tInt2 || td.baseType == BaseType.tInt3 || td.baseType == BaseType.tInt4 || td.baseType == BaseType.tRange
             || td.baseType == BaseType.tUInt2 || td.baseType == BaseType.tUInt3 || td.baseType == BaseType.tUInt4 || td.baseType == BaseType.tURange
         ) {
-            let dim = td.baseType.endsWith('4') ? 4 : td.baseType.endsWith('3') ? 3 : 2
-            let type = td.baseType.startsWith('f') ? BaseType.tFloat : td.baseType.startsWith('u') ? BaseType.tUInt : BaseType.tInt
+            const dim = td.baseType.endsWith('4') ? 4 : td.baseType.endsWith('3') ? 3 : 2
+            const type = td.baseType.startsWith('f') ? BaseType.tFloat : td.baseType.startsWith('u') ? BaseType.tUInt : BaseType.tInt
             if (brackets != Brackets.Square && brackets != Brackets.QuestionSquare) {
                 const fieldsStr = 'xyzw'
                 for (let i = 0; i < dim; i++) {
@@ -802,9 +802,9 @@ function typeDeclCompletion_(td: CompletionTypeDecl, cr: CompletionResult, cr2: 
         if (td2 && td2 != td)
             resultTd = typeDeclCompletion_(td2, cr, cr2, delimiter, Brackets.None, text, depth + 1, res)
     }
-    let searchOperatorName = brackets == Brackets.Square ? '[]' : brackets == Brackets.QuestionSquare ? '?[]' : ''
+    const searchOperatorName = brackets == Brackets.Square ? '[]' : brackets == Brackets.QuestionSquare ? '?[]' : ''
     if (searchOperatorName.length > 0) {
-        let fnCb = fn => {
+        const fnCb = fn => {
             if (fn.args.length > 0 && fn.name == searchOperatorName && fn.args[0].tdk === td.tdk) {
                 const td2 = findTypeDecl(fn.tdk, cr, cr2)
                 if (td2) {
@@ -979,7 +979,7 @@ export function AtToUri(at: CompletionAt, filePath: string, settings: DasSetting
     return res
 }
 
-var AtToUriErrors = 0
+let AtToUriErrors = 0
 
 function AtToUri_(at: CompletionAt, filePath: string, settings: DasSettings, ws: WorkspaceFolder[], dasRoot: string) {
     // DON'T DO THIS
@@ -1016,7 +1016,7 @@ function AtToUri_(at: CompletionAt, filePath: string, settings: DasSettings, ws:
 
     if (AtToUriErrors > 0) {
         AtToUriErrors--
-        let paths: Array<string> = []
+        const paths: Array<string> = []
         for (const dir of settings.project.roots) {
             const full = path.join(dir, at.file)
             paths.push(`root ${full}`)
@@ -1134,7 +1134,7 @@ export function tdkName(tdk: string): string {
 }
 
 export function closedBracketPos(doc: TextDocument, pos: Position): Position {
-    let line = doc.getText(Range.create(pos.line, pos.character, pos.line + 50, pos.character + 500))
+    const line = doc.getText(Range.create(pos.line, pos.character, pos.line + 50, pos.character + 500))
     let num = 0
     // skip spaces
     let i = 0

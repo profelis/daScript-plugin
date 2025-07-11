@@ -1,4 +1,4 @@
-import { integer } from 'vscode-languageserver/node';
+import { integer } from 'vscode-languageserver/node'
 
 export interface DasSettings {
 	compiler: string;
