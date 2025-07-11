@@ -1575,18 +1575,10 @@ function forceUpdateAllDocuments() {
 async function updateTextDocumentData(doc: TextDocument) {
 	connection.languages.inlayHint.refresh()
 
-	// Temporarily set concurrency to 1 to ensure globalCompletion runs first
-	const originalConcurrency = globalValidatingQueue.maxConcurrency
-	globalValidatingQueue.setMaxConcurrency(1)
-
-	// Queue globalCompletion first
-	await validateTextDocument(globalCompletionFile)
-
-	// Restore original concurrency
-	globalValidatingQueue.setMaxConcurrency(originalConcurrency)
-
-	// Queue document validation
-	await validateTextDocument(doc)
+	await Promise.all([
+		validateTextDocument(globalCompletionFile),  // priority 10
+		validateTextDocument(doc)                     // priority 0
+	])
 }
 
 async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> {
@@ -1602,7 +1594,9 @@ async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> 
 	if (dataAfterWait)
 		return dataAfterWait
 
-	return null
+	await updateTextDocumentData(TextDocument.create(uri, 'dascript', 1, ''))
+
+	return validatingResults.get(uri)
 }
 
 async function validateWorkspaceCommand(args: any = {}): Promise<void> {
