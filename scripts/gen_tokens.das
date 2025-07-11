@@ -11,16 +11,18 @@ variant Tokens {
 
 [export]
 def main {
-    // let data <- getKeywords()
-    // let data <- getOperators()
-    let data <- getBasicTypes()
-    if (data is status) {
-        debug("get tokens status: {data}")
-        return
+    let cbs = [@@getKeywords, @@getBasicTypes, @@getOperators]
+    let prefixes = [ "const keywords = [", "const basicTypes = [", "const OPERATORS = ["]
+    for (cb, prefix in cbs, prefixes) {
+        let data = cb()
+        if (data is status) {
+            error("get tokens status: {data}")
+            continue
+        }
+        let res = buildString(data as tokens, prefix, "]", "'", ", ") // das
+        // let res = buildString(data as tokens, "", "", "", " | ", 60) // tm syntax
+        print(res)
     }
-    let res = buildString(data as tokens, "[", "]", "'", ", ") // das
-    // let res = buildString(data as tokens, "", "", "", " | ", 60) // tm syntax
-    print(res)
 }
 
 def buildString(data : array<string>; prefix, postfix, decorator, delimeter : string; maxLen = 120) {
@@ -43,7 +45,7 @@ def buildString(data : array<string>; prefix, postfix, decorator, delimeter : st
         if (length(line) > 0) {
             res += "\n{line}"
         }
-        res += postfix
+        res += postfix + "\n"
         return res
     }
 }
