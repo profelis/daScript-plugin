@@ -398,13 +398,36 @@ struct CompletionFunction : CompletionAt {
     @optional isGeneric : bool
 }
 
+
+def remove_fn_generation(name : string) : string {
+    var lastAt = -1
+    for (ch, idx in name, count()) {
+        if (ch == '`') {
+            lastAt = idx
+        }
+    }
+    if (lastAt == -1) {
+        return name
+    }
+    for (i in lastAt+1..length(name)) {
+        if (!is_number(unsafe(character_uat(name, i)))) {
+            return name
+        }
+    }
+    return name.slice(0, lastAt)
+}
+
 [nodiscard]
 def fix_fn_name(name : string) : string {
     if (name |> starts_with("__::")) {
-        return name |> slice(4)
+        return remove_fn_generation(slice(name, 4))
     }
-    return name
+    if (name |> starts_with("builtin`")) {
+        return remove_fn_generation(slice(name, length("builtin`")))
+    }
+    return remove_fn_generation(name)
 }
+
 
 def parse_function(var res : CompletionContext; f : smart_ptr<Function>&; cpp : string; is_generic : bool) {
     var fn <- CompletionFunction(name = "{f.name}", cpp = "{cpp}")
