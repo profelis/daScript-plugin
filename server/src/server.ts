@@ -1551,7 +1551,8 @@ let validateId = 0
 
 
 const globalCompletionFile = TextDocument.create('$$$completion$$$.das', 'dascript', 1, '// empty')
-const globalValidatingQueue = new ValidatingQueue(10)
+let globalMaxConcurrency = 10
+const globalValidatingQueue = new ValidatingQueue(globalMaxConcurrency)
 
 async function updateValidationQueueSettings(): Promise<void> {
 	if (workspaceFolders && workspaceFolders.length > 0) {
@@ -1559,9 +1560,9 @@ async function updateValidationQueueSettings(): Promise<void> {
 		const maxConcurrency = settings.validationConcurrency || 10
 
 		// If settings changed, create new queue
-		if (globalValidatingQueue.maxConcurrency !== maxConcurrency) {
-			console.log(`[queue] Updating validation queue concurrency from ${globalValidatingQueue.maxConcurrency} to ${maxConcurrency}`)
-			globalValidatingQueue.maxConcurrency = maxConcurrency
+		if (globalMaxConcurrency !== maxConcurrency) {
+			console.log(`[queue] Setting max concurrency to ${maxConcurrency}`)
+			globalMaxConcurrency = maxConcurrency
 		}
 	}
 }
@@ -1575,10 +1576,15 @@ function forceUpdateAllDocuments() {
 async function updateTextDocumentData(doc: TextDocument) {
 	connection.languages.inlayHint.refresh()
 
+	// load global completion file before all other files
+	globalValidatingQueue.setMaxConcurrency(getGlobalCompletion() ? globalMaxConcurrency : 1)
+
 	await Promise.all([
 		validateTextDocument(globalCompletionFile),  // priority 10
 		validateTextDocument(doc)                     // priority 0
 	])
+
+	globalValidatingQueue.setMaxConcurrency(globalMaxConcurrency)
 }
 
 async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> {

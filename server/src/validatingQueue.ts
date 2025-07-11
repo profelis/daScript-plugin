@@ -266,7 +266,10 @@ export class ValidatingQueue {
     }
 
     public setMaxConcurrency(maxConcurrency: number): void {
-        console.log(`[queue] Setting max concurrency to ${maxConcurrency}`)
+        if (this.maxConcurrency === maxConcurrency) {
+            return
+        }
+        console.log(`[queue] Setting max concurrency to ${maxConcurrency} from ${this.maxConcurrency}`)
         this.maxConcurrency = maxConcurrency
         // Process queue with new concurrency
         this.processQueue()
