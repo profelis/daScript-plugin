@@ -19,7 +19,7 @@ async function validateWorkspaceCommand(client: LanguageClient): Promise<void> {
 
     await client.sendRequest(
         new RequestType(ExecuteCommandRequest.method),
-        {command: 'validateWorkspace', args: {folder: workspaceFolder.uri}}
+        { command: 'validateWorkspace', args: { folder: workspaceFolder.uri } }
     )
 }
 
@@ -33,7 +33,7 @@ function registerValidateCommand(client: LanguageClient): Disposable[] {
             'dascript.clearValidationCache',
             async () => await client.sendRequest(
                 new RequestType(ExecuteCommandRequest.method),
-                {command: 'clearValidationCache'}
+                { command: 'clearValidationCache' }
             )
         )
     ]

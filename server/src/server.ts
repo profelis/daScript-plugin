@@ -93,17 +93,17 @@ function setWorkspaceValidationParams(config: any): WorkspaceValidationParams {
 
 
 function mangleFileUri(uri: DocumentUri, version?: number): string {
-	const filePath = URI.parse(uri).fsPath;
+	const filePath = URI.parse(uri).fsPath
 
-	const uriHash = stringHashCode(uri).toString(16);
-	const versionHash = version?.toString(16);
-	const filename = path.basename(filePath);
+	const uriHash = stringHashCode(uri).toString(16)
+	const versionHash = version?.toString(16)
+	const filename = path.basename(filePath)
 
 	return [
 		uriHash,
 		versionHash,
 		filename
-	].filter(p => !!p).join("_");
+	].filter(p => !!p).join("_")
 }
 
 function debugWsFolders() {
@@ -137,9 +137,9 @@ documents.onDidClose(e => {
 		// collect prev errors and update errors for the same uri-s (to remove transitive errors)
 		for (const [errorsUri, _] of prev.diagnostics) {
 			if (e.document.uri == errorsUri)
-				continue;
+				continue
 
-			diagnostics.set(errorsUri, collectDiagnostics(errorsUri, e.document.uri));
+			diagnostics.set(errorsUri, collectDiagnostics(errorsUri, e.document.uri))
 		}
 	}
 	for (const [uri, errors] of diagnostics) {
@@ -672,15 +672,15 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 				let found = false
 				let enumCb = (en: CompletionEnum) => {
 					if (en.name === call.obj && en.tdk.length > 0) {
-						call.tdks.add(en.tdk);
-						found = true;
+						call.tdks.add(en.tdk)
+						found = true
 					}
 					if (prevTdks && prevTdks.has(en.tdk)) {
 						for (const it of en.values) {
 							if (it.name == call.obj) {
-								call.tdks.add(en.tdk);
-								found = true;
-								break;
+								call.tdks.add(en.tdk)
+								found = true
+								break
 							}
 						}
 					}
@@ -691,8 +691,8 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 				// or alias
 				let aliasCb = (td: CompletionTypeDef) => {
 					if (td.name === call.obj && td.tdk.length > 0) {
-						call.tdks.add(td.tdk);
-						found = true;
+						call.tdks.add(td.tdk)
+						found = true
 					}
 				}
 				fileData.completion.typeDefs.forEach(aliasCb)
@@ -707,7 +707,7 @@ function resolveChainTdks(doc: TextDocument, fileData: FixedValidationResult, ca
 			else if (call.brackets == Brackets.Round) {
 				let fnCb = (fn: CompletionFunction) => {
 					if (fn.name === call.obj && fn.tdk.length > 0) {
-						call.tdks.add(fn.tdk);
+						call.tdks.add(fn.tdk)
 					}
 				}
 				fileData.completion.functions.forEach(fnCb)
@@ -897,34 +897,34 @@ connection.onCompletion(async (textDocumentPosition) => {
 				const tdkSuffix = `::${call.obj}`
 				for (const tdk of tdks) {
 					if (tdk == call.obj || tdk.endsWith(tdkSuffix))
-						continue;
+						continue
 					// fill extension functions
 					const extFn = (fn: CompletionFunction) => {
 						if (fn.isClassMethod) {
-							return;
+							return
 						}
 						if (fn.name.startsWith(PROPERTY_PREFIX)) {
-							return;
+							return
 						}
 						if (fn.args.length == 0) {
-							return;
+							return
 						}
 						// TODO: ignore const cases: Foo const == Foo
 						for (const argTdk of fn.args[0].tdk) {
 							if (fn.args.length > 0 && argTdk === tdk) {
-								const propertyName = fixPropertyName(fn.name);
-								const isProperty = propertyName != null;
-								const isOperator = !isProperty && OPERATORS.includes(fn.name);
-								const c = CompletionItem.create(isProperty ? propertyName : fn.name);
-								c.detail = funcDetail(fn);
-								c.documentation = funcDocs(fn);
-								c.kind = isProperty ? CompletionItemKind.Property : isOperator ? CompletionItemKind.Operator : CompletionItemKind.Function;
-								const newText = isProperty ? c.label : isOperator ? OPERATOR_REMAP.get(c.label) ?? c.label : `.${fn.name}(`;
-								fixCompletion(c, newText, replaceStart, textDocumentPosition.position);
-								c.sortText = isProperty ? PROPERTY_SORT : isOperator ? OPERATOR_SORT : EXTENSION_FN_SORT;
-								const prev = items.find((it) => it.label === c.label && it.kind === c.kind && it.detail === c.detail && it.documentation === c.documentation);
+								const propertyName = fixPropertyName(fn.name)
+								const isProperty = propertyName != null
+								const isOperator = !isProperty && OPERATORS.includes(fn.name)
+								const c = CompletionItem.create(isProperty ? propertyName : fn.name)
+								c.detail = funcDetail(fn)
+								c.documentation = funcDocs(fn)
+								c.kind = isProperty ? CompletionItemKind.Property : isOperator ? CompletionItemKind.Operator : CompletionItemKind.Function
+								const newText = isProperty ? c.label : isOperator ? OPERATOR_REMAP.get(c.label) ?? c.label : `.${fn.name}(`
+								fixCompletion(c, newText, replaceStart, textDocumentPosition.position)
+								c.sortText = isProperty ? PROPERTY_SORT : isOperator ? OPERATOR_SORT : EXTENSION_FN_SORT
+								const prev = items.find((it) => it.label === c.label && it.kind === c.kind && it.detail === c.detail && it.documentation === c.documentation)
 								if (prev == null) {
-									addCompletionItem(res, c);
+									addCompletionItem(res, c)
 								}
 							}
 						}
@@ -1474,7 +1474,7 @@ connection.onInitialized(async () => {
 	})
 
 	if (config?.project?.scanWorkspace) {
-		validateWorkspaceCommand({});
+		validateWorkspaceCommand({})
 	}
 
 	updateValidationQueueSettings()
@@ -1482,10 +1482,10 @@ connection.onInitialized(async () => {
 
 connection.onExecuteCommand(async (params: any) => {
 	if (!serverCommandHandlers[params.command]) {
-		return;
+		return
 	}
 
-	serverCommandHandlers[params.command](params?.args);
+	serverCommandHandlers[params.command](params?.args)
 })
 
 let globalSettings = defaultSettings
@@ -1604,21 +1604,21 @@ async function validateWorkspaceCommand(args: any = {}): Promise<void> {
 		section: 'dascript'
 	})
 
-	let params = setWorkspaceValidationParams(config);
+	let params = setWorkspaceValidationParams(config)
 
-	let timerName: string = 'validateWorkspace';
+	let timerName: string = 'validateWorkspace'
 
-	console.time(timerName);
-	console.log('Validation data cache folder', params.cacheFolder);
+	console.time(timerName)
+	console.log('Validation data cache folder', params.cacheFolder)
 
 	let folders = args?.folder ? [<WorkspaceFolder>{ uri: args?.folder, name: '' }] : workspaceFolders
 
 	for (const folder of folders.map(f => URI.parse(f.uri).fsPath)) {
-		console.log("Validating workspace folder", folder);
-		await validateWorkspaceFolder(folder, params);
+		console.log("Validating workspace folder", folder)
+		await validateWorkspaceFolder(folder, params)
 	}
 
-	console.timeEnd(timerName);
+	console.timeEnd(timerName)
 }
 
 async function clearCachedValidationDataCommand(): Promise<void> {
@@ -1627,18 +1627,18 @@ async function clearCachedValidationDataCommand(): Promise<void> {
 		section: 'dascript'
 	})
 
-	let params = setWorkspaceValidationParams(config);
+	let params = setWorkspaceValidationParams(config)
 
 	for (const folder of workspaceFolders.map(f => URI.parse(f.uri).fsPath)) {
 		fs.rmSync(
 			path.join(params.cacheFolder, path.basename(folder)),
 			{ recursive: true }
-		);
+		)
 	}
 }
 
 // function sendDiagnostics(result: ValidationResult, file: string, settings: DasSettings): Map<string, Diagnostic[]> {
-// 	const diagnostics: Map<string, Diagnostic[]> = new Map();
+// 	const diagnostics: Map<string, Diagnostic[]> = new Map()
 
 // 	for (const error of result.errors) {
 // 		error._range = AtToRange(error)
@@ -1671,93 +1671,93 @@ async function clearCachedValidationDataCommand(): Promise<void> {
 // 		connection.sendDiagnostics({ uri: uri, diagnostics: diags })
 // 	}
 
-// 	return diagnostics;
+// 	return diagnostics
 // }
 
 async function loadCachedValidationData(validationCacheFile: string): Promise<ValidationResult | null> {
-	let fileContent: string;
+	let fileContent: string
 	let parsedContent: ValidationResult
 
 	try {
-		fileContent = await fs.promises.readFile(validationCacheFile, { encoding: 'utf8' });
+		fileContent = await fs.promises.readFile(validationCacheFile, { encoding: 'utf8' })
 	}
 	catch (e) {
-		console.log(`Validation cache file not found, ${validationCacheFile}`, e);
-		return null;
+		console.log(`Validation cache file not found, ${validationCacheFile}`, e)
+		return null
 	}
 
 	try {
-		parsedContent = JSON.parse(fileContent) as ValidationResult;
+		parsedContent = JSON.parse(fileContent) as ValidationResult
 	}
 	catch (e) {
-		console.log('Failed to parse', validationCacheFile);
-		return null;
+		console.log('Failed to parse', validationCacheFile)
+		return null
 	}
 
-	console.log(`Found validation cache file, ${validationCacheFile}`);
+	console.log(`Found validation cache file, ${validationCacheFile}`)
 
-	return parsedContent;
+	return parsedContent
 }
 
 async function collectWorkspaceFiles(dir: string) {
-	let foldersToVisit: string[] = [dir];
-	let result: URI[] = [];
+	let foldersToVisit: string[] = [dir]
+	let result: URI[] = []
 
 	while (foldersToVisit.length !== 0) {
-		const files = await promisify(readdir)(foldersToVisit[0]);
+		const files = await promisify(readdir)(foldersToVisit[0])
 
 		for (const file of files) {
 			if (file.startsWith('.')) {
-				continue;
+				continue
 			}
-			const path = join(foldersToVisit[0], file);
+			const path = join(foldersToVisit[0], file)
 
 			const stat = await fs.promises.stat(join(foldersToVisit[0], file))
 
 			if (stat.isDirectory()) {
-				foldersToVisit.push(path);
+				foldersToVisit.push(path)
 			}
 			else if (path.endsWith(".das")) {
-				result.push(URI.parse(path));
+				result.push(URI.parse(path))
 			}
 		}
 
-		foldersToVisit.shift();
+		foldersToVisit.shift()
 	}
 
-	return result;
+	return result
 }
 
 async function startQueueValidationJob(dir: string, file: string, params: WorkspaceValidationParams): Promise<void> {
-	const cacheFileName: string = `${mangleFileUri(path.relative(dir, file))}.json`;
-	const cacheFilePath: string = params.saveCache ? path.join(params.cacheFolder, path.basename(dir), cacheFileName) : null;
+	const cacheFileName: string = `${mangleFileUri(path.relative(dir, file))}.json`
+	const cacheFilePath: string = params.saveCache ? path.join(params.cacheFolder, path.basename(dir), cacheFileName) : null
 	const textDocument = TextDocument.create(
 		file,
 		'dascript',
 		1,
 		(await fs.promises.readFile(file)).toString()
-	);
+	)
 
-	let validationResult = params.saveCache ? await loadCachedValidationData(cacheFilePath) : null;
+	let validationResult = params.saveCache ? await loadCachedValidationData(cacheFilePath) : null
 	if (!validationResult) {
-		await validateTextDocument(textDocument);
+		await validateTextDocument(textDocument)
 
 		if (params.saveCache) {
-			await fs.promises.writeFile(cacheFilePath, JSON.stringify(validatingResults.get(file)));
+			await fs.promises.writeFile(cacheFilePath, JSON.stringify(validatingResults.get(file)))
 		}
 	}
 	else {
-		const settings = await getDocumentSettings(textDocument.uri);
-		storeValidationResult(settings, textDocument, validationResult);
+		const settings = await getDocumentSettings(textDocument.uri)
+		storeValidationResult(settings, textDocument, validationResult)
 	}
 }
 
 async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationParams): Promise<void> {
 	return; // TODO: temporary disable scanning
-	let validatingQueue: ValidatingQueue = new ValidatingQueue(params?.queueCapacity);
-	const token = `validation/${dir}`;
+	let validatingQueue: ValidatingQueue = new ValidatingQueue(params?.queueCapacity)
+	const token = `validation/${dir}`
 
-	await connection.sendRequest("window/workDoneProgress/create", { token });
+	await connection.sendRequest("window/workDoneProgress/create", { token })
 	await connection.sendNotification(
 		"$/progress",
 		{
@@ -1768,15 +1768,15 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 				percentage: 0,
 			}
 		}
-	);
+	)
 
 	const files = await collectWorkspaceFiles(dir)
 
 	if (params?.saveCache) {
-		let cacheFolder = path.join(params.cacheFolder, path.basename(dir));
+		let cacheFolder = path.join(params.cacheFolder, path.basename(dir))
 
 		if (!await fs.existsSync(cacheFolder)) {
-			await fs.promises.mkdir(cacheFolder, { recursive: true });
+			await fs.promises.mkdir(cacheFolder, { recursive: true })
 		}
 	}
 
@@ -1792,16 +1792,16 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 					percentage: (i / files.length) * 100,
 				}
 			}
-		);
-		await validatingQueue.enqueue(file.fsPath, i, async () => await startQueueValidationJob(dir, file.fsPath, params));
+		)
+		await validatingQueue.enqueue(file.fsPath, i, async () => await startQueueValidationJob(dir, file.fsPath, params))
 		i++
 	}
 
-	await validatingQueue.waitAll();
+	await validatingQueue.waitAll()
 	await connection.sendNotification(
 		"$/progress",
 		{ token, value: <WorkDoneProgressEnd>{ kind: "end" } }
-	);
+	)
 }
 
 async function validateTextDocument(textDocument: TextDocument, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
@@ -1820,7 +1820,7 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 
 	// Get settings before enqueuing to avoid async operations in queue callback
 	const settings = await getDocumentSettings(fileUri)
-	
+
 	// Use new validation queue with priority
 	// Completion file gets higher priority (10) than regular files (0)
 	const priority = fileUri == globalCompletionFile.uri ? 10 : 0
@@ -1899,7 +1899,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 		console.error(`[PROCESS] Failed to spawn process for ${fileUri}:`, error)
 		throw error
 	}
-	
+
 	// Notify queue about the process immediately after spawn
 	globalValidatingQueue.setProcess(fileUri, child)
 
@@ -1960,11 +1960,11 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			}
 
 			if (fileUri != globalCompletionFile.uri) {
-				let prev = documents.get(fileUri);
+				let prev = documents.get(fileUri)
 				if (prev == null) {
 					console.log('document was closed, ignore result', fileUri)
 					resolve()
-					return;
+					return
 				}
 				else if (prev.version !== fileVersion) {
 					console.error('internal error: Document version changed during validation, ignoring result. Current', prev.version, "got", fileVersion, fileUri)
@@ -2816,27 +2816,27 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		// collect prev errors and update errors for the same uri-s (to remove transitive errors)
 		for (const [errorsUri, _] of prev.diagnostics) {
 			if (uri == errorsUri || fixedResults.diagnostics.has(errorsUri))
-				continue;
+				continue
 
-			diagnostics.set(errorsUri, collectDiagnostics(errorsUri, uri));
+			diagnostics.set(errorsUri, collectDiagnostics(errorsUri, uri))
 		}
 	}
 
-	validatingResults.set(uri, fixedResults);
+	validatingResults.set(uri, fixedResults)
 
 	connection.languages.inlayHint.refresh()
 }
 
 function collectDiagnostics(uri: string, ignoreUri: string): Array<Diagnostic> {
-	let res = new Array<Diagnostic>();
+	let res = new Array<Diagnostic>()
 	for (const [errUri, it] of validatingResults) {
 		if (ignoreUri == errUri)
-			continue;
-		let errors = it.diagnostics.get(uri);
+			continue
+		let errors = it.diagnostics.get(uri)
 		if (errors)
-			res.push(...errors);
+			res.push(...errors)
 	}
-	return res;
+	return res
 }
 
 connection.listen()

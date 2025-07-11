@@ -248,7 +248,7 @@ def private cleanupTDK(str : string) : string {
     var parts <- str |> split("const?")
 
     for (res in parts) {
-        res = replace_multiple(res, [ ("&", ""), (" ==const", ""), (" const", ""), (" implicit", "")])
+        res = replace_multiple(res, [ (" ==const", ""), (" const", ""), (" implicit", ""), (";", ",") ])
     }
 
     return parts |> join("const?")

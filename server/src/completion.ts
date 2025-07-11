@@ -916,11 +916,11 @@ function funcRetTypeSuffix(retType: string) {
 }
 
 export function funcDetail(f: CompletionFunction) {
-    return `def ${modPrefix(f.mod)}${f.name}(${f.args.map(funcArgDetail).join('; ')})${funcRetTypeSuffix(f.tdk)}`
+    return `def ${modPrefix(f.mod)}${f.name}(${f.args.map(funcArgDetail).join(', ')})${funcRetTypeSuffix(f.tdk)}`
 }
 
 export function funcDocs(f: CompletionFunction) {
-    let res = `def ${modPrefix(f.mod)}${f.name}(${f.args.map(funcArgDetail).join('; ')})${funcRetTypeSuffix(f.tdk)}`
+    let res = `def ${modPrefix(f.mod)}${f.name}(${f.args.map(funcArgDetail).join(', ')})${funcRetTypeSuffix(f.tdk)}`
     if (f.cpp.length > 0)
         res += `\n[${f.cpp}(...)]`
     return res
