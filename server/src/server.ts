@@ -45,6 +45,19 @@ import { readdir } from 'fs'
 import { ValidatingQueue } from './validatingQueue'
 import { join } from 'path'
 
+// Global error handlers to prevent crashes
+process.on('uncaughtException', (error) => {
+	console.error('[FATAL] Uncaught exception:', error)
+	console.error(error.stack)
+	// Don't exit the process, just log the error
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+	console.error('[FATAL] Unhandled promise rejection:', reason)
+	console.error('Promise:', promise)
+	// Don't exit the process, just log the error
+})
+
 enum DiagnosticsActionType {
 	UnusedReq = 0,
 }
@@ -1565,20 +1578,14 @@ async function updateTextDocumentData(doc: TextDocument) {
 	const originalConcurrency = globalValidatingQueue.maxConcurrency
 	globalValidatingQueue.setMaxConcurrency(1)
 
-	try {
-		// Queue globalCompletion first
-		await validateTextDocument(globalCompletionFile)
+	// Queue globalCompletion first
+	await validateTextDocument(globalCompletionFile)
 
-		// Restore original concurrency
-		globalValidatingQueue.setMaxConcurrency(originalConcurrency)
+	// Restore original concurrency
+	globalValidatingQueue.setMaxConcurrency(originalConcurrency)
 
-		// Queue document validation
-		await validateTextDocument(doc)
-	} catch (error) {
-		// Make sure to restore concurrency even if there's an error
-		globalValidatingQueue.setMaxConcurrency(originalConcurrency)
-		throw error
-	}
+	// Queue document validation
+	await validateTextDocument(doc)
 }
 
 async function getDocumentDataFast(uri: string): Promise<FixedValidationResult> {
@@ -1897,7 +1904,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 		console.log(`[PROCESS] New process spawned for ${fileUri}: pid=${child.pid}, version=${fileVersion}`)
 	} catch (error) {
 		console.error(`[PROCESS] Failed to spawn process for ${fileUri}:`, error)
-		throw error
+		return Promise.reject(error)
 	}
 
 	// Notify queue about the process immediately after spawn
@@ -1922,7 +1929,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			}
 			console.error(`[PROCESS] Validation process error for ${fileUri}: pid=${child.pid}, error=${error}`)
 			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
-			reject(error)
+			resolve(error)
 		})
 		child.on('close', (exitCode: any) => {
 			// Check if this process is still current in the queue
@@ -1941,16 +1948,27 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 
 			console.log(`[PROCESS] Validation process for ${fileUri} exited normally: exitCode=${exitCode}, pid=${child.pid}, version=${fileVersion}`)
 
-			const validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
+			let validateTextResult: string
+			try {
+				validateTextResult = fs.readFileSync(resultFilePath, 'utf8')
+			} catch (error) {
+				console.error(`Failed to read result file ${resultFilePath}:`, error)
+				// Clean up temp file if it exists
+				try {
+					fs.rmSync(tempFilePath, { force: true })
+				} catch (e) {
+					console.log('failed to remove temp file', e)
+				}
+				resolve()
+				return
+			}
 			// console.log('remove temp files', tempFilePath, resultFilePath)
 			try {
-				fs.rmSync(tempFilePath)
-				fs.rmSync(resultFilePath)
+				fs.rmSync(tempFilePath, { force: true })
+				fs.rmSync(resultFilePath, { force: true })
 			}
 			catch (e) {
 				console.log('failed to remove temp files', e)
-				resolve()
-				return
 			}
 
 			if (extra.autoFormat) {
