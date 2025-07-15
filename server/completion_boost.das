@@ -422,13 +422,14 @@ def remove_fn_generation(name : string) : string {
 
 [nodiscard]
 def fix_fn_name(name : string) : string {
-    if (name |> starts_with("__::")) {
-        return remove_fn_generation(slice(name, 4))
+    var res = name
+    if (res |> starts_with("__::")) {
+        res = slice(name, 4)
     }
-    if (name |> starts_with("builtin`")) {
-        return remove_fn_generation(slice(name, length("builtin`")))
+    if (res |> starts_with("builtin`")) {
+        res = slice(res, length("builtin`"))
     }
-    return remove_fn_generation(name)
+    return remove_fn_generation(res)
 }
 
 
