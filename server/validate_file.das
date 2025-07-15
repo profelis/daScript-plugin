@@ -38,8 +38,10 @@ struct ValidateConfig {
     noUnusedFunctionArguments : bool
     failOnLackOfAotExport : bool
     version2syntax : bool
+    strictProperties : bool
     gen2MakeSyntax : bool
     alwaysReportCandidatesThreshold : int
+    maxInferPasses : int
     globalCompletion : bool
     autoFormat : bool
 
@@ -76,8 +78,10 @@ def main() {
     config.noUnusedFunctionArguments = args |> has_value("--no-unused-function-arguments")
     config.failOnLackOfAotExport = args |> has_value("--fail-on-lack-of-aot-export")
     config.version2syntax = args |> has_value("--version-2-syntax")
+    config.strictProperties = args |> has_value("--strict-properties")
     config.gen2MakeSyntax = args |> has_value("--gen2-make-syntax")
     config.alwaysReportCandidatesThreshold = args |> arg_value("--always-report-candidates-threshold", 6)
+    config.maxInferPasses = args |> arg_value("--max-infer-passes", 50)
     config.globalCompletion = args |> has_value("--global-completion")
     config.autoFormat = args |> has_value("--auto-format")
 
@@ -180,8 +184,10 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                 cp.no_unused_function_arguments = config.noUnusedFunctionArguments
                 cp.fail_on_lack_of_aot_export = config.failOnLackOfAotExport
                 cp.version_2_syntax = config.version2syntax
+                cp.strict_properties = config.strictProperties
                 cp.gen2_make_syntax = config.gen2MakeSyntax
                 cp.always_report_candidates_threshold = config.alwaysReportCandidatesThreshold
+                cp.max_infer_passes = config.maxInferPasses
                 cp.export_all = true
                 cp.aot_module = true
                 cp.completion = true

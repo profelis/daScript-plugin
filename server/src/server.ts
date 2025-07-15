@@ -1882,8 +1882,12 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 		args.push('--gen2-make-syntax')
 	if (settings.policies?.version_2_syntax)
 		args.push('--version-2-syntax')
-	if (settings.policies?.always_report_candidates_threshold)
+	if (settings.policies?.strict_properties)
+		args.push('--strict-properties')
+	if ((settings.policies?.always_report_candidates_threshold ?? 6) != 6)
 		args.push('--always-report-candidates-threshold', settings.policies.always_report_candidates_threshold.toString())
+	if ((settings.policies?.max_infer_passes ?? 50) != 50)
+		args.push('--max-infer-passes', settings.policies.max_infer_passes.toString())
 
 	if (textDocument == globalCompletionFile)
 		args.push('--global-completion')
