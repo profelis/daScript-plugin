@@ -1077,7 +1077,7 @@ connection.onHover(async (textDocumentPosition) => {
 
 			const func = findFunction(tok.name, tok.mod, fileData.completion, globalCompletion)
 			if (func != null) {
-				if (func.isGeneric)
+				if (func.isGeneric && tok.tdk != "auto")
 					res += `\ninstance of ${funcDetail(func)}`
 				if (func.cpp.length > 0)
 					res += `\n[::${func.cpp}(...)]`
@@ -1413,6 +1413,15 @@ connection.languages.inlayHint.on(async (inlayHintParams) => {
 	const res: InlayHint[] = []
 	let idx = 0
 	const n = fileData.tokens.length
+	// const tokens = new Set<string>()
+	// const autoTokens = new Map<string, integer>()
+	// const addToken = (short: string, token: DasToken) => {
+	// 	if (short == "auto") {
+	// 		autoTokens.set(`${token.file}${token._range.start.line}${token._range.start.character}`, res.length)
+	// 	} else {
+	// 		tokens.add(`${token.file}${token._range.start.line}${token._range.start.character}`)
+	// 	}
+	// }
 	while (idx < n - 1) {
 		const token = fileData.tokens[idx]
 		let nextToken = fileData.tokens[idx + 1]
@@ -1428,6 +1437,7 @@ connection.languages.inlayHint.on(async (inlayHintParams) => {
 				// sometimes typedecl cover whole let expression, ignore it case
 				if (nextToken.kind != TokenKind.Typedecl || isRangeLengthZero(nextToken._range) || isPositionLessOrEqual(nextToken._range.start, token._range.start)) {
 					const short = tdkName(token.tdk)
+					// addToken(short, token)
 					res.push({
 						label: `: ${short}`,
 						position: token._range.end,
@@ -1448,6 +1458,7 @@ connection.languages.inlayHint.on(async (inlayHintParams) => {
 				}
 				if (nextToken.kind != TokenKind.Typedecl || isRangeLengthZero(nextToken._range)) {
 					const short = tdkName(token.tdk)
+					// addToken(short, token)
 					res.push({
 						label: `: ${short}`,
 						position: closedBracketPos(doc, token._range.end),
@@ -1455,9 +1466,21 @@ connection.languages.inlayHint.on(async (inlayHintParams) => {
 					})
 				}
 			}
-
 		}
 	}
+	// if (autoTokens.size > 0) {
+	// 	const toRemove : Array<integer> = []
+	// 	for (const [key, idx] of autoTokens) {
+	// 		if (tokens.has(key)) {
+	// 			toRemove.push(idx)
+	// 		}
+	// 	}
+	// 	toRemove.sort((a, b) => b - a)
+	// 	for (const idx of toRemove) {
+	// 		autoTokens.delete(fileData.tokens[idx].file + fileData.tokens[idx]._range.start.line + fileData.tokens[idx]._range.start.character)
+	// 		res.splice(idx, 1)
+	// 	}
+	// }
 	return res
 })
 
@@ -2641,19 +2664,6 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 		}
 
 		for (const f of fixedResults.completion.functions) {
-			if (f.name.startsWith('builtin`')) {
-				f.name = f.name.substring(8)
-			}
-			else {
-				// let prefixIdx = f.name.indexOf('`')
-				// if (prefixIdx >= 0) {
-				// 	if (prefixIdx == 0 || usedModules.has(f.name.substring(0, prefixIdx)))
-				// 		f.name = f.name.substring(prefixIdx + 1)
-				// }
-				if (f.name.charAt(0) == '`')
-					f.name = f.name.substring(1)
-			}
-
 			addCompletionItem(completionMap, {
 				label: f.name,
 				kind: CompletionItemKind.Function,
@@ -2661,6 +2671,94 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				documentation: funcDocs(f),
 				sortText: MODULE_SORT,
 			})
+
+			if (f.isGeneric) {
+				fixedResults.tokens.push({
+					kind: TokenKind.Func,
+					name: f.name,
+					mod: f.mod,
+					_range: f._range,
+					_uri: f._uri,
+					_originalText: doc.getText(f._range),
+					declAt: f.decl,
+					value: funcDetail(f),
+					alias: '',
+					tdk: f.tdk,
+					parentTdk: '',
+					isUnused: false,
+					isConst: false,
+					file: f.file,
+					line: f.line || 0,
+					column: f.column || 0,
+					lineEnd: f.lineEnd || 0,
+					columnEnd: f.columnEnd || 0,
+				})
+
+				// args should be added before the function itself!
+				// for (const arg of f.args) {
+				// 	fixedResults.tokens.push({
+				// 		kind: TokenKind.FuncArg,
+				// 		name: arg.name,
+				// 		mod: f.mod,
+				// 		_range: arg._range,
+				// 		_uri: arg._uri,
+				// 		_originalText: doc.getText(arg._range),
+				// 		declAt: arg,
+				// 		value: arg.value,
+				// 		alias: arg.alias,
+				// 		tdk: arg.tdk.join(' | '),
+				// 		parentTdk: '',
+				// 		isUnused: false,
+				// 		isConst: false,
+				// 		file: f.file,
+				// 		line: arg.line || 0,
+				// 		column: arg.column || 0,
+				// 		lineEnd: arg.lineEnd || 0,
+				// 		columnEnd: arg.columnEnd || 0,
+				// 	})
+				// 	fixedResults.tokens.push({
+				// 		kind: TokenKind.Typedecl,
+				// 		name: arg.tdk.join(' | '),
+				// 		mod: f.mod,
+				// 		_range: Range.create(arg._range.start, arg._range.start),
+				// 		_uri: arg._uri,
+				// 		_originalText: '',
+				// 		declAt: arg,
+				// 		value: '',
+				// 		alias: '',
+				// 		tdk: arg.tdk.join(' | '),
+				// 		parentTdk: '',
+				// 		isUnused: false,
+				// 		isConst: false,
+				// 		file: f.file,
+				// 		line: arg.line || 0,
+				// 		column: arg.column || 0,
+				// 		lineEnd: arg.line || 0,
+				// 		columnEnd: arg.column || 0,
+				// 	})
+				// }
+
+				// fixedResults.tokens.push({
+				// 	kind: TokenKind.Typedecl,
+				// 	name: f.tdk,
+				// 	mod: f.mod,
+				// 	_range: Range.create(f._range.start, f._range.start),
+				// 	_uri: f._uri,
+				// 	_originalText: '',
+				// 	declAt: f.decl,
+				// 	value: '',
+				// 	alias: '',
+				// 	tdk: f.tdk,
+				// 	parentTdk: '',
+				// 	isUnused: false,
+				// 	isConst: false,
+				// 	file: f.file,
+				// 	line: f.line || 0,
+				// 	column: f.column || 0,
+				// 	lineEnd: f.lineEnd || 0,
+				// 	columnEnd: f.columnEnd || 0,
+				// })
+			}
 		}
 
 		const allReq = new Map<string, { origin: ModuleRequirement, depth: number }>()
