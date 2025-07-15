@@ -1069,7 +1069,7 @@ connection.onHover(async (textDocumentPosition) => {
 	for (const tok of last.tokens) {
 
 		if (!first)
-			res += '\n'
+			res += '\n\n'
 		first = false
 		res += describeToken(tok, fileData.completion, globalCompletion)
 
@@ -1078,7 +1078,7 @@ connection.onHover(async (textDocumentPosition) => {
 			const func = findFunction(tok.name, tok.mod, fileData.completion, globalCompletion)
 			if (func != null) {
 				if (func.isGeneric)
-					res += `\n\n${funcDetail(func)}`
+					res += `\ninstance of ${funcDetail(func)}`
 				if (func.cpp.length > 0)
 					res += `\n[::${func.cpp}(...)]`
 			}
@@ -1096,22 +1096,22 @@ connection.onHover(async (textDocumentPosition) => {
 				}
 			}
 
-			if (tok.kind == TokenKind.ExprCall || tok.kind == TokenKind.ExprAddr) {
-				for (const fn of fileData.completion.functions) {
-					if (fn.name === tok.name && fn.mod === tok.mod) {
-						res += `\n\n${funcDocs(fn)}`
-						break
-					}
-				}
-				if (globalCompletion) {
-					for (const fn of globalCompletion.functions) {
-						if (fn.name === tok.name && fn.mod === tok.mod) {
-							res += `\n\n${funcDocs(fn)}`
-							break
-						}
-					}
-				}
-			}
+			// if (tok.kind == TokenKind.ExprCall || tok.kind == TokenKind.ExprAddr) {
+			// 	for (const fn of fileData.completion.functions) {
+			// 		if (fn.name === tok.name && fn.mod === tok.mod) {
+			// 			res += `\n\n${funcDocs(fn)}`
+			// 			break
+			// 		}
+			// 	}
+			// 	if (globalCompletion) {
+			// 		for (const fn of globalCompletion.functions) {
+			// 			if (fn.name === tok.name && fn.mod === tok.mod) {
+			// 				res += `\n\n${funcDocs(fn)}`
+			// 				break
+			// 			}
+			// 		}
+			// 	}
+			// }
 		}
 		// eslint-disable-next-line no-constant-condition
 		if (false) {

@@ -414,6 +414,9 @@ def remove_fn_generation(name : string) : string {
             return name
         }
     }
+    if (name.starts_with("`")) {
+        return name.slice(1, lastAt)
+    }
     return name.slice(0, lastAt)
 }
 

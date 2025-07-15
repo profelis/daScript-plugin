@@ -920,7 +920,7 @@ export function funcDetail(f: CompletionFunction) {
 }
 
 export function funcDocs(f: CompletionFunction) {
-    let res = `def ${modPrefix(f.mod)}${f.name}(${f.args.map(funcArgDetail).join(', ')})${funcRetTypeSuffix(f.tdk)}`
+    let res = funcDetail(f)
     if (f.cpp.length > 0)
         res += `\n[${f.cpp}(...)]`
     return res
