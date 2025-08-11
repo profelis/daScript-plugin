@@ -1825,7 +1825,7 @@ async function validateWorkspaceFolder(dir: string, params: WorkspaceValidationP
 				}
 			}
 		)
-		await validatingQueue.enqueue(file.fsPath, i, async () => await startQueueValidationJob(dir, file.fsPath, params))
+		await validatingQueue.enqueue(file.fsPath, i, async () => await startQueueValidationJob(dir, file.fsPath, params), () => { })
 		i++
 	}
 
@@ -1856,14 +1856,6 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 	// Use new validation queue with priority
 	// Completion file gets higher priority (10) than regular files (0)
 	const priority = fileUri == globalCompletionFile.uri ? 10 : 0
-	return globalValidatingQueue.enqueue(fileUri, fileVersion, async () => {
-		await validateTextDocumentInternal(textDocument, settings, extra)
-	}, priority)
-}
-
-async function validateTextDocumentInternal(textDocument: TextDocument, settings: DasSettings, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
-	const fileUri = textDocument.uri
-	const fileVersion = textDocument.version
 
 	const filePath = URI.parse(fileUri).fsPath
 	const tempFilePrefix = `${stringHashCode(fileUri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
@@ -1872,6 +1864,35 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 	validateId++
 	const tempFilePath = path.join(os.tmpdir(), tempFileName)
 	const resultFilePath = path.join(os.tmpdir(), resultFileName)
+
+	const removeTempFiles = () => {
+		try {
+			fs.rmSync(tempFilePath, { force: true })
+		}
+		catch (e) { /* empty */ }
+		try {
+			fs.rmSync(resultFilePath, { force: true })
+		}
+		catch (e) { /* empty */ }
+	}
+
+
+	return globalValidatingQueue.enqueue(fileUri, fileVersion, async () => {
+		await validateTextDocumentInternal(textDocument, settings, filePath, tempFilePath, resultFilePath, removeTempFiles, extra)
+	}, removeTempFiles, priority)
+}
+
+async function validateTextDocumentInternal(textDocument: TextDocument, settings: DasSettings, filePath: string, tempFilePath: string, resultFilePath: string, removeTempFiles: () => void, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
+	const fileUri = textDocument.uri
+	const fileVersion = textDocument.version
+
+	// const filePath = URI.parse(fileUri).fsPath
+	// const tempFilePrefix = `${stringHashCode(fileUri).toString(16)}_${validateId.toString(16)}_${fileVersion.toString(16)}`
+	// const tempFileName = `${tempFilePrefix}_${path.basename(filePath)}`
+	// const resultFileName = `${tempFileName}_res`
+	// validateId++
+	// const tempFilePath = path.join(os.tmpdir(), tempFileName)
+	// const resultFilePath = path.join(os.tmpdir(), resultFileName)
 	fs.writeFileSync(tempFilePath, textDocument.getText())
 	fs.writeFileSync(resultFilePath, '')
 
@@ -1960,10 +1981,12 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			diagnostics.get(fileUri).push({ range: Range.create(0, 0, 0, 0), message: `${error}` })
 			resolve(error)
 		})
+
 		child.on('close', (exitCode: any) => {
 			// Check if this process is still current in the queue
 			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
 				console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
+				removeTempFiles()
 				resolve()
 				return
 			}
@@ -1971,6 +1994,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			// process was killed
 			if (exitCode === null) {
 				console.log(`[PROCESS] Validation process for ${fileUri} was killed (exitCode: null), pid=${child.pid}`)
+				removeTempFiles()
 				resolve()
 				return
 			}
@@ -1988,17 +2012,12 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 				} catch (e) {
 					console.log('failed to remove temp file', e)
 				}
+				removeTempFiles()
 				resolve()
 				return
 			}
 			// console.log('remove temp files', tempFilePath, resultFilePath)
-			try {
-				fs.rmSync(tempFilePath, { force: true })
-				fs.rmSync(resultFilePath, { force: true })
-			}
-			catch (e) {
-				console.log('failed to remove temp files', e)
-			}
+			removeTempFiles()
 
 			if (extra.autoFormat) {
 				autoFormatResult.set(fileUri, validateTextResult)

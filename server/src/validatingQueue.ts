@@ -10,6 +10,7 @@ interface ValidationTask {
     key: string;
     version: number;
     callback: () => Promise<void>;
+    cancel: () => void;
     process?: ChildProcessWithoutNullStreams;
     promise?: Promise<void>;
     resolve?: () => void;
@@ -39,7 +40,7 @@ export class ValidatingQueue {
         return this.queuedTasks.length
     }
 
-    public async enqueue(key: string, version: number, callback: () => Promise<void>, priority: number = 0): Promise<void> {
+    public async enqueue(key: string, version: number, callback: () => Promise<void>, cancel: () => void, priority: number = 0): Promise<void> {
         // Check if there's already a running task for this file with same version
         const runningTask = this.runningTasks.get(key)
         if (runningTask && runningTask.version === version) {
@@ -71,6 +72,7 @@ export class ValidatingQueue {
             key,
             version,
             callback,
+            cancel,
             subscribers: oldSubscribers,
             priority
         }
@@ -105,6 +107,7 @@ export class ValidatingQueue {
             if (runningTask.subscribers) {
                 allSubscribers.push(...runningTask.subscribers)
             }
+            runningTask.cancel()
             this.runningTasks.delete(key)
         }
 
@@ -113,6 +116,7 @@ export class ValidatingQueue {
         if (queuedIndex !== -1) {
             const queuedTask = this.queuedTasks[queuedIndex]
             console.log(`[queue] Removing queued task for ${key}`)
+            queuedTask.cancel()
             // Collect subscribers instead of resolving them
             if (queuedTask.subscribers) {
                 allSubscribers.push(...queuedTask.subscribers)
