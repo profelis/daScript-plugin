@@ -6,6 +6,7 @@ options no_global_variables
 options no_unused_function_arguments
 options no_unused_block_arguments
 options strict_smart_pointers
+options skip_lock_checks
 options no_aot
 
 require ast
