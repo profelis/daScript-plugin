@@ -2452,6 +2452,16 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 					documentation: funcArgDocs(arg),
 					sortText: MODULE_SORT,
 				})
+
+				if (arg.alias.length > 0) {
+					addCompletionItem(completionMap, {
+						label: arg.alias,
+						kind: CompletionItemKind.Variable,
+						detail: funcArgDetail(arg),
+						documentation: funcArgDocs(arg),
+						sortText: MODULE_SORT,
+					})
+				}
 			}
 		}
 
