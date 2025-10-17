@@ -2580,6 +2580,15 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 								token.declAt = en
 						}
 					}
+				} else if (token.kind == TokenKind.ExprMakeStruct) {
+					const td = findTypeDecl(token.tdk, res.completion, globalCompletion)
+					if (td) {
+						const st = findStruct(td.structName, td.mod, res.completion, globalCompletion)
+						if (st) {
+							addUsedModule(st.mod)
+							token.declAt = st
+						}
+					}
 				}
 			}
 			// if (isRangeZeroEmpty(token.declAt._range) && token.kind != TokenKind.Func && token.kind != TokenKind.ExprDebug) {

@@ -519,6 +519,9 @@ class AstData : AstVisitor {
         if (expr is ExprAssume) {// ignore, manually check
             return
         }
+        if (expr is ExprMakeStruct) {// fields are parsed separately
+            return
+        }
         var token <- DasToken(expr, completion)
         if (expr is ExprField) {
             let field = expr as ExprField
@@ -876,6 +879,18 @@ class AstData : AstVisitor {
             }
         }
         token |> fill_at(expr.at)
+        res.tokens |> emplace(token)
+    }
+
+    def override preVisitExprMakeStruct(expr : smart_ptr<ExprMakeStruct>) {
+        if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
+            return
+        }
+        var token <- DasToken(expr, completion)
+        token.name = expr.describe()
+        if (expr.constructor != null) {
+            fill_at(token.declAt, expr.constructor.atDecl)
+        }
         res.tokens |> emplace(token)
     }
 }

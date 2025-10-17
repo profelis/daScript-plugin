@@ -106,6 +106,7 @@ export enum TokenKind {
     ExprConstEnumeration = 'ExprConstEnumeration',
     Require = 'require',
     ExprReturn = 'ExprReturn',
+    ExprMakeStruct = 'ExprMakeStruct',
 }
 
 export function isValidIdChar(ch: string) {
