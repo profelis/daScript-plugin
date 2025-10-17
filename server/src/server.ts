@@ -186,7 +186,7 @@ connection.onInitialize((params) => {
 		capabilities: {
 			completionProvider: {
 				resolveProvider: false,
-				triggerCharacters: ['.', '>', ':'],
+				triggerCharacters: ['.'],
 			},
 			hoverProvider: true,
 			definitionProvider: true,
@@ -767,8 +767,7 @@ function findNearestTokensAt(doc: TextDocument, fileData: FixedValidationResult,
 	}
 	if (nearestAssume != null && (nearestToken == null || isPositionLess(nearestPos, nearestAssumePos))) {
 		// resolve assure expression
-		// TODO: Assume.declAt is completely wrong in dascript
-		const subChain = findCallChain_(doc, fileData, nearestAssume.declAt._range.end, /*forAutocompletion*/false, recursion + 1)
+		const subChain = findCallChain_(doc, fileData, nearestAssume._range.end, /*forAutocompletion*/false, recursion + 1)
 		// search for nearest token in subChain
 		if (subChain.length > 0) {
 			const last = subChain[subChain.length - 1]
@@ -2677,6 +2676,24 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 				if (td) {
 					addUsedModule(td.mod)
 				}
+			}
+
+			if (token.kind == TokenKind.BlockArg) {
+				addCompletionItem(completionMap, {
+					label: token.name,
+					kind: CompletionItemKind.Variable,
+					detail: token.name,
+					documentation: describeToken(token, res.completion, globalCompletion),
+					sortText: MODULE_SORT,
+				})
+			} else if (token.kind == TokenKind.ExprAssume) {
+				addCompletionItem(completionMap, {
+					label: token.name,
+					kind: CompletionItemKind.Variable,
+					detail: token.name,
+					documentation: describeToken(token, res.completion, globalCompletion),
+					sortText: MODULE_SORT,
+				})
 			}
 
 			prevToken = token

@@ -516,6 +516,9 @@ class AstData : AstVisitor {
         if (expr is ExprRef2Value) {// ignore, we need sub exprs
             return
         }
+        if (expr is ExprAssume) {// ignore, manually check
+            return
+        }
         var token <- DasToken(expr, completion)
         if (expr is ExprField) {
             let field = expr as ExprField
