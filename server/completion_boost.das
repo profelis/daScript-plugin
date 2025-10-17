@@ -65,57 +65,15 @@ def fill_at(var res : CompletionAt&; at : LineInfo) {
 
 
 def BaseTypeString(t : rtti::Type) : string {
-    return "none" if (t == Type.none)
-    return "auto" if (t == Type.autoinfer)
-    return "alias" if (t == Type.alias)
-    return "option" if (t == Type.option)
-    return "<context>" if (t == Type.fakeContext)
-    return "<line info>" if (t == Type.fakeLineInfo)
-    return "any" if (t == Type.anyArgument)
-    return "void" if (t == Type.tVoid)
-    return "bool" if (t == Type.tBool)
-    return "int8" if (t == Type.tInt8)
-    return "int16" if (t == Type.tInt16)
-    return "uint8" if (t == Type.tUInt8)
-    return "uint16" if (t == Type.tUInt16)
-    return "int64" if (t == Type.tInt64)
-    return "uint64" if (t == Type.tUInt64)
-    return "int" if (t == Type.tInt)
-    return "int2" if (t == Type.tInt2)
-    return "int3" if (t == Type.tInt3)
-    return "int4" if (t == Type.tInt4)
-    return "uint" if (t == Type.tUInt)
-    return "uint2" if (t == Type.tUInt2)
-    return "uint3" if (t == Type.tUInt3)
-    return "uint4" if (t == Type.tUInt4)
-    return "float" if (t == Type.tFloat)
-    return "float2" if (t == Type.tFloat2)
-    return "float3" if (t == Type.tFloat3)
-    return "float4" if (t == Type.tFloat4)
-    return "double" if (t == Type.tDouble)
-    return "range" if (t == Type.tRange)
-    return "urange" if (t == Type.tURange)
-    return "range64" if (t == Type.tRange64)
-    return "urange64" if (t == Type.tURange64)
-    return "string" if (t == Type.tString)
-    return "structure" if (t == Type.tStructure)
-    return "handle" if (t == Type.tHandle)
-    return "enum" if (t == Type.tEnumeration)
-    return "enum8" if (t == Type.tEnumeration8)
-    return "enum16" if (t == Type.tEnumeration16)
-    return "enum64" if (t == Type.tEnumeration64)
-    return "bitfield" if (t == Type.tBitfield)
-    return "pointer" if (t == Type.tPointer)
-    return "function" if (t == Type.tFunction)
-    return "lambda" if (t == Type.tLambda)
-    return "iterator" if (t == Type.tIterator)
-    return "array" if (t == Type.tArray)
-    return "table" if (t == Type.tTable)
-    return "block" if (t == Type.tBlock)
-    return "tuple" if (t == Type.tTuple)
-    return "variant" if (t == Type.tVariant)
-    panic("unknown type: {t}")
-    return "{t}"
+    let res = "{t}"
+    if (length(res) > 1) {
+        let secondChar = res.slice(1,2)
+        let lowSecondChar = to_lower(secondChar)
+        if (lowSecondChar != secondChar) {
+            return "{lowSecondChar}{res.slice(2)}"
+        }
+    }
+    return res
 }
 
 /// enum
