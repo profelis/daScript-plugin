@@ -282,8 +282,14 @@ export function describeToken(tok: DasToken, cr: CompletionResult, cr2: Completi
     if (tok.alias.length > 0)
         res += ` aka ${tok.alias}`
 
-    if (tok.kind == TokenKind.ExprVar || tok.kind == TokenKind.ExprLet)
+    if (tok.kind == TokenKind.BlockArg || tok.kind == TokenKind.FuncArg) {
+        if (!tok.isConst) {
+            res = `var ${res}`
+        }
+    }
+    else if (tok.kind == TokenKind.ExprVar || tok.kind == TokenKind.ExprLet) {
         res = (tok.isConst ? 'let ' : 'var ') + res
+    }
     return res
 }
 
