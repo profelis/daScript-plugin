@@ -279,6 +279,10 @@ export function describeToken(tok: DasToken, cr: CompletionResult, cr2: Completi
             res += tok.name
     }
 
+    if (tok.kind == TokenKind.ExprAssume) {
+        res = `assume ${res}`
+    }
+
     if (tok.alias.length > 0)
         res += ` aka ${tok.alias}`
 
