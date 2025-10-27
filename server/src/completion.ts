@@ -104,6 +104,7 @@ export enum TokenKind {
     ExprAssume = 'ExprAssume',
     ExprDebug = 'ExprDebug',
     ExprConstEnumeration = 'ExprConstEnumeration',
+    ExprConstBitfield = 'ExprConstBitfield',
     Require = 'require',
     ExprReturn = 'ExprReturn',
     ExprMakeStruct = 'ExprMakeStruct',
