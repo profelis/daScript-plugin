@@ -522,6 +522,9 @@ class AstData : AstVisitor {
         if (expr is ExprMakeStruct) {// fields are parsed separately
             return
         }
+        if (expr is ExprConstBitfield) {// ignore, parsed separately
+            return
+        }
         var token <- DasToken(expr, completion)
         if (expr is ExprField) {
             let field = expr as ExprField
@@ -891,6 +894,31 @@ class AstData : AstVisitor {
         if (expr.constructor != null) {
             fill_at(token.declAt, expr.constructor.atDecl)
         }
+        res.tokens |> emplace(token)
+    }
+
+    def override preVisitExprConstBitfield(expr : smart_ptr<ExprConstBitfield>) : void {
+        if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
+            return
+        }
+        var token <- DasToken(expr, completion)
+        token.name = "{expr.describe()}"
+        token.value = "{expr.value}"
+        // if (expr.bitfieldType != null) {
+        //     token.tdk = TypeDeclKey(expr.bitfieldType)
+        //     token.alias = "{expr.bitfieldType.alias}"
+        //     *completion |> parse_typedecl(token.tdk, expr.bitfieldType, false)
+        // } else {
+        token.tdk = TypeDeclKey(expr._type)
+        *completion |> parse_typedecl(token.tdk, expr._type, false)
+        token.alias = expr._type.alias.string()
+        // if (expr.bitfieldType != null) {
+        //     token.tdk = "{token.tdk} --- {TypeDeclKey(expr.bitfieldType)} {expr.bitfieldType.flags.constant}"
+        //     token.alias = "{token.alias} --- {expr.bitfieldType.alias}"
+        //     *completion |> parse_typedecl(token.tdk, expr.bitfieldType, false)
+        // }
+        token.isConst = expr._type.flags.constant
+        token |> fill_at(expr.at)
         res.tokens |> emplace(token)
     }
 }
