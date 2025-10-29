@@ -249,6 +249,7 @@ export function findFunction(name: string, mod: string, cr: CompletionResult, cr
 export function describeToken(tok: DasToken, cr: CompletionResult, cr2: CompletionResult) {
     // cursed code, but it works
     let res = ''
+    const akaSuffix = tok.alias?.length > 0 ? ` aka ${tok.alias}` : ''
     if (tok.kind == TokenKind.ExprReturn)
         res += tok.name
     else if (tok.kind == TokenKind.ExprGoto)
@@ -268,15 +269,18 @@ export function describeToken(tok: DasToken, cr: CompletionResult, cr2: Completi
     }
     else if (tok.kind == TokenKind.Typedecl)
         res += tok.tdk
+    else if (tok.kind == TokenKind.ExprConstBitfield && tok.name.startsWith('bitfield(')) {
+        res += `const ${tok.tdk}${akaSuffix} = ${tok.value}`
+    }
     else {
         const hasValue = tok.value?.length > 0
         const hasTdk = tok.tdk?.length > 0
         if (hasValue && hasTdk)
-            res += `${tok.name} : ${tok.tdk} = ${tok.value}`
+            res += `${tok.name} : ${tok.tdk}${akaSuffix} = ${tok.value}`
         else if (hasValue)
             res += `${tok.name} = ${tok.value}`
         else if (hasTdk)
-            res += `${tok.name} : ${tok.tdk}`
+            res += `${tok.name} : ${tok.tdk}${akaSuffix}`
         else
             res += tok.name
     }
@@ -284,9 +288,6 @@ export function describeToken(tok: DasToken, cr: CompletionResult, cr2: Completi
     if (tok.kind == TokenKind.ExprAssume) {
         res = `assume ${res}`
     }
-
-    if (tok.alias.length > 0)
-        res += ` aka ${tok.alias}`
 
     if (tok.kind == TokenKind.BlockArg || tok.kind == TokenKind.FuncArg) {
         if (!tok.isConst) {
