@@ -2489,15 +2489,6 @@ function storeValidationResult(settings: DasSettings, doc: TextDocument, res: Va
 			token._uri = AtToUri(token, filePath, settings, workspaceFolders, res.dasRoot, fixedResults.filesCache)
 			if (token._uri != uri) // filter out tokens from other files
 				continue
-			if (token.kind == TokenKind.ExprConstBitfield) {
-				if (token.column && token.columnEnd && token.columnEnd < token.column) {
-					// fix bitfield with inverted columns
-					const colStart = token.column
-					token.column = token.columnEnd
-					token.columnEnd = colStart
-					token.lineEnd = token.line // bitfield should be in single line
-				}
-			}
 			addUsedModule(token.mod)
 			token._range = AtToRange(token)
 			token._originalText = doc.getText(token._range)
