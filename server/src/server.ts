@@ -1394,7 +1394,7 @@ connection.onDocumentFormatting(async (formatParams) => {
 	if (!autoFormatResult.has(formatParams.textDocument.uri))
 		return null
 	const newText = autoFormatResult.get(formatParams.textDocument.uri)
-	autoFormatResult.delete(globalCompletionFile.uri)
+	autoFormatResult.delete(formatParams.textDocument.uri)
 	if (newText == null || (newText.length == 0 && doc.getText().length > 0))
 		return null
 	const fixedText = newText.replace(/\r\n/g, '\n')
@@ -1875,13 +1875,14 @@ async function validateTextDocument(textDocument: TextDocument, extra: { autoFor
 		catch (e) { /* empty */ }
 	}
 
-
-	return globalValidatingQueue.enqueue(fileUri, fileVersion, async () => {
-		await validateTextDocumentInternal(textDocument, settings, filePath, tempFilePath, resultFilePath, removeTempFiles, extra)
+	const prefix = extra.autoFormat ? 'f:' : ''
+	const key = `${prefix}${fileUri}`
+	return globalValidatingQueue.enqueue(key, fileVersion, async () => {
+		await validateTextDocumentInternal(key, textDocument, settings, filePath, tempFilePath, resultFilePath, removeTempFiles, extra)
 	}, removeTempFiles, priority)
 }
 
-async function validateTextDocumentInternal(textDocument: TextDocument, settings: DasSettings, filePath: string, tempFilePath: string, resultFilePath: string, removeTempFiles: () => void, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
+async function validateTextDocumentInternal(key: string, textDocument: TextDocument, settings: DasSettings, filePath: string, tempFilePath: string, resultFilePath: string, removeTempFiles: () => void, extra: { autoFormat?: boolean } = { autoFormat: false }): Promise<void> {
 	const fileUri = textDocument.uri
 	const fileVersion = textDocument.version
 
@@ -1957,7 +1958,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 	}
 
 	// Notify queue about the process immediately after spawn
-	globalValidatingQueue.setProcess(fileUri, child)
+	globalValidatingQueue.setProcess(key, child)
 
 	return new Promise<void>((resolve, reject) => {
 		const diagnostics: Map<string, Diagnostic[]> = new Map()
@@ -1971,7 +1972,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 		})
 		child.on('error', (error: any) => {
 			// Check if this process is still current
-			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+			if (!globalValidatingQueue.isProcessCurrent(key, child.pid!, fileVersion)) {
 				console.error(`[PROCESS] internal error: Received error from stale process: pid=${child.pid}, version=${fileVersion}, error=${error}`)
 				resolve()
 				return
@@ -1983,7 +1984,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 
 		child.on('close', (exitCode: any) => {
 			// Check if this process is still current in the queue
-			if (!globalValidatingQueue.isProcessCurrent(fileUri, child.pid!, fileVersion)) {
+			if (!globalValidatingQueue.isProcessCurrent(key, child.pid!, fileVersion)) {
 				console.error(`[PROCESS] internal error: Received result from stale process: pid=${child.pid}, version=${fileVersion}, exitCode=${exitCode}`)
 				removeTempFiles()
 				resolve()
@@ -2019,6 +2020,7 @@ async function validateTextDocumentInternal(textDocument: TextDocument, settings
 			removeTempFiles()
 
 			if (extra.autoFormat) {
+				console.log("deep: autoformat result for", fileUri, "version", fileVersion, "current version", documents.get(fileUri)?.version)
 				autoFormatResult.set(fileUri, validateTextResult)
 				resolve()
 				return
