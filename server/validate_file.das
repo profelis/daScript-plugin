@@ -281,7 +281,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                             visitor.res = unsafe(addr(res))
                             visitor.completion = unsafe(addr(completion))
                             var inscope adapter <- make_visitor(*visitor)
-                            program |> visit(adapter)
+                            program.visit_modules(adapter)
                             unsafe {
                                 delete visitor
                             }
@@ -712,7 +712,9 @@ class AstData : AstVisitor {
             skipExprs |> push(true)
             return
         }
-        delete skipExprs
+        if (length(skipExprs) > 0) {
+            return
+        }
         if (fun.flags._lambda) {
             return
         }
@@ -782,7 +784,11 @@ class AstData : AstVisitor {
     }
 
     def override visitFunction(var fun : FunctionPtr) : FunctionPtr {
-        delete skipExprs
+        if (fun.flags.generated && !fun.flags._generator && !fun.flags._lambda) {
+            if (skipExprs.length() > 0) {
+                skipExprs |> pop()
+            }
+        }
         return <- fun
     }
 
