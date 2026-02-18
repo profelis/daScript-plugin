@@ -8,6 +8,8 @@ Plugin for scripting language [daScript](https://dascript.org/)
 - Download daScript from github repository [GaijinEntertainment/daScript](https://github.com/GaijinEntertainment/daScript)
 - Set path to compiler in daScript settings section
 
+> Note for VSCodium users: you might need to install the plugin's dependencies manually when installing it from VSIX (e.g. [dascript](https://marketplace.visualstudio.com/items?itemName=eguskov.dascript) extension).
+
 ## Features
 
 - Debugger
