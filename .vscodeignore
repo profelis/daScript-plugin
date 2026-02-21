@@ -11,3 +11,6 @@ client/node_modules/**
 !client/node_modules/vscode-languageclient/**
 !client/node_modules/vscode-languageserver-protocol/**
 !client/node_modules/vscode-languageserver-types/**
+!client/node_modules/minimatch/**
+!client/node_modules/brace-expansion/**
+!client/node_modules/balanced-match/**
