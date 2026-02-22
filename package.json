@@ -419,14 +419,14 @@
 	"devDependencies": {
 		"@types/mocha": "^5.2.0",
 		"@types/node": "^16.18.34",
-		"@typescript-eslint/eslint-plugin": "^6.7.0",
-		"@typescript-eslint/parser": "^6.7.0",
-		"eslint": "^8.26.0",
+		"@typescript-eslint/eslint-plugin": "^8.56.0",
+		"@typescript-eslint/parser": "^6.21.0",
+		"eslint": "^10.0.1",
 		"typescript": "^5.2.2",
 		"@vscode/debugadapter": "^1.48.0"
 	},
 	"dependencies": {
-		"minimatch": "^5.1.0",
+		"minimatch": "^10.2.2",
 		"run-in-terminal": "^0.0.3",
 		"semver": "^7.5.2",
 		"@vscode/debugadapter": "^1.48.0"
