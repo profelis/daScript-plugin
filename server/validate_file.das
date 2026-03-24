@@ -8,10 +8,10 @@ options no_unused_block_arguments
 options strict_smart_pointers
 options no_aot
 
-require ast
-require rtti
-require strings
-require fio
+require daslib/ast
+require daslib/rtti
+require daslib/strings
+require daslib/fio
 require daslib/ast_boost
 require daslib/strings_boost
 require daslib/das_source_formatter
