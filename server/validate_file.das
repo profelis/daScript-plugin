@@ -188,6 +188,9 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                 cp.gen2_make_syntax = config.gen2MakeSyntax
                 cp.always_report_candidates_threshold = config.alwaysReportCandidatesThreshold
                 cp.max_infer_passes = config.maxInferPasses
+                if (typeinfo has_field<temp_one_liner_warning>(cp)) {
+                    cp.temp_one_liner_warning = false
+                } 
                 cp.export_all = true
                 cp.aot_module = true
                 cp.completion = true
