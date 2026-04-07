@@ -8,10 +8,10 @@ options no_unused_block_arguments
 options strict_smart_pointers
 options no_aot
 
-require ast
-require rtti
-require math
-require strings
+require daslib/ast
+require daslib/rtti
+require daslib/math
+require daslib/strings
 require daslib/strings_boost
 
 

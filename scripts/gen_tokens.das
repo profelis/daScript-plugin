@@ -1,7 +1,7 @@
 options gen2
 options indenting = 4
-require fio
-require strings
+require daslib/fio
+require daslib/strings
 require daslib/strings_boost
 
 variant Tokens {
