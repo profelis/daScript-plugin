@@ -66,7 +66,7 @@ def fill_at(var res : CompletionAt&; at : LineInfo) {
 def BaseTypeString(t : rtti::Type) : string {
     let res = "{t}"
     if (length(res) > 1) {
-        let secondChar = res.slice(1,2)
+        let secondChar = res.slice(1, 2)
         let lowSecondChar = to_lower(secondChar)
         if (lowSecondChar != secondChar) {
             return "{lowSecondChar}{res.slice(2)}"
@@ -91,7 +91,7 @@ struct CompletionEnum : CompletionAt {
     @optional values : array<CompletionEnumValue>
 }
 
-def parse_enum(var res : CompletionContext; e : smart_ptr<Enumeration>&) {
+def parse_enum(var res : CompletionContext; e : Enumeration?) {
     var en <- CompletionEnum(name = "{e.name}", cpp = "{e.cppName}", baseType = BaseTypeString(e.baseType))
     en |> fill_at(e.at)
     if (e._module != null && length(e._module.name) > 0) {
@@ -120,7 +120,7 @@ struct CompletionGlobal : CompletionAt {
     @optional isUnused : bool
 }
 
-def parse_global(var res : CompletionContext; g : smart_ptr<ast::Variable>&) {
+def parse_global(var res : CompletionContext; g : Variable?) {
     var gl <- CompletionGlobal(name = "{g.name}")
     gl |> fill_at(g.at)
     if (g._module != null) {
@@ -160,15 +160,7 @@ struct CompletionStruct : CompletionAt {
     @optional gen : bool
 }
 
-def resolve_str(var s : smart_ptr<Structure>&) : Structure? {
-    return s |> get_ptr()
-}
-
-def resolve_str(var s : Structure?) : Structure? {
-    return s
-}
-
-def parse_struct(var res : CompletionContext; var s : smart_ptr<Structure>& | Structure?) {
+def parse_struct(var res : CompletionContext; s : Structure?) {
     var st <- CompletionStruct(name = "{s.name}")
     st |> fill_at(s.at)
     if (s._module != null) {
@@ -184,7 +176,6 @@ def parse_struct(var res : CompletionContext; var s : smart_ptr<Structure>& | St
         st.parentName = s.parent.name |> string()
         st.parentMod = s.parent._module != null ? "{s.parent._module.name}" : ""
     }
-    var sptr = s |> resolve_str()
     for (f in s.fields) {
         var field <- CompletionStructField(name = "{f.name}")
         field |> fill_at(f.at)
@@ -206,13 +197,13 @@ def private cleanupTDK(str : string) : string {
     var parts <- str |> split("const?")
 
     for (res in parts) {
-        res = replace_multiple(res, [ (" ==const", ""), (" const", ""), (" implicit", ""), (";", ",") ])
+        res = replace_multiple(res, [ (text = " ==const", replacement = ""), (text = " const", replacement = ""), (text = " implicit", replacement = ""), (text = ";", replacement = ",") ])
     }
 
     return parts |> join("const?")
 }
 
-def TypeDeclKey(t : smart_ptr<ast::TypeDecl>&) : string {
+def TypeDeclKey(t : TypeDecl?) : string {
     return t |> describe_typedecl(false, false, true) |> cleanupTDK()
 }
 
@@ -242,7 +233,7 @@ struct CompletionTypeDecl : CompletionAt {
 let skipTypeDescSize = fixed_array(Type.none, Type.autoinfer, Type.alias, Type.fakeLineInfo,
     Type.fakeContext, Type.alias, Type.typeDecl, Type.typeMacro, Type.option)
 
-def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<TypeDecl>&; is_generic : bool) : void {
+def parse_typedecl(var res : CompletionContext; tdk : string; t : TypeDecl?; is_generic : bool) : void {
     let tdkHash = hash(tdk)
     if (res.typeDecls.key_exists(tdkHash)) {
         return
@@ -256,6 +247,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
     td.canMove = t.canMove
     td.canClone = t.canClone
     let totalArgs = min(length(t.argNames), length(t.argTypes))
+    td.fields |> reserve(max(length(t.argNames), length(t.argTypes)))
     for (idx, argN, argT in count(), t.argNames, t.argTypes) {
         var tf <- CompletionTypeDeclField(name = length(argN) > 0 ? "{argN}" : "_{idx}")
         tf.tdk = TypeDeclKey(argT)
@@ -303,7 +295,7 @@ def parse_typedecl(var res : CompletionContext; tdk : string; t : smart_ptr<Type
         td.tdk1 = TypeDeclKey(t.firstType)
         res |> parse_typedecl(td.tdk1, t.firstType, is_generic)
     } elif (length(t.dim) > 0) {
-        var inscope sub <- t |> clone_type()
+        var sub = clone_type(t)
         sub.dim |> pop()
         parse_typedecl(res, TypeDeclKey(sub), sub, is_generic)
         td.tdk1 = TypeDeclKey(sub)
@@ -324,7 +316,7 @@ struct CompletionTypeDef : CompletionAt {
     tdk : string
 }
 
-def parse_typedef(var res : CompletionContext; mod : Module?; n : string#; t : smart_ptr<TypeDecl>&) {
+def parse_typedef(var res : CompletionContext; mod : Module?; n : string#; t : TypeDecl?) {
     var td <- CompletionTypeDef(name = "{n}")
     td |> fill_at(t.at)
     td.mod = mod.name |> string()
@@ -367,7 +359,7 @@ def remove_fn_generation(name : string) : string {
     if (lastAt == -1) {
         return name
     }
-    for (i in lastAt+1..length(name)) {
+    for (i in lastAt + 1..length(name)) {
         if (!is_number(unsafe(character_uat(name, i)))) {
             return name
         }
@@ -391,7 +383,7 @@ def fix_fn_name(name : string) : string {
 }
 
 
-def parse_function(var res : CompletionContext; f : smart_ptr<Function>&; cpp : string; is_generic : bool) {
+def parse_function(var res : CompletionContext; f : Function?; cpp : string; is_generic : bool) {
     var fn <- CompletionFunction(name = "{f.name}", cpp = "{cpp}")
     fn.name = fix_fn_name(fn.name)
     fn.isGeneric = is_generic
@@ -440,7 +432,7 @@ def parse_annotation(var res : CompletionContext; ann : Annotation&) {
         if (ann._module != null) {
             st.mod = ann._module.name |> string()
         }
-        for_each_field(sann) <| $ [unused_argument(cppName)] (name, cppName, xtype, offset) {
+        for_each_field(sann) $ [unused_argument(cppName)] (name, cppName, xtype, offset) {
             var field <- CompletionStructField(name = "{name}")
             field.tdk = TypeDeclKey(xtype)
             res |> parse_typedecl(field.tdk, xtype, /*is_generic*/false)
@@ -469,41 +461,41 @@ def parse_annotation(var res : CompletionContext; ann : Annotation&) {
 def parse_module(var res : CompletionContext; mod : rtti::Module?) {
     // debug(mod)
 
-    mod |> for_each_enumeration() <| $(e) {
+    mod |> for_each_enumeration() $(e) {
         // debug(e)
         res |> parse_enum(e)
     }
 
-    mod |> for_each_global() <| $(g) {
+    mod |> for_each_global() $(g) {
         // debug(g)
         res |> parse_global(g)
     }
 
-    mod |> for_each_structure() <| $(s) {
+    mod |> for_each_structure() $(s) {
         res |> parse_struct(s)
     }
 
-    mod |> for_each_typedef() <| $(n, t) {
+    mod |> for_each_typedef() $(n, t) {
         // debug(t)
         res |> parse_typedef(mod, n, t)
     }
 
     var inscope funcCppNames : table<string; string>
-    mod |> module_for_each_function() <| $(f) {
+    mod |> module_for_each_function() $(f) {
         funcCppNames |> insert(f.name, clone_string(f.cppName))
     }
 
-    mod |> for_each_generic() <| $(f) {
+    mod |> for_each_generic() $(f) {
         // debug(f)
         res |> parse_function(f, funcCppNames?[string(f.name)] ?? "", true)
     }
 
-    mod |> for_each_function("") <| $(f) {
+    mod |> for_each_function("") $(f) {
         // debug(f)
         res |> parse_function(f, funcCppNames?[string(f.name)] ?? "", false)
     }
 
-    mod |> module_for_each_annotation() <| $(a) {
+    mod |> module_for_each_annotation() $(a) {
         res |> parse_annotation(a)
     }
 }
