@@ -29,24 +29,33 @@ def buildString(data : array<string>; prefix, postfix, decorator, delimeter : st
     if (length(data) == 0) {
         return prefix + postfix
     } else {
-        var res = ""
-        var line = prefix
-        for (i in iter_range(data)) {
-            let it = data[i]
-            if (length(line) + length(delimeter) + 2 * length(decorator) >= maxLen) {
-                res += (length(res) > 0 ? "\n" : "") + line
-                line = repeat(" ", prefix |> length())
+        let padStr = repeat(" ", length(prefix))
+        return build_string() $(var writer) {
+            var lineLen = length(prefix)
+            var isFirst = true
+            write(writer, prefix)
+            for (i in iter_range(data)) {
+                let it = data[i]
+                if (lineLen + length(delimeter) + 2 * length(decorator) >= maxLen) {
+                    if (!isFirst) {
+                        write(writer, "\n")
+                    }
+                    isFirst = false
+                    write(writer, padStr)
+                    lineLen = length(padStr)
+                }
+                write(writer, decorator)
+                write(writer, it)
+                write(writer, decorator)
+                lineLen += 2 * length(decorator) + length(it)
+                if (i < length(data) - 1) {
+                    write(writer, delimeter)
+                    lineLen += length(delimeter)
+                }
             }
-            line += "{decorator}{it}{decorator}"
-            if (i < length(data) - 1) {
-                line += delimeter
-            }
+            write(writer, postfix)
+            write(writer, "\n")
         }
-        if (length(line) > 0) {
-            res += "\n{line}"
-        }
-        res += postfix + "\n"
-        return res
     }
 }
 
@@ -65,7 +74,7 @@ def getOperators() {
 def getTokens(from : string) : Tokens {
     let path = get_das_root() + "/src/parser/ds_parser.ypp"
     var res <- Tokens(status = false)
-    fio::fopen(path, "rb") <| $(f) {
+    fio::fopen(path, "rb") $(f) {
         if (f == null) {
             debug("error: can't open {path}")
             return

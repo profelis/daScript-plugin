@@ -94,7 +94,7 @@ def main() {
     if (WRITE_RESULT_TO_FILE) {
         mkdir("results")
         let fileName = file_name_to_uri(config.originalFile) |> split("/") |> back()
-        fopen("results/{fileName}.json", "w") <| $(f) {
+        fopen("results/{fileName}.json", "w") $(f) {
             if (f == null) {
                 error("unable to open file 'results/{fileName}.json'")
                 unsafe(fio::exit(1))
@@ -104,7 +104,7 @@ def main() {
     }
 
     if (WRITE_RESULT) {
-        fopen(config.resultFile, "w") <| $(f) {
+        fopen(config.resultFile, "w") $(f) {
             if (f == null) {
                 error("unable to open file '{config.resultFile}'")
                 unsafe(fio::exit(1))
@@ -161,12 +161,12 @@ struct ErrorData {
 
 def compile(var res : ValidationResult; config : ValidateConfig) {
 
-    fopen(config.file, "rb") <| $(fr) {
+    fopen(config.file, "rb") $(fr) {
         if (fr == null) {
             res.errors |> emplace(DasError(what = "unable to open file '{config.file}'"))
             return
         }
-        fmap(fr) <| $(fileCont) {
+        fmap(fr) $(fileCont) {
 
             if (config.autoFormat) {
                 res.autoFormat = das_source_formatter::format_source(fileCont)
@@ -177,7 +177,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
             access |> set_file_source(config.originalFile, string(fileCont))
             access |> init_file_access(config.fileAccessRoots)
 
-            using() <| $(var mg : ModuleGroup) {
+            using() $(var mg : ModuleGroup) {
                 var cp = CodeOfPolicies()
                 cp.no_global_variables = config.noGlobalVariables
                 cp.no_unused_block_arguments = config.noUnusedBlockArguments
@@ -190,13 +190,13 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                 cp.max_infer_passes = config.maxInferPasses
                 if (typeinfo has_field<temp_one_liner_warning>(cp)) {
                     cp.temp_one_liner_warning = false
-                } 
+                }
                 cp.export_all = true
                 cp.aot_module = true
                 cp.completion = true
                 cp.no_optimizations = true
                 try {
-                    compile_file(config.originalFile, access, unsafe(addr(mg)), cp) <| $(ok, program, error) {
+                    compile_file(config.originalFile, access, unsafe(addr(mg)), cp) $(ok, program, error) {
 
 
                         if (ok && program != null) {
@@ -204,7 +204,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
 
                             var allDeps : table<uint64>
 
-                            program |> for_each_require_declaration() <| $(mod, name, file, isPublic, at) {
+                            program |> for_each_require_declaration() $(mod, name, file, isPublic, at) {
                                 var modReq <- ModuleRequirement(
                                     mod = mod != null ? "{mod.name}" : "",
                                     req = "{name}",
@@ -217,17 +217,17 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                                     var allMods : table<uint64>
                                     var mods : array<tuple<mod : Module?; depth : int>>
                                     allMods |> insert(intptr(mod))
-                                    mods |> push((mod, 0))  // root dep is public for local module
+                                    mods |> push((mod = mod, depth = 0))  // root dep is public for local module
                                     while (length(mods) > 0) {
                                         var mod2 = mods |> back()
                                         mods |> pop()
-                                        mod2.mod |> module_for_each_dependency() <| $(dep, isPublic2) {
+                                        mod2.mod |> module_for_each_dependency() $(dep, isPublic2) {
                                             return if (!isPublic2 || dep == null)
 
                                             modReq.dependencies |> emplace(ModDeps(mod = "{dep.name}", depth = mod2.depth + 1))
                                             allDeps |> insert(intptr(dep))
                                             if (!allMods |> key_exists(intptr(dep))) {
-                                                mods |> push((dep, mod2.depth + 1))
+                                                mods |> push((mod = dep, depth = mod2.depth + 1))
                                                 allMods |> insert(intptr(dep))
                                             }
                                         }
@@ -252,7 +252,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
 
                             // else
 
-                            program_for_each_registered_module() <| $(mod) {
+                            program_for_each_registered_module() $(mod) {
                                 if (mod |> is_builtin()) {
                                     res.builtinMods |> push("{mod.name}")
                                 }
@@ -260,7 +260,7 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
 
                             var processed : table<string>
                             if (true) {
-                                program |> get_ptr() |> for_each_module() <| $(mod) {
+                                program |> get_ptr() |> for_each_module() $(mod) {
                                     // res.progMods |> push("{mod.name}")
                                     // global completion now contains only $(builtin) module
                                     if (config.globalCompletion && mod.name != "$") {
@@ -282,8 +282,9 @@ def compile(var res : ValidationResult; config : ValidateConfig) {
                             var visitor <- new AstData()
                             visitor.res = unsafe(addr(res))
                             visitor.completion = unsafe(addr(completion))
-                            var inscope adapter <- make_visitor(*visitor)
-                            program.visit_modules(adapter)
+                            make_visitor(*visitor) $(adapter) {
+                                visit_modules(program, adapter)
+                            }
                             unsafe {
                                 delete visitor
                             }
@@ -400,8 +401,6 @@ class AstData : AstVisitor {
         token |> fill_at(str.at)
         res.tokens |> emplace(token)
 
-        let stName = str._module != null ? "{str._module.name}::{str.name}" : "{str.name}"
-
         var inscope fields : table<string>
         var parent = str.parent
         while (parent != null) {
@@ -428,7 +427,7 @@ class AstData : AstVisitor {
     }
 
 
-    [unused_argument(index, last)] def override preVisitExprMakeStructField(expr : smart_ptr<ExprMakeStruct>; index : int; decl : MakeFieldDeclPtr; last : bool) : void {
+    [unused_argument(index, last)] def override preVisitExprMakeStructField(expr : ExprMakeStruct ?; index : int; decl : MakeFieldDeclPtr; last : bool) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
@@ -489,12 +488,12 @@ class AstData : AstVisitor {
 
     [unused_argument(name)] def override visitAlias(var typ : TypeDeclPtr; name : das_string) : TypeDeclPtr {
         ignoreNextTypeDecl = false
-        return <- typ
+        return typ
     }
 
 
     def override preVisitExpression(expr : ExpressionPtr) : void {
-        let ptr = intptr(expr |> get_ptr())
+        let ptr = intptr(expr)
         if (key_exists(visitedExprs, ptr)) {
             return
         }
@@ -612,14 +611,14 @@ class AstData : AstVisitor {
         res.tokens |> emplace(token)
     }
 
-    def override preVisitExprCall(expr : smart_ptr<ExprCall>) : void {
+    def override preVisitExprCall(expr : ExprCall?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
-        preVisitExprCallFunc(expr |> get_ptr())
+        preVisitExprCallFunc(expr)
     }
 
-    def override preVisitExprLet(expr : smart_ptr<ExprLet>) : void {
+    def override preVisitExprLet(expr : ExprLet?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
@@ -642,7 +641,7 @@ class AstData : AstVisitor {
         }
     }
 
-    [unused_argument(last)] def override preVisitExprForVariable(expr : smart_ptr<ExprFor>; svar : VariablePtr; last : bool) : void {
+    [unused_argument(last)] def override preVisitExprForVariable(expr : ExprFor ?; svar : VariablePtr; last : bool) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated || svar.flags.generated) {
             return
         }
@@ -664,7 +663,7 @@ class AstData : AstVisitor {
     }
 
 
-    def override preVisitExprVar(expr : smart_ptr<ExprVar>) : void {
+    def override preVisitExprVar(expr : ExprVar?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
@@ -791,10 +790,10 @@ class AstData : AstVisitor {
                 skipExprs |> pop()
             }
         }
-        return <- fun
+        return fun
     }
 
-    [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : smart_ptr<ExprBlock>; arg : VariablePtr; lastArg : bool) : void {
+    [unused_argument(lastArg)] def override preVisitExprBlockArgument(blk : ExprBlock ?; arg : VariablePtr; lastArg : bool) : void {
         if (length(skipExprs) > 0 || blk == null || blk.genFlags.generated || arg.flags.generated) {
             return
         }
@@ -817,18 +816,18 @@ class AstData : AstVisitor {
         res.tokens |> emplace(token)
     }
 
-    def override preVisitExprOp1(expr : smart_ptr<ExprOp1>) : void {
+    def override preVisitExprOp1(expr : ExprOp1?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
-        preVisitExprCallFunc(expr |> get_ptr())
+        preVisitExprCallFunc(expr)
     }
 
-    def override preVisitExprOp2(expr : smart_ptr<ExprOp2>) : void {
+    def override preVisitExprOp2(expr : ExprOp2?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
-        preVisitExprCallFunc(expr |> get_ptr())
+        preVisitExprCallFunc(expr)
     }
 
     // def override preVisitExprTypeInfo(expr : smart_ptr<ExprTypeInfo>) : void
@@ -873,7 +872,7 @@ class AstData : AstVisitor {
     // - functions
     // - operators (Op1, Op2)
 
-    def override preVisitExprAssume(expr : smart_ptr<ExprAssume>) : void {
+    def override preVisitExprAssume(expr : ExprAssume?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
@@ -893,7 +892,7 @@ class AstData : AstVisitor {
         res.tokens |> emplace(token)
     }
 
-    def override preVisitExprMakeStruct(expr : smart_ptr<ExprMakeStruct>) {
+    def override preVisitExprMakeStruct(expr : ExprMakeStruct?) {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
@@ -905,7 +904,7 @@ class AstData : AstVisitor {
         res.tokens |> emplace(token)
     }
 
-    def override preVisitExprConstBitfield(expr : smart_ptr<ExprConstBitfield>) : void {
+    def override preVisitExprConstBitfield(expr : ExprConstBitfield?) : void {
         if (length(skipExprs) > 0 || expr == null || expr.genFlags.generated) {
             return
         }
