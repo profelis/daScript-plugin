@@ -250,7 +250,7 @@ connection.onCodeAction(async (params) => {
 
 					const fileData = await getDocumentDataFast(params.textDocument.uri)
 					if (fileData) {
-						const cmdAll = { changes: {}, }
+						const cmdAll: WorkspaceEdit = { changes: {}, }
 						for (const req of fileData.requirements) {
 							if (!req._used) {
 								const range = Range.create(req._range.start, Position.create(req._range.start.line + 1, 0))
@@ -963,7 +963,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.enums.forEach(enumCb)
 
-			const structCb = (st) => {
+			const structCb = (st: CompletionStruct) => {
 				if (st.mod === call.obj) {
 					const c = CompletionItem.create(st.name)
 					c.detail = structDetail(st)
@@ -991,7 +991,7 @@ connection.onCompletion(async (textDocumentPosition) => {
 			if (globalCompletion)
 				globalCompletion.functions.forEach(fnCb)
 
-			const tdCb = td => {
+			const tdCb = (td: CompletionTypeDef) => {
 				if (td.mod == call.obj) {
 					const c = CompletionItem.create(td.name)
 					c.detail = typedefDetail(td)
@@ -1539,6 +1539,7 @@ connection.onDidChangeConfiguration(change => {
 	} else {
 		globalSettings = <DasSettings>((change.settings || defaultSettings))
 	}
+	versionScriptDirCache.clear()
 
 	forceUpdateAllDocuments()
 	updateValidationQueueSettings()
@@ -1571,6 +1572,106 @@ function stringHashCode(str: string) {
 }
 
 let validateId = 0
+
+
+const versionScriptDirCache: Map<string, Promise<string>> = new Map()
+
+type Version = [number, number, number]
+interface VersionScriptDir {
+	minVersion: Version
+	dir: string
+}
+
+// To add support for a new daslang version, drop a new scripts folder under
+// server/<dir>/ and add an entry below — order doesn't matter, the table is
+// sorted descending at startup. Each entry covers versions >= minVersion
+// (up to the next entry's minVersion). The lowest minVersion is also the
+// fallback for unparseable --version output (old binaries without --version).
+const VERSION_SCRIPT_DIRS: VersionScriptDir[] = [
+	{ minVersion: [0, 6, 1], dir: '0.6.1' },
+	{ minVersion: [0, 0, 0], dir: '0.6.0' },
+]
+
+function parseVersion(line: string): Version | null {
+	const match = line.match(/(\d+)\.(\d+)\.(\d+)/)
+	if (!match) return null
+	return [parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10)]
+}
+
+function compareVersion(a: Version, b: Version): number {
+	for (let i = 0; i < 3; i++) {
+		if (a[i] !== b[i]) return a[i] - b[i]
+	}
+	return 0
+}
+
+VERSION_SCRIPT_DIRS.sort((a, b) => compareVersion(b.minVersion, a.minVersion))
+
+function pickScriptDirForVersion(serverRoot: string, versionLine: string): string {
+	const fallback = VERSION_SCRIPT_DIRS[VERSION_SCRIPT_DIRS.length - 1]
+	const parsed = parseVersion(versionLine)
+	if (!parsed) {
+		console.log(`[version] could not parse "${versionLine}", falling back to ${fallback.dir}`)
+		return path.join(serverRoot, fallback.dir)
+	}
+	for (const entry of VERSION_SCRIPT_DIRS) {
+		if (compareVersion(parsed, entry.minVersion) >= 0) {
+			console.log(`[version] detected ${parsed.join('.')} -> using scripts from ${entry.dir}`)
+			return path.join(serverRoot, entry.dir)
+		}
+	}
+	return path.join(serverRoot, fallback.dir)
+}
+
+function detectScriptDir(compiler: string, serverRoot: string): Promise<string> {
+	const cached = versionScriptDirCache.get(compiler)
+	if (cached) return cached
+
+	const promise = new Promise<string>((resolve) => {
+		let settled = false
+		const fallback = () => {
+			if (settled) return
+			settled = true
+			resolve(path.join(serverRoot, '0.6.0'))
+		}
+		let child: ChildProcessWithoutNullStreams
+		try {
+			child = spawn(compiler, ['--version'], { cwd: serverRoot })
+		} catch (e) {
+			console.log(`[version] failed to spawn "${compiler} --version":`, e)
+			fallback()
+			return
+		}
+		const timeout = setTimeout(() => {
+			try { child.kill() } catch { /* empty */ }
+			console.log(`[version] "${compiler} --version" timed out, assuming 0.6.0`)
+			fallback()
+		}, 5000)
+		let out = ''
+		child.stdout.on('data', d => { out += d.toString() })
+		child.stderr.on('data', d => { out += d.toString() })
+		child.on('error', (err) => {
+			clearTimeout(timeout)
+			console.log(`[version] "${compiler} --version" error:`, err)
+			fallback()
+		})
+		child.on('close', (code) => {
+			clearTimeout(timeout)
+			if (settled) return
+			if (code !== 0) {
+				console.log(`[version] "${compiler} --version" exited with code ${code}, assuming 0.6.0`)
+				fallback()
+				return
+			}
+			const line = out.split('\n').map(s => s.trim()).find(s => s.length > 0) || ''
+			settled = true
+			resolve(pickScriptDirForVersion(serverRoot, line))
+		})
+	})
+
+	versionScriptDirCache.set(compiler, promise)
+	return promise
+}
 
 
 const globalCompletionFile = TextDocument.create('$$$completion$$$.das', 'dascript', 1, '// empty')
@@ -1897,18 +1998,22 @@ async function validateTextDocumentInternal(key: string, textDocument: TextDocum
 	fs.writeFileSync(resultFilePath, '')
 
 	const workspaceFolder = URI.parse(workspaceFolders![0].uri).fsPath
+	let compiler = settings.compiler
+	if (compiler) {
+		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
+	}
+	const scriptPath = process.argv[1]
+	const cwd = path.dirname(path.dirname(scriptPath))
+	const scriptDir = await detectScriptDir(compiler, cwd)
+	const validateFilePath = path.join(scriptDir, 'validate_file.das')
 	const args = settings.server.args.map(
-		p => p.replace('${file}', 'validate_file.das').replace('${workspaceFolder}', workspaceFolder)
+		p => p.replace('${file}', validateFilePath).replace('${workspaceFolder}', workspaceFolder)
 	)
 	if (args.indexOf('--') < 0)
 		args.push('--')
 	args.push('--file', tempFilePath)
 	args.push('--original-file', filePath)
 	args.push('--result', resultFilePath)
-	let compiler = settings.compiler
-	if (compiler) {
-		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
-	}
 	let projectFile = settings.project.file
 	if (projectFile) {
 		projectFile = projectFile.replace('${workspaceFolder}', workspaceFolder)
@@ -1942,8 +2047,6 @@ async function validateTextDocumentInternal(key: string, textDocument: TextDocum
 	if (extra.autoFormat)
 		args.push('--auto-format')
 
-	const scriptPath = process.argv[1]
-	const cwd = path.dirname(path.dirname(scriptPath))
 	console.log(`> validating ${fileUri} version ${fileVersion}`)
 	console.log('> cwd', cwd)
 	console.log('> exec', compiler, args.join(' '))
