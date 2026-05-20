@@ -2003,8 +2003,11 @@ async function validateTextDocumentInternal(key: string, textDocument: TextDocum
 		compiler = compiler.replace('${workspaceFolder}', workspaceFolder)
 	}
 	const scriptPath = process.argv[1]
-	const cwd = path.dirname(path.dirname(scriptPath))
-	const scriptDir = await detectScriptDir(compiler, cwd)
+	const serverRoot = path.dirname(path.dirname(scriptPath))
+	const scriptDir = await detectScriptDir(compiler, serverRoot)
+	// cwd = scriptDir so that `require completion_boost` inside validate_file.das
+	// resolves regardless of how daslang is configured to search modules.
+	const cwd = scriptDir
 	const validateFilePath = path.join(scriptDir, 'validate_file.das')
 	const args = settings.server.args.map(
 		p => p.replace('${file}', validateFilePath).replace('${workspaceFolder}', workspaceFolder)
