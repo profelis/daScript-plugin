@@ -1588,6 +1588,7 @@ interface VersionScriptDir {
 // (up to the next entry's minVersion). The lowest minVersion is also the
 // fallback for unparseable --version output (old binaries without --version).
 const VERSION_SCRIPT_DIRS: VersionScriptDir[] = [
+	{ minVersion: [0, 6, 3], dir: '0.6.3' },
 	{ minVersion: [0, 6, 1], dir: '0.6.1' },
 	{ minVersion: [0, 0, 0], dir: '0.6.0' },
 ]
