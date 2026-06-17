@@ -1,0 +1,74 @@
+name: nightly-compile
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      daslang_ref:
+        description: 'GaijinEntertainment/daScript ref to build'
+        default: 'master'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-compile
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    env:
+      DASLANG_REF: ${{ github.event.inputs.daslang_ref || 'master' }}
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      - name: Checkout daslang
+        uses: actions/checkout@v4
+        with:
+          repository: GaijinEntertainment/daScript
+          ref: ${{ env.DASLANG_REF }}
+          path: daslang
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build build-essential
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ env.DASLANG_REF }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ env.DASLANG_REF }}-
+            ccache-${{ runner.os }}-
+
+      - name: Build daslang
+        working-directory: daslang
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --target daslang -j "$(nproc)"
+
+      - name: Compile latest server module
+        run: |
+          DASLANG="$GITHUB_WORKSPACE/daslang/bin/daslang"
+          DASROOT="$GITHUB_WORKSPACE/daslang"
+          DIR="$(ls -d server/[0-9]*/ | sort -V | tail -1)"
+          echo "Compiling all .das in $DIR with daslang ($DASLANG_REF)"
+          rc=0
+          for f in "$DIR"*.das; do
+            echo "::group::$f"
+            if "$DASLANG" -dry-run "$f" -dasroot "$DASROOT"; then
+              echo "OK: $f"
+            else
+              echo "::error file=$f::dry-run compilation failed"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $rc
