@@ -34,7 +34,7 @@ jobs:
           path: daslang
 
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build build-essential
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build build-essential ccache
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -51,7 +51,17 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DDAS_GLFW_DISABLED=ON \
+            -DDAS_AUDIO_DISABLED=ON \
+            -DDAS_STDDLG_DISABLED=ON \
+            -DDAS_HV_DISABLED=ON \
+            -DDAS_STBIMAGE_DISABLED=ON \
+            -DDAS_PUGIXML_DISABLED=ON \
+            -DDAS_SQLITE_DISABLED=ON \
+            -DDAS_TESTS_DISABLED=ON \
+            -DDAS_AOT_EXAMPLES_DISABLED=ON \
+            -DDAS_TUTORIAL_DISABLED=ON
           cmake --build build --target daslang -j "$(nproc)"
 
       - name: Compile latest server module
