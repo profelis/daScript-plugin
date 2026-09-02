@@ -2,11 +2,16 @@
 import {
 	CodeAction,
 	CodeActionKind,
+	Color,
+	ColorInformation,
+	ColorPresentation,
+	ColorPresentationParams,
 	CompletionItem, CompletionItemKind,
 	Diagnostic,
 	DiagnosticSeverity,
 	DiagnosticTag,
 	DidChangeConfigurationNotification,
+	DocumentColorParams,
 	DocumentSymbol,
 	InlayHint, InlayHintKind,
 	LSPAny,
@@ -198,7 +203,7 @@ connection.onInitialize((params) => {
 				resolveProvider: false,
 			},
 			documentFormattingProvider: true,
-			// colorProvider: true,
+			colorProvider: true,
 			// documentHighlightProvider : true, // TODO: implement
 			// workspace: {
 			// fileOperations:{}
@@ -1400,6 +1405,53 @@ connection.onDocumentFormatting(async (formatParams) => {
 	const fixedText = newText.replace(/\r\n/g, '\n')
 	const allTextRange = Range.create(Position.create(0, 0), doc.positionAt(doc.getText().length))
 	return [{ newText: fixedText, range: allTextRange }]
+})
+
+connection.onDocumentColor(async (params: DocumentColorParams): Promise<ColorInformation[]> => {
+	const doc = documents.get(params.textDocument.uri)
+	if (!doc)
+		return null
+	const settings = await getDocumentSettings(params.textDocument.uri)
+	const rgba = settings.colorPreviewFormat == 'RGBA'
+	const text = doc.getText()
+	const res: ColorInformation[] = []
+	const tokenEreg = /0x[0-9a-f]{6,8}[^0-9a-f]/ig
+	let m: RegExpExecArray
+	while ((m = tokenEreg.exec(text)) != null) {
+		const t = m.toString()
+		const value = parseInt(t, 16)
+		if (isNaN(value))
+			continue
+		const hasAlpha = t.length > 9
+		const byte3 = (value >>> 24) & 0xFF
+		const byte2 = (value >> 16) & 0xFF
+		const byte1 = (value >> 8) & 0xFF
+		const byte0 = value & 0xFF
+		let clr: Color
+		if (!hasAlpha)
+			clr = Color.create(byte2 / 0xFF, byte1 / 0xFF, byte0 / 0xFF, 1)
+		else if (rgba)
+			clr = Color.create(byte3 / 0xFF, byte2 / 0xFF, byte1 / 0xFF, byte0 / 0xFF)
+		else
+			clr = Color.create(byte2 / 0xFF, byte1 / 0xFF, byte0 / 0xFF, byte3 / 0xFF)
+		res.push({ range: { start: doc.positionAt(m.index), end: doc.positionAt(m.index + t.length - 1) }, color: clr })
+	}
+	return res
+})
+
+connection.onColorPresentation(async (params: ColorPresentationParams): Promise<ColorPresentation[]> => {
+	const settings = await getDocumentSettings(params.textDocument.uri)
+	const rgba = settings.colorPreviewFormat == 'RGBA'
+	const hasAlpha = rangeLength(params.range) > 8
+	const hex = (val: number) => {
+		const res = Math.round(val * 0xFF).toString(16).toUpperCase()
+		return res.length < 2 ? "0" + res : res
+	}
+	const c = params.color
+	const color = !hasAlpha ? hex(c.red) + hex(c.green) + hex(c.blue)
+		: rgba ? hex(c.red) + hex(c.green) + hex(c.blue) + hex(c.alpha)
+			: hex(c.alpha) + hex(c.red) + hex(c.green) + hex(c.blue)
+	return [{ label: `0x${color}` }]
 })
 
 connection.languages.inlayHint.on(async (inlayHintParams) => {
